@@ -192,15 +192,17 @@ class AddressBookLogic:
                     account_name = row.get('Name')
 
                     if not account_name:
-                        logging.warning(f"Skipping row {accounts_processed + 1} due to missing 'Name'. Data: {row}")
+                        logging.warning(f"[Row {accounts_processed}] Skipping due to missing 'Name'. Data: {row}")
                         accounts_skipped += 1
                         continue
 
+                    logging.info(f"[Row {accounts_processed}] Processing data: {row}")
+
                     # Extract data for billing address
                     billing_street = row.get('Billing Street')
-                billing_city = row.get('Billing City')
-                billing_state = row.get('Billing State')
-                billing_zip = row.get('Billing Zip')
+                    billing_city = row.get('Billing City')
+                    billing_state = row.get('Billing State')
+                    billing_zip = row.get('Billing Zip')
                 billing_country = row.get('Billing Country')
 
                 # Create and save billing address
@@ -249,15 +251,18 @@ class AddressBookLogic:
                 else:
                     account.same_as_billing = False
 
+                logging.debug(f"[Row {accounts_processed}] Account object created: Name='{account.name}', Phone='{account.phone}', BillingsID='{account.billing_address_id}', ShippingID='{account.shipping_address_id}', Website='{account.website}'")
+
                 try:
+                    logging.debug(f"[Row {accounts_processed}] Attempting to save account: {account.name}")
                     # Save the account
                     self.save_account(account)
                     accounts_imported += 1
-                    logging.info(f"Successfully imported account: {account.name}")
+                    logging.info(f"[Row {accounts_processed}] Successfully imported account: {account.name}")
                 except Exception as e: # Catch potential DB errors during save
-                    logging.error(f"Error saving account {account.name} to database: {e}. Row data: {row}")
+                    logging.error(f"[Row {accounts_processed}] Error saving account {account.name} to database: {e}. Row data: {row}")
                     accounts_skipped += 1
-
+            # This summary log should be outside the loop, after all rows are processed.
             logging.info(f"CSV Import Summary: Processed={accounts_processed}, Imported={accounts_imported}, Skipped={accounts_skipped}")
 
         except FileNotFoundError:

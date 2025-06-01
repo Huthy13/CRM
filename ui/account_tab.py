@@ -41,7 +41,7 @@ class AccountTab:
         self.import_csv_button = tk.Button(
             self.frame, text="Import Accounts from CSV",
             command=self.import_accounts_from_csv, width=button_width)
-        self.import_csv_button.grid(row=4, column=0, columnspan=3, padx=5, pady=5) # Spans across 3 columns
+        self.import_csv_button.grid(row=3, column=3, padx=5, pady=5) # Moved to row 3, column 3
 
 
         # Treeview for displaying accounts

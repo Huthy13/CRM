@@ -166,12 +166,28 @@ class DatabaseHandler:
 #account related methods
     def add_account(self, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description):
         """Add a new account with billing and shipping address IDs."""
-        self.cursor.execute("""
-            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description))
-        self.conn.commit()
-        return self.cursor.lastrowid
+        import logging # Ensure logging is imported
+        try:
+            logging.debug(f"Attempting to insert account: {name}, Phone: {phone}, BillingID: {billing_address_id}, ShippingID: {shipping_address_id}")
+            self.cursor.execute("""
+                INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description))
+
+            logging.debug(f"Account insert executed for: {name}. Attempting commit.")
+            self.conn.commit()
+            logging.debug(f"Commit successful for account: {name}.")
+
+            new_id = self.cursor.lastrowid
+            logging.debug(f"Account: {name}, lastrowid: {new_id}")
+            return new_id
+        except Exception as e:
+            logging.error(f"Database error in add_account for {name}: {e}", exc_info=True)
+            # Optionally, re-raise the exception if the caller should handle it
+            # For now, if commit fails or insert fails, lastrowid might be None or 0,
+            # which the logic layer now checks.
+            # However, it's often better to re-raise db-level exceptions.
+            raise # Re-raising to ensure it's caught by logic layer's try-except
 
     def get_all_accounts(self):
         """Retrieve all accounts with details."""

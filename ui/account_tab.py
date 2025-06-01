@@ -38,6 +38,11 @@ class AccountTab:
             command=self.remove_account, width=button_width)
         self.remove_account_button.grid(row=3, column=2, padx=5, pady=5)
 
+        self.import_csv_button = tk.Button(
+            self.frame, text="Import Accounts from CSV",
+            command=self.import_accounts_from_csv, width=button_width)
+        self.import_csv_button.grid(row=4, column=0, columnspan=3, padx=5, pady=5) # Spans across 3 columns
+
 
         # Treeview for displaying accounts
         self.tree = ttk.Treeview(self.frame, columns=("id", "name", "phone", "description"), show="headings")
@@ -109,3 +114,20 @@ class AccountTab:
         else:
             print("No account selected.")
             return None
+
+    def import_accounts_from_csv(self):
+        """Import accounts from a CSV file."""
+        # Open a file dialog to select the CSV file
+        filepath = tk.filedialog.askopenfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not filepath:
+            return  # User cancelled the dialog
+
+        try:
+            self.logic.import_accounts_from_csv(filepath)
+            messagebox.showinfo("Import Successful", "Accounts imported successfully.")
+            self.load_accounts()  # Refresh the account list
+        except Exception as e:
+            messagebox.showerror("Import Failed", f"An error occurred during import: {e}")

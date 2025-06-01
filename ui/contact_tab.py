@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog # Added filedialog
 from ui.contact_popup import ContactDetailsPopup # Renamed file, relative import
 # Import Contact if needed for type hinting, though logic layer currently returns Contact objects
 from shared.structs import Contact # Moved to shared package
@@ -38,6 +38,12 @@ class ContactTab:
             button_frame, text="Remove Contact",
             command=self.remove_contact, width=button_width)
         self.remove_contact_button.pack(side=tk.LEFT, padx=5)
+
+        # Import Contacts from CSV button
+        self.import_contacts_button = tk.Button( # Using tk.Button for consistency with others
+            button_frame, text="Import Contacts from CSV",
+            command=self.import_contacts_csv_action, width=button_width + 5) # Slightly wider
+        self.import_contacts_button.pack(side=tk.LEFT, padx=5)
 
         # Treeview for displaying contacts
         # Columns: "id" (hidden), "name", "phone", "email", "account_name"
@@ -152,6 +158,39 @@ class ContactTab:
 
     def refresh_contacts_list(self): # Added method for popup to call
         self.load_contacts()
+
+    def import_contacts_csv_action(self):
+        """Handles the action for importing contacts from a CSV file."""
+        filepath = filedialog.askopenfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Select Contact CSV File"
+        )
+
+        if not filepath:
+            return  # User cancelled the dialog
+
+        try:
+            if not hasattr(self.logic, 'import_contacts_from_csv'):
+                messagebox.showerror("Error", "Import functionality is not available in the logic layer.")
+                return
+
+            successful_imports, skipped_imports = self.logic.import_contacts_from_csv(filepath)
+
+            summary_message = f"Successfully imported {successful_imports} contacts."
+            if skipped_imports > 0:
+                summary_message += f"\nSkipped {skipped_imports} contacts (check logs for details)."
+
+            messagebox.showinfo("Import Complete", summary_message)
+            self.load_contacts()  # Refresh the contact list
+
+        except FileNotFoundError: # Specific error from logic layer
+            messagebox.showerror("Import Failed", f"Error: The file '{filepath}' was not found.")
+        except ValueError as ve: # Specific error from logic layer (e.g., missing headers)
+            messagebox.showerror("Import Failed", f"Invalid CSV file: {ve}")
+        # Catching general Exception to get other errors like csv.Error from logic layer
+        except Exception as e:
+            messagebox.showerror("Import Failed", f"An unexpected error occurred during import: {e}")
 
 # Example of how to integrate into a main application (for testing)
 if __name__ == '__main__':

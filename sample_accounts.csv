@@ -1,0 +1,4 @@
+Name,Phone,Billing Street,Billing City,Billing State,Billing Zip,Billing Country,Shipping Street,Shipping City,Shipping State,Shipping Zip,Shipping Country,Website,Description
+Account1,123-456-7890,123 Main St,Anytown,CA,90210,USA,123 Main St,Anytown,CA,90210,USA,www.account1.com,First account
+Account2,987-654-3210,456 Oak Ave,Otherville,NY,10001,USA,,,,,,www.account2.com,Second account with no shipping
+Account3,555-555-5555,789 Pine Ln,Smalltown,TX,75001,USA,1 Business Rd,Bigcity,TX,75002,USA,www.account3.com,Third account with different shipping

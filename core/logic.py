@@ -163,3 +163,200 @@ class AddressBookLogic:
     def delete_contact(self, contact_id: int):
         """Delete a specific contact."""
         self.db.delete_contact(contact_id)
+
+    def import_accounts_from_csv(self, filepath: str):
+        """Import accounts from a CSV file."""
+        import csv
+        import logging # Import logging module
+        from shared.structs import Account # Address is not directly instantiated here
+
+        # Configure basic logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+        accounts_processed = 0
+        accounts_imported = 0
+        accounts_skipped = 0
+
+        try:
+            with open(filepath, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                # Verify headers
+                expected_headers = ['Name', 'Phone', 'Billing Street', 'Billing City', 'Billing State', 'Billing Zip', 'Billing Country',
+                                    'Shipping Street', 'Shipping City', 'Shipping State', 'Shipping Zip', 'Shipping Country', 'Website', 'Description']
+                if not all(header in reader.fieldnames for header in ['Name']): # At least 'Name' must be present
+                    logging.error(f"CSV file is missing essential headers (e.g., 'Name'). Found headers: {reader.fieldnames}")
+                    raise ValueError("CSV file is missing essential headers (e.g., 'Name').")
+
+                for row in reader:
+                    accounts_processed += 1
+                    account_name = row.get('Name')
+
+                    if not account_name:
+                        logging.warning(f"Skipping row {accounts_processed + 1} due to missing 'Name'. Data: {row}")
+                        accounts_skipped += 1
+                        continue
+
+                    # Extract data for billing address
+                    billing_street = row.get('Billing Street')
+                billing_city = row.get('Billing City')
+                billing_state = row.get('Billing State')
+                billing_zip = row.get('Billing Zip')
+                billing_country = row.get('Billing Country')
+
+                # Create and save billing address
+                billing_address_id = None
+                if all([billing_street, billing_city, billing_state, billing_zip, billing_country]):
+                    billing_address_id = self.add_address(
+                        billing_street, billing_city, billing_state, billing_zip, billing_country
+                    )
+
+                # Extract data for shipping address
+                shipping_street = row.get('Shipping Street')
+                shipping_city = row.get('Shipping City')
+                shipping_state = row.get('Shipping State')
+                shipping_zip = row.get('Shipping Zip')
+                shipping_country = row.get('Shipping Country')
+
+                # Create and save shipping address
+                shipping_address_id = None
+                # Determine if shipping is same as billing
+                is_billing_same = (billing_street == shipping_street and
+                                   billing_city == shipping_city and
+                                   billing_state == shipping_state and
+                                   billing_zip == shipping_zip and
+                                   billing_country == shipping_country)
+
+                if is_billing_same:
+                    shipping_address_id = billing_address_id
+                elif all([shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country]):
+                    shipping_address_id = self.add_address(
+                        shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country
+                    )
+
+                # Create Account object
+                account = Account(
+                    name=row.get('Name'),
+                    phone=row.get('Phone'),
+                    billing_address_id=billing_address_id,
+                    shipping_address_id=shipping_address_id,
+                    # is_billing_same_as_shipping is a method, not a field to be set directly
+                    website=row.get('Website'),
+                    description=row.get('Description')
+                )
+                # Manually set same_as_billing based on comparison
+                if billing_address_id and shipping_address_id and billing_address_id == shipping_address_id:
+                    account.same_as_billing = True
+                else:
+                    account.same_as_billing = False
+
+                try:
+                    # Save the account
+                    self.save_account(account)
+                    accounts_imported += 1
+                    logging.info(f"Successfully imported account: {account.name}")
+                except Exception as e: # Catch potential DB errors during save
+                    logging.error(f"Error saving account {account.name} to database: {e}. Row data: {row}")
+                    accounts_skipped += 1
+
+            logging.info(f"CSV Import Summary: Processed={accounts_processed}, Imported={accounts_imported}, Skipped={accounts_skipped}")
+
+        except FileNotFoundError:
+            logging.error(f"Error: The file '{filepath}' was not found.")
+            raise # Re-raise to be caught by UI
+        except csv.Error as e:
+            logging.error(f"Error parsing CSV file '{filepath}': {e}")
+            raise # Re-raise to be caught by UI
+        except ValueError as e: # For header validation
+            # Logging already done
+            raise # Re-raise to be caught by UI
+        except Exception as e: # Catch any other unexpected errors
+            logging.error(f"An unexpected error occurred during CSV import: {e}")
+            raise # Re-raise to be caught by UI
+
+    def import_contacts_from_csv(self, filepath: str) -> tuple[int, int]:
+        """Import contacts from a CSV file."""
+        import csv
+        import logging
+        from shared.structs import Contact
+
+        # Ensure logging is configured (it might have been by account import)
+        if not logging.getLogger().hasHandlers():
+            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+        contacts_processed = 0
+        contacts_imported = 0
+        contacts_skipped = 0
+
+        expected_headers = ['name', 'phone', 'email', 'account_id']
+
+        try:
+            with open(filepath, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+
+                # Verify essential headers ('name', 'phone')
+                if not all(header in reader.fieldnames for header in ['name', 'phone']):
+                    logging.error(
+                        f"CSV file '{filepath}' is missing essential headers ('name', 'phone'). Found headers: {reader.fieldnames}"
+                    )
+                    raise ValueError("CSV file is missing essential headers ('name', 'phone').")
+
+                logging.info(f"Starting CSV import for contacts from file: {filepath}")
+
+                for row in reader:
+                    contacts_processed += 1
+                    contact_name = row.get('name')
+                    contact_phone = row.get('phone')
+                    contact_email = row.get('email') # Optional
+                    account_id_str = row.get('account_id') # Optional
+
+                    if not contact_name or not contact_phone:
+                        logging.warning(
+                            f"Skipping row {contacts_processed + 1} in '{filepath}' due to missing 'name' or 'phone'. Data: {row}"
+                        )
+                        contacts_skipped += 1
+                        continue
+
+                    contact_account_id = None
+                    if account_id_str:
+                        try:
+                            contact_account_id = int(account_id_str)
+                        except ValueError:
+                            logging.warning(
+                                f"Invalid account_id '{account_id_str}' for contact '{contact_name}' in row {contacts_processed + 1}. Treating as None. File: '{filepath}'"
+                            )
+                            # contact_account_id remains None
+
+                    contact = Contact(
+                        name=contact_name,
+                        phone=contact_phone,
+                        email=contact_email,
+                        account_id=contact_account_id
+                    )
+
+                    try:
+                        self.save_contact(contact)
+                        contacts_imported += 1
+                        logging.info(f"Successfully imported contact: {contact.name}")
+                    except Exception as e:
+                        logging.error(
+                            f"Error saving contact {contact.name} to database: {e}. Row data: {row}. File: '{filepath}'"
+                        )
+                        contacts_skipped += 1
+
+            logging.info(
+                f"CSV Contact Import Summary for '{filepath}': Processed={contacts_processed}, Imported={contacts_imported}, Skipped={contacts_skipped}"
+            )
+            return contacts_imported, contacts_skipped
+
+        except FileNotFoundError:
+            logging.error(f"Error: The contact CSV file '{filepath}' was not found.")
+            raise
+        except csv.Error as e:
+            logging.error(f"Error parsing CSV file '{filepath}': {e}")
+            raise
+        except ValueError as e: # For header validation
+            # Logging already done by the check itself or above
+            raise
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during contact CSV import from '{filepath}': {e}")
+            raise

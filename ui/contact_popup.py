@@ -29,17 +29,21 @@ class ContactDetailsPopup(tk.Toplevel):
         self.email_entry = tk.Entry(self, width=40)
         self.email_entry.grid(row=2, column=1, padx=5, pady=5)
 
-        tk.Label(self, text="Account:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self, text="Role:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.role_entry = tk.Entry(self, width=40)
+        self.role_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        tk.Label(self, text="Account:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.account_combobox = ttk.Combobox(self, width=37, state="readonly")
-        self.account_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.account_combobox.grid(row=4, column=1, padx=5, pady=5)
         self.populate_accounts_dropdown()
 
         # Save and Cancel Buttons
         self.save_button = tk.Button(self, text="Save", command=self.save_contact)
-        self.save_button.grid(row=4, column=0, padx=5, pady=10, sticky="e")
+        self.save_button.grid(row=5, column=0, padx=5, pady=10, sticky="e")
 
         self.cancel_button = tk.Button(self, text="Cancel", command=self.destroy)
-        self.cancel_button.grid(row=4, column=1, padx=5, pady=10, sticky="w")
+        self.cancel_button.grid(row=5, column=1, padx=5, pady=10, sticky="w")
 
         if self.contact_id:
             self.load_contact_details()
@@ -84,6 +88,7 @@ class ContactDetailsPopup(tk.Toplevel):
             self.name_entry.insert(0, contact_details.name if contact_details.name else "")
             self.phone_entry.insert(0, contact_details.phone if contact_details.phone else "")
             self.email_entry.insert(0, contact_details.email if contact_details.email else "")
+            self.role_entry.insert(0, contact_details.role if contact_details.role else "")
 
             # Set combobox
             account_id = contact_details.account_id # This line was from the previous plan for attribute access
@@ -112,6 +117,7 @@ class ContactDetailsPopup(tk.Toplevel):
         name = self.name_entry.get().strip()
         phone = self.phone_entry.get().strip()
         email = self.email_entry.get().strip()
+        role = self.role_entry.get().strip()
 
         if not name:
             messagebox.showerror("Validation Error", "Name cannot be empty.")
@@ -133,6 +139,7 @@ class ContactDetailsPopup(tk.Toplevel):
             name=name,
             phone=phone,
             email=email,
+            role=role,
             account_id=account_id
         )
 

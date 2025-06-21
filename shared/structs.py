@@ -68,19 +68,21 @@ class Account:
 
 
 class Contact:
-    def __init__(self, contact_id=None, name="", phone="", email="", account_id=None):
+    def __init__(self, contact_id=None, name="", phone="", email="", account_id=None, role=""):
         self.contact_id = contact_id
         self.name = name
         self.phone = phone
         self.email = email
         self.account_id = account_id
+        self.role = role
 
     def __str__(self):
         return (f"Contact ID: {self.contact_id}\n"
                 f"Name: {self.name}\n"
                 f"Phone: {self.phone}\n"
                 f"Email: {self.email}\n"
-                f"Account ID: {self.account_id}")
+                f"Account ID: {self.account_id}\n"
+                f"Role: {self.role}")
 
     def to_dict(self):
         """Returns the contact as a dictionary."""
@@ -89,5 +91,6 @@ class Contact:
             "name": self.name,
             "phone": self.phone,
             "email": self.email,
-            "account_id": self.account_id
+            "account_id": self.account_id,
+            "role": self.role
         }

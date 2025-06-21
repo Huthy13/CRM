@@ -59,6 +59,7 @@ class DatabaseHandler:
                 name TEXT NOT NULL,
                 phone TEXT NOT NULL,
                 email TEXT,
+                role TEXT,
                 account_id INTEGER,
                 FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL
             )"""
@@ -109,7 +110,7 @@ class DatabaseHandler:
     def get_contact_details(self, contact_id):
         """Retrieve a single contact's details by their ID."""
         self.cursor.execute("""
-            SELECT id, name, phone, email, account_id
+            SELECT id, name, phone, email, role, account_id
             FROM contacts
             WHERE id = ?
         """, (contact_id,))
@@ -119,26 +120,26 @@ class DatabaseHandler:
             return dict(zip(columns, row))
         return None
 
-    def add_contact(self, name, phone, email, account_id):
-        """Add a new contact including email."""
-        self.cursor.execute("INSERT INTO contacts (name, phone, email, account_id) VALUES (?, ?, ?, ?)",
-                            (name, phone, email, account_id))
+    def add_contact(self, name, phone, email, role, account_id):
+        """Add a new contact including email and role."""
+        self.cursor.execute("INSERT INTO contacts (name, phone, email, role, account_id) VALUES (?, ?, ?, ?, ?)",
+                            (name, phone, email, role, account_id))
         self.conn.commit()
         return self.cursor.lastrowid
 
-    def update_contact(self, contact_id, name, phone, email, account_id):
-        """Update contact details in the database including email."""
+    def update_contact(self, contact_id, name, phone, email, role, account_id):
+        """Update contact details in the database including email and role."""
         self.cursor.execute("""
             UPDATE contacts
-            SET name = ?, phone = ?, email = ?, account_id = ?
+            SET name = ?, phone = ?, email = ?, role = ?, account_id = ?
             WHERE id = ?
-        """, (name, phone, email, account_id, contact_id))
+        """, (name, phone, email, role, account_id, contact_id))
         self.conn.commit()
 
     def get_contacts_by_account(self, account_id):
-        """Retrieve contacts for a given account, including email."""
+        """Retrieve contacts for a given account, including email and role."""
         self.cursor.execute("""
-            SELECT c.id, c.name, c.phone, c.email, c.account_id,
+            SELECT c.id, c.name, c.phone, c.email, c.role, c.account_id,
                    a.name AS account_name
             FROM contacts AS c
             LEFT JOIN accounts AS a ON c.account_id = a.id
@@ -148,9 +149,9 @@ class DatabaseHandler:
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
     def get_all_contacts(self):
-        """Retrieve all contacts with full details, including email and account information."""
+        """Retrieve all contacts with full details, including email, role, and account information."""
         self.cursor.execute("""
-            SELECT contacts.id, contacts.name, contacts.phone, contacts.email, contacts.account_id,
+            SELECT contacts.id, contacts.name, contacts.phone, contacts.email, contacts.role, contacts.account_id,
                    accounts.name AS account_name
             FROM contacts
             LEFT JOIN accounts ON contacts.account_id = accounts.id

@@ -95,6 +95,7 @@ class AddressBookLogic:
                 name=contact_data["name"],
                 phone=contact_data["phone"],
                 email=contact_data["email"],
+                role=contact_data.get("role", ""), # Add role, with default
                 account_id=contact_data["account_id"]
             )
         return None
@@ -102,35 +103,39 @@ class AddressBookLogic:
     def save_contact(self, contact: Contact) -> int | None :
         """Add a new contact or update an existing one. Returns Contact ID."""
         if contact.contact_id is None:
-            new_contact_id = self.db.add_contact( # db.add_contact now returns id
+            # Call db.add_contact with all required arguments, including role
+            new_contact_id = self.db.add_contact(
                 name=contact.name,
                 phone=contact.phone,
                 email=contact.email,
+                role=contact.role,  # Pass the role attribute
                 account_id=contact.account_id
             )
             if new_contact_id:
                 contact.contact_id = new_contact_id # Update object with new ID
             return new_contact_id
         else:
+            # Call db.update_contact with all required arguments, including role
             self.db.update_contact(
                 contact_id=contact.contact_id,
                 name=contact.name,
                 phone=contact.phone,
                 email=contact.email,
+                role=contact.role,  # Pass the role attribute
                 account_id=contact.account_id
             )
             return contact.contact_id
 
     # Note: The following add_contact and update_contact methods are now less ideal.
     # They are retained for now but save_contact should be preferred.
-    # Their signatures are updated to include email to match the DB layer.
-    def add_contact(self, name: str, phone: str, email: str | None, account_id: int):
+    # Their signatures are updated to include email and role to match the DB layer.
+    def add_contact(self, name: str, phone: str, email: str | None, role: str | None, account_id: int):
         """(Deprecated: Use save_contact) Add a new contact."""
-        return self.db.add_contact(name, phone, email, account_id)
+        return self.db.add_contact(name, phone, email, role, account_id)
 
-    def update_contact(self, contact_id: int, name: str, phone: str, email: str | None, account_id: int):
+    def update_contact(self, contact_id: int, name: str, phone: str, email: str | None, role: str | None, account_id: int):
         """(Deprecated: Use save_contact) Update an existing contact."""
-        self.db.update_contact(contact_id, name, phone, email, account_id)
+        self.db.update_contact(contact_id, name, phone, email, role, account_id)
 
     def get_contacts_by_account(self, account_id: int) -> list[Contact]:
         """Retrieve contacts associated with a specific account as Contact objects."""
@@ -142,6 +147,7 @@ class AddressBookLogic:
                 name=row_data["name"],
                 phone=row_data["phone"],
                 email=row_data["email"],
+                role=row_data.get("role", ""), # Add role
                 account_id=row_data["account_id"]
             ))
         return contact_list
@@ -156,6 +162,7 @@ class AddressBookLogic:
                 name=row_data["name"],
                 phone=row_data["phone"],
                 email=row_data["email"],
+                role=row_data.get("role", ""), # Add role
                 account_id=row_data["account_id"]
             ))
         return contact_list

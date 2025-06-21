@@ -40,18 +40,20 @@ class ContactTab:
         self.remove_contact_button.pack(side=tk.LEFT, padx=5)
 
         # Treeview for displaying contacts
-        # Columns: "id" (hidden), "name", "phone", "email", "account_name"
-        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "phone", "email", "account_name"), show="headings")
+        # Columns: "id" (hidden), "name", "phone", "email", "role", "account_name"
+        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "phone", "email", "role", "account_name"), show="headings")
 
         self.tree.column("id", width=0, stretch=False) # Hidden ID column
         self.tree.heading("name", text="Contact Name", command=lambda: self.sort_column("name", False))
         self.tree.heading("phone", text="Phone", command=lambda: self.sort_column("phone", False))
         self.tree.heading("email", text="Email", command=lambda: self.sort_column("email", False))
+        self.tree.heading("role", text="Role", command=lambda: self.sort_column("role", False))
         self.tree.heading("account_name", text="Account", command=lambda: self.sort_column("account_name", False))
 
         self.tree.column("name", width=150, anchor=tk.W)
         self.tree.column("phone", width=100, anchor=tk.W)
         self.tree.column("email", width=180, anchor=tk.W)
+        self.tree.column("role", width=100, anchor=tk.W)
         self.tree.column("account_name", width=120, anchor=tk.W)
 
         self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
@@ -144,6 +146,7 @@ class ContactTab:
                     contact.name,
                     contact.phone,
                     contact.email,
+                    contact.role,
                     account_name_display
                 ))
         except Exception as e:

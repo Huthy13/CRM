@@ -13,11 +13,6 @@ class AddressBookLogic:
         """Update an existing address."""
         self.db.update_address(address_id, street, city, state, zip, country)
 
-    def get_existing_address_by_id(self, id): # TODO: Fix this method's signature/implementation if used
-        """Update an existing address."""
-        # self.db.get_existing_address_by_id(street, city, zip) # Original had undefined vars
-        pass # Placeholder
-
     def get_address_obj(self, address_id):
         data = self.db.get_address(address_id)
         if data: # Ensure data is not None
@@ -49,17 +44,6 @@ class AddressBookLogic:
     def get_all_accounts(self): # This likely returns tuples, not Account objects
         """Retrieve all accounts. Consider returning list of Account objects if needed elsewhere."""
         return self.db.get_all_accounts()
-
-    # These methods below seem redundant if save_account is used.
-    # Consider refactoring or removing if save_account is the preferred interface.
-    def add_account(self, account: Account): # This was specific to logic layer
-        """Add a new account with all additional fields."""
-        return self.db.add_account(account.name, account.phone, account.billing_address_id,
-            account.shipping_address_id, account.is_billing_same_as_shipping(), account.website, account.description)
-
-    def update_account(self, account: Account): # This was specific to logic layer
-        return self.db.update_account(account.account_id, account.name, account.phone, account.billing_address_id,
-            account.shipping_address_id, account.is_billing_same_as_shipping(), account.website, account.description)
 
     def get_account_details(self, account_id) -> Account | None:
         """Retrieve full account details, including new fields."""
@@ -125,17 +109,6 @@ class AddressBookLogic:
                 account_id=contact.account_id
             )
             return contact.contact_id
-
-    # Note: The following add_contact and update_contact methods are now less ideal.
-    # They are retained for now but save_contact should be preferred.
-    # Their signatures are updated to include email and role to match the DB layer.
-    def add_contact(self, name: str, phone: str, email: str | None, role: str | None, account_id: int):
-        """(Deprecated: Use save_contact) Add a new contact."""
-        return self.db.add_contact(name, phone, email, role, account_id)
-
-    def update_contact(self, contact_id: int, name: str, phone: str, email: str | None, role: str | None, account_id: int):
-        """(Deprecated: Use save_contact) Update an existing contact."""
-        self.db.update_contact(contact_id, name, phone, email, role, account_id)
 
     def get_contacts_by_account(self, account_id: int) -> list[Contact]:
         """Retrieve contacts associated with a specific account as Contact objects."""

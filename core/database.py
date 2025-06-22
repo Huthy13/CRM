@@ -64,6 +64,37 @@ class DatabaseHandler:
                 FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL
             )"""
         )
+
+        # Users table (simplified for now)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL
+            )
+        """)
+        # Pre-populate a default user if the table is empty (for created_by_user_id)
+        self.cursor.execute("SELECT COUNT(*) FROM users")
+        if self.cursor.fetchone()[0] == 0:
+            self.cursor.execute("INSERT INTO users (username) VALUES (?)", ('system_user',))
+
+
+        # Interactions table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS interactions (
+                interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER,
+                contact_id INTEGER,
+                interaction_type TEXT CHECK(interaction_type IN ('Call', 'Email', 'Meeting', 'Visit', 'Other')) NOT NULL,
+                date_time TEXT NOT NULL, -- Storing as ISO8601 string
+                subject TEXT(150) NOT NULL,
+                description TEXT,
+                created_by_user_id INTEGER,
+                attachment_path TEXT,
+                FOREIGN KEY (company_id) REFERENCES accounts (id) ON DELETE SET NULL,
+                FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE SET NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE SET NULL
+            )
+        """)
         self.conn.commit()
 
 #address related methods
@@ -224,3 +255,71 @@ class DatabaseHandler:
             WHERE id = ?
         """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_id))
         self.conn.commit()
+
+# Interaction related methods
+    def add_interaction(self, company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path):
+        """Add a new interaction and return its ID."""
+        if not company_id and not contact_id:
+            raise ValueError("Either company_id or contact_id must be provided for an interaction.")
+
+        self.cursor.execute("""
+            INSERT INTO interactions (company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_interaction(self, interaction_id):
+        """Retrieve an interaction by ID."""
+        self.cursor.execute("""
+            SELECT interaction_id, company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path
+            FROM interactions
+            WHERE interaction_id = ?
+        """, (interaction_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_interactions(self, company_id=None, contact_id=None):
+        """Retrieve interactions, filterable by company_id or contact_id."""
+        query = """
+            SELECT interaction_id, company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path
+            FROM interactions
+            WHERE 1=1
+        """
+        params = []
+        if company_id:
+            query += " AND company_id = ?"
+            params.append(company_id)
+        if contact_id:
+            query += " AND contact_id = ?"
+            params.append(contact_id)
+
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_interaction(self, interaction_id, company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path):
+        """Update an existing interaction."""
+        if not company_id and not contact_id:
+            raise ValueError("Either company_id or contact_id must be provided for an interaction.")
+
+        self.cursor.execute("""
+            UPDATE interactions
+            SET company_id = ?, contact_id = ?, interaction_type = ?, date_time = ?, subject = ?, description = ?, created_by_user_id = ?, attachment_path = ?
+            WHERE interaction_id = ?
+        """, (company_id, contact_id, interaction_type, date_time, subject, description, created_by_user_id, attachment_path, interaction_id))
+        self.conn.commit()
+
+    def delete_interaction(self, interaction_id):
+        """Delete an interaction by ID."""
+        self.cursor.execute("DELETE FROM interactions WHERE interaction_id = ?", (interaction_id,))
+        self.conn.commit()
+
+    def get_user_id_by_username(self, username):
+        """Retrieve a user's ID by their username."""
+        self.cursor.execute("SELECT user_id FROM users WHERE username = ?", (username,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None

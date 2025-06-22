@@ -51,6 +51,29 @@ class AccountTab:
         self.tree.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.select_account)
 
+        # Configure the grid row and column containing the tree to expand
+        self.frame.grid_rowconfigure(7, weight=1)
+        # Since the tree spans 3 columns (0, 1, 2), we give column 0 the weight
+        # as it's the starting column. If individual resizing of these columns
+        # under the tree was desired, each would need separate configuration.
+        # For a single expanding Treeview spanning columns, this is usually sufficient.
+        self.frame.grid_columnconfigure(0, weight=1)
+        # If columns 1 and 2 should also proportionally take space (though the treeview itself manages its internal columns):
+        # self.frame.grid_columnconfigure(1, weight=1)
+        # self.frame.grid_columnconfigure(2, weight=1)
+        # However, typically for a widget spanning columns, configuring the weight of the first column
+        # in the span and ensuring the widget uses "nsew" sticky is the primary way.
+        # Let's also make sure other columns used by buttons don't unintentionally expand too much.
+        # The buttons are in row 3, columns 0, 1, 2.
+        # If we only want the tree's part of column 0 to expand, this is fine.
+        # If the buttons' columns should not expand, their weight should be 0 (default).
+        # The current setup with columnspan=3 for the tree means it will use space from col 0, 1, 2.
+        # Giving weight to column 0 is the most straightforward. If issues arise,
+        # we might need to give weight to all 3 (0,1,2) or put the tree in its own column without columnspan.
+        # For now, this is the standard approach.
+        # We also need to ensure that the frame itself expands if it's inside another container.
+        # That part is handled in main_view.py for the notebook tab.
+
     def sort_column(self, col, reverse):
         """Sort the Treeview column when clicked."""
         data = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]

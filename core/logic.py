@@ -476,6 +476,14 @@ class AddressBookLogic:
                 updated_count += 1
         return updated_count
 
+    # User methods
+    def get_all_users(self) -> list[tuple[int, str]]:
+        """
+        Retrieve all users from the database.
+        Returns a list of tuples, where each tuple is (user_id, username).
+        """
+        return self.db.get_all_users()
+
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed
 if TYPE_CHECKING:

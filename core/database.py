@@ -202,6 +202,11 @@ class DatabaseHandler:
         columns = [desc[0] for desc in self.cursor.description]
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
+    def get_all_users(self) -> list[tuple[int, str]]:
+        """Retrieve all users (user_id, username)."""
+        self.cursor.execute("SELECT user_id, username FROM users ORDER BY username")
+        return self.cursor.fetchall()
+
     def get_all_contacts(self):
         """Retrieve all contacts with full details, including email, role, and account information."""
         self.cursor.execute("""

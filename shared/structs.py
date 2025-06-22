@@ -143,3 +143,144 @@ class Interaction:
             "created_by_user_id": self.created_by_user_id,
             "attachment_path": self.attachment_path
         }
+
+import datetime # Ensure datetime is imported for Task due_date typing
+from enum import Enum
+
+class TaskStatus(Enum):
+    """Enumeration for the status of a Task."""
+    OPEN = "Open"
+    IN_PROGRESS = "In Progress"
+    COMPLETED = "Completed"
+    OVERDUE = "Overdue"
+
+class TaskPriority(Enum):
+    """Enumeration for the priority level of a Task."""
+    LOW = "Low"
+    MEDIUM = "Medium"
+    HIGH = "High"
+
+class Task:
+    """
+    Represents a task in the CRM system.
+
+    Attributes:
+        task_id (int | None): The unique identifier for the task.
+        company_id (int | None): The ID of the company associated with this task.
+        contact_id (int | None): The ID of the contact associated with this task.
+        title (str): The title of the task. Cannot be empty.
+        description (str | None): A detailed description of the task.
+        due_date (datetime.date | datetime.datetime | None): The date/datetime when the task is due. Must be provided.
+        status (TaskStatus): The current status of the task (e.g., Open, Completed).
+        priority (TaskPriority | None): The priority level of the task (e.g., Low, High).
+        assigned_to_user_id (int | None): The ID of the user to whom this task is assigned.
+        created_by_user_id (int | None): The ID of the user who created this task.
+        created_at (datetime.datetime | None): Timestamp of when the task was created.
+        updated_at (datetime.datetime | None): Timestamp of when the task was last updated.
+    """
+    def __init__(self,
+                 task_id: int | None = None,
+                 company_id: int | None = None,
+                 contact_id: int | None = None,
+                 title: str = "",
+                 description: str | None = None,
+                 due_date: datetime.date | datetime.datetime | None = None,
+                 status: TaskStatus = TaskStatus.OPEN,
+                 priority: TaskPriority | None = None,
+                 assigned_to_user_id: int | None = None,
+                 created_by_user_id: int | None = None, # Should be set, but allow None initially
+                 created_at: datetime.datetime | None = None,
+                 updated_at: datetime.datetime | None = None):
+        if not title:
+            raise ValueError("Task title cannot be empty.")
+        if due_date is None:
+            raise ValueError("Task due_date must be provided.")
+
+        self.task_id = task_id
+        self.company_id = company_id
+        self.contact_id = contact_id
+        self.title = title
+        self.description = description
+        self.due_date = due_date
+        self.status = status
+        self.priority = priority
+        self.assigned_to_user_id = assigned_to_user_id
+        self.created_by_user_id = created_by_user_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+
+    def __str__(self) -> str:
+        """Returns a string representation of the Task object, primarily for debugging."""
+        return (f"Task ID: {self.task_id}\n"
+                f"Title: {self.title}\n"
+                f"Status: {self.status.value}\n"
+                f"Priority: {self.priority.value if self.priority else 'N/A'}\n"
+                f"Due Date: {self.due_date.isoformat() if self.due_date else 'N/A'}\n"
+                f"Assigned To User ID: {self.assigned_to_user_id}\n"
+                f"Created By User ID: {self.created_by_user_id}\n"
+                f"Company ID: {self.company_id}\n"
+                f"Contact ID: {self.contact_id}")
+
+    def to_dict(self) -> dict:
+        """Returns the task as a dictionary."""
+        return {
+            "task_id": self.task_id,
+            "company_id": self.company_id,
+            "contact_id": self.contact_id,
+            "title": self.title,
+            "description": self.description,
+            "due_date": self.due_date.isoformat() if self.due_date else None,
+            "status": self.status.value,
+            "priority": self.priority.value if self.priority else None,
+            "assigned_to_user_id": self.assigned_to_user_id,
+            "created_by_user_id": self.created_by_user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Task':
+        """
+        Creates a Task object from a dictionary representation.
+
+        Args:
+            data (dict): A dictionary containing task data, typically from a database record
+                         or an API payload. Keys should match Task attributes.
+
+        Returns:
+            Task: An instance of the Task class.
+
+        Raises:
+            ValueError: If essential fields like 'title' or 'due_date' are missing or
+                        if 'status' or 'priority' have values not in their respective enums.
+        """
+        due_date = data.get("due_date")
+        if isinstance(due_date, str):
+            # Attempt to parse as datetime first, then date
+            try:
+                due_date = datetime.datetime.fromisoformat(due_date)
+            except ValueError:
+                due_date = datetime.date.fromisoformat(due_date)
+
+        created_at = data.get("created_at")
+        if isinstance(created_at, str):
+            created_at = datetime.datetime.fromisoformat(created_at)
+
+        updated_at = data.get("updated_at")
+        if isinstance(updated_at, str):
+            updated_at = datetime.datetime.fromisoformat(updated_at)
+
+        return cls(
+            task_id=data.get("task_id"),
+            company_id=data.get("company_id"),
+            contact_id=data.get("contact_id"),
+            title=data.get("title", ""), # Ensure title is present
+            description=data.get("description"),
+            due_date=due_date,
+            status=TaskStatus(data.get("status", "Open")) if data.get("status") else TaskStatus.OPEN,
+            priority=TaskPriority(data.get("priority")) if data.get("priority") else None,
+            assigned_to_user_id=data.get("assigned_to_user_id"),
+            created_by_user_id=data.get("created_by_user_id"),
+            created_at=created_at,
+            updated_at=updated_at
+        )

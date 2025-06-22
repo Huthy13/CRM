@@ -1,4 +1,8 @@
 from shared.structs import Address, Account, Contact # Import Contact
+from typing import Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from shared.structs import Interaction # For type hinting
 
 class AddressBookLogic:
     def __init__(self, db_handler):
@@ -143,3 +147,161 @@ class AddressBookLogic:
     def delete_contact(self, contact_id: int):
         """Delete a specific contact."""
         self.db.delete_contact(contact_id)
+
+    # Interaction Methods
+    def save_interaction(self, interaction: 'Interaction') -> Optional[int]:
+        """
+        Saves an interaction (creates or updates) after validation.
+        Returns the interaction ID.
+        """
+        from shared.structs import InteractionType, Interaction # Local import
+        import datetime
+
+        # Validation
+        if not interaction.company_id and not interaction.contact_id:
+            raise ValueError("Interaction must be associated with a company or a contact.")
+
+        if not isinstance(interaction.interaction_type, InteractionType):
+            # Attempt to convert from string if necessary, e.g. from API payload
+            if isinstance(interaction.interaction_type, str):
+                try:
+                    interaction.interaction_type = InteractionType(interaction.interaction_type)
+                except ValueError:
+                    raise ValueError(f"Invalid interaction type string: '{interaction.interaction_type}'. Must be one of {', '.join([it.value for it in InteractionType])}.")
+            else:
+                raise ValueError(f"Invalid interaction type. Must be an InteractionType enum. Got {type(interaction.interaction_type)}")
+
+        # Ensure date_time is a datetime object before comparison
+        if isinstance(interaction.date_time, str):
+            try:
+                interaction.date_time = datetime.datetime.fromisoformat(interaction.date_time)
+            except ValueError:
+                raise ValueError("Invalid date_time format. Expected ISO format string.")
+
+        if interaction.date_time and interaction.date_time.replace(tzinfo=None) > datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+            raise ValueError("Interaction date and time cannot be in the future.")
+
+        if not interaction.subject:
+            raise ValueError("Interaction subject cannot be empty.")
+        if len(interaction.subject) > 150:
+            raise ValueError("Interaction subject cannot exceed 150 characters.")
+
+        # Ensure created_by_user_id is set (e.g., from a logged-in user or default)
+        # For now, using a default system user if not provided.
+        if interaction.created_by_user_id is None:
+            system_user_id = self.db.get_user_id_by_username('system_user')
+            if not system_user_id: # Should not happen if DB setup is correct
+                raise Exception("Default system user not found. Please initialize the database correctly.")
+            interaction.created_by_user_id = system_user_id
+
+        # Convert datetime to ISO string for DB storage
+        date_time_str = interaction.date_time.isoformat() if interaction.date_time else None
+
+        if interaction.interaction_id is None:
+            # Add new interaction
+            new_id = self.db.add_interaction(
+                company_id=interaction.company_id,
+                contact_id=interaction.contact_id,
+                interaction_type=interaction.interaction_type.value, # Store enum value
+                date_time=date_time_str,
+                subject=interaction.subject,
+                description=interaction.description,
+                created_by_user_id=interaction.created_by_user_id,
+                attachment_path=interaction.attachment_path
+            )
+            interaction.interaction_id = new_id
+            return new_id
+        else:
+            # Update existing interaction
+            self.db.update_interaction(
+                interaction_id=interaction.interaction_id,
+                company_id=interaction.company_id,
+                contact_id=interaction.contact_id,
+                interaction_type=interaction.interaction_type.value, # Store enum value
+                date_time=date_time_str,
+                subject=interaction.subject,
+                description=interaction.description,
+                created_by_user_id=interaction.created_by_user_id,
+                attachment_path=interaction.attachment_path
+            )
+            return interaction.interaction_id
+
+    def get_interaction_details(self, interaction_id: int) -> Optional['Interaction']:
+        """Retrieve full interaction details and return an Interaction object."""
+        from shared.structs import Interaction, InteractionType # Local import
+        import datetime
+
+        data = self.db.get_interaction(interaction_id) # db returns a dict
+        if data:
+            # Convert interaction_type string from DB back to Enum member
+            interaction_type_enum = None
+            if data.get("interaction_type"):
+                try:
+                    interaction_type_enum = InteractionType(data["interaction_type"])
+                except ValueError:
+                    # Handle cases where the value from DB might not be a valid enum member
+                    # This could be due to data corruption or if values were inserted bypassing enum checks
+                    print(f"Warning: Invalid interaction type '{data['interaction_type']}' found in database for interaction ID {interaction_id}.")
+                    interaction_type_enum = InteractionType.OTHER # Fallback or handle as error
+
+            # Convert ISO string date_time back to datetime object
+            date_time_obj = None
+            if data.get("date_time"):
+                try:
+                    date_time_obj = datetime.datetime.fromisoformat(data["date_time"])
+                except ValueError:
+                    print(f"Warning: Invalid date format '{data['date_time']}' found in database for interaction ID {interaction_id}.")
+
+
+            return Interaction(
+                interaction_id=data.get("interaction_id"),
+                company_id=data.get("company_id"),
+                contact_id=data.get("contact_id"),
+                interaction_type=interaction_type_enum,
+                date_time=date_time_obj,
+                subject=data.get("subject"),
+                description=data.get("description"),
+                created_by_user_id=data.get("created_by_user_id"),
+                attachment_path=data.get("attachment_path")
+            )
+        return None
+
+    def get_all_interactions(self, company_id: int = None, contact_id: int = None) -> List['Interaction']:
+        """Retrieve all interactions, optionally filtered by company or contact, as Interaction objects."""
+        from shared.structs import Interaction, InteractionType # Local import
+        import datetime
+
+        interactions_data = self.db.get_interactions(company_id=company_id, contact_id=contact_id) # db returns list of dicts
+        interaction_list = []
+        for row_data in interactions_data:
+            interaction_type_enum = None
+            if row_data.get("interaction_type"):
+                try:
+                    interaction_type_enum = InteractionType(row_data["interaction_type"])
+                except ValueError:
+                    print(f"Warning: Invalid interaction type '{row_data['interaction_type']}' found for interaction ID {row_data.get('interaction_id')}.")
+                    interaction_type_enum = InteractionType.OTHER
+
+            date_time_obj = None
+            if row_data.get("date_time"):
+                try:
+                    date_time_obj = datetime.datetime.fromisoformat(row_data["date_time"])
+                except ValueError:
+                     print(f"Warning: Invalid date format '{row_data['date_time']}' found for interaction ID {row_data.get('interaction_id')}.")
+
+            interaction_list.append(Interaction(
+                interaction_id=row_data.get("interaction_id"),
+                company_id=row_data.get("company_id"),
+                contact_id=row_data.get("contact_id"),
+                interaction_type=interaction_type_enum,
+                date_time=date_time_obj,
+                subject=row_data.get("subject"),
+                description=row_data.get("description"),
+                created_by_user_id=row_data.get("created_by_user_id"),
+                attachment_path=row_data.get("attachment_path")
+            ))
+        return interaction_list
+
+    def delete_interaction(self, interaction_id: int):
+        """Delete a specific interaction."""
+        self.db.delete_interaction(interaction_id)

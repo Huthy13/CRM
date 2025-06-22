@@ -4,12 +4,14 @@ from core.database import DatabaseHandler
 from core.logic import AddressBookLogic
 from ui.contact_tab import ContactTab
 from ui.account_tab import AccountTab
+from ui.interaction_tab import InteractionLogTab # Import the new tab
 
 
 class AddressBookView:
     def __init__(self, root, logic): # Add logic parameter
         self.root = root
         self.root.title("Ace's CRM")
+        self.root.geometry("900x700") # Adjusted for potentially more content
 
         # Use the passed-in logic instance
         self.logic = logic
@@ -22,11 +24,18 @@ class AddressBookView:
         # Setup Notebook for tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.root.columnconfigure(0, weight=1) # Allow notebook to expand
+        self.root.rowconfigure(0, weight=1)    # Allow notebook to expand
+
 
         # Initialize AccountTab and ContactTab
         self.account_tab = AccountTab(self.notebook, self.logic)
         self.contact_tab = ContactTab(self.notebook, self.logic)
+        self.interaction_log_tab = InteractionLogTab(self.notebook, self.logic) # Create instance of new tab
 
         # Add frames from AccountTab and ContactTab to Notebook
+        # Assuming .frame attribute exists as per current structure for other tabs.
+        # If InteractionLogTab is directly a Frame, then just add it.
         self.notebook.add(self.account_tab.frame, text="Account Administration")
         self.notebook.add(self.contact_tab.frame, text="Contact Information")
+        self.notebook.add(self.interaction_log_tab, text="Interaction Log") # Add the new tab

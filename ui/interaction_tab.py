@@ -33,11 +33,11 @@ class InteractionLogTab(ttk.Frame):
 
         # Clear selection button
         self.clear_button = ttk.Button(self, text="Clear Filters", command=self._clear_filters)
-        self.clear_button.grid(row=0, column=2, padx=5, pady=5, sticky="w") # Adjusted sticky
+        self.clear_button.grid(row=0, column=2, padx=5, pady=5, sticky="w")
 
         # New Interaction button
         self.new_interaction_button = ttk.Button(self, text="New Interaction", command=self._open_new_interaction_popup)
-        self.new_interaction_button.grid(row=0, column=2, padx=(100,5), pady=5, sticky="e") # Positioned to the right
+        self.new_interaction_button.grid(row=0, column=2, padx=(90,5), pady=5, sticky="e") # Adjusted padding slightly
 
         # Interactions display area (using Treeview for structured data)
         interaction_frame = ttk.LabelFrame(self, text="Interactions")
@@ -66,7 +66,7 @@ class InteractionLogTab(ttk.Frame):
         scrollbar.grid(row=0, column=1, sticky="ns")
 
         self._load_accounts()
-        self._load_contacts()
+        self._load_contacts() # Initial load of all contacts
 
     def _load_accounts(self):
         self.accounts_map = {} # Reset map
@@ -82,9 +82,15 @@ class InteractionLogTab(ttk.Frame):
             self.account_combobox['values'] = []
         self.account_combobox.set('') # Clear current selection
 
-    def _load_contacts(self):
+    def _load_contacts(self, account_id=None):
         self.contacts_map = {} # Reset map
-        contacts = self.logic.get_all_contacts() # This returns list of Contact objects
+        self.contact_combobox.set('') # Clear current selection first
+
+        if account_id:
+            contacts = self.logic.get_contacts_by_account(account_id) # List of Contact objects
+        else:
+            contacts = self.logic.get_all_contacts() # List of Contact objects
+
         if contacts:
             contact_names = []
             for contact in contacts:
@@ -94,32 +100,35 @@ class InteractionLogTab(ttk.Frame):
             self.contact_combobox['values'] = contact_names
         else:
             self.contact_combobox['values'] = []
-        self.contact_combobox.set('') # Clear current selection
+        # self.contact_combobox.set('') # Already cleared at the beginning of _load_contacts
 
 
     def _on_account_selected(self, event=None):
-        self.contact_combobox.set('') # Clear contact selection
-        # selected_account_name = self.account_combobox.get()
-        # account_id = self.accounts_map.get(selected_account_name)
-        # if account_id:
-        #     interactions = self.logic.get_all_interactions(company_id=account_id)
+        self._clear_interaction_display()
+
         selected_account_name = self.account_combobox.get()
         account_id = self.accounts_map.get(selected_account_name)
+
+        self._load_contacts(account_id=account_id) # Filters contacts and clears contact selection
+
         if account_id:
-            interactions = self.logic.get_all_interactions(company_id=account_id)
+            # Display interactions for the selected account overall
+            interactions = self.logic.get_all_interactions(company_id=account_id, contact_id=None)
             self._display_interactions(interactions)
-        else:
-            self._clear_interaction_display() # Clear display if selection is invalid or no account selected
+        # If account_id is None (selection cleared), contacts are loaded (all), and interactions remain cleared.
 
     def _on_contact_selected(self, event=None):
-        self.account_combobox.set('') # Clear account selection
+        self._clear_interaction_display()
+
         selected_contact_name = self.contact_combobox.get()
         contact_id = self.contacts_map.get(selected_contact_name)
+
         if contact_id:
+            # Display interactions for the selected contact.
+            # Account selection (if any) is kept to indicate context of the contact list.
             interactions = self.logic.get_all_interactions(contact_id=contact_id)
             self._display_interactions(interactions)
-        else:
-            self._clear_interaction_display() # Clear display if selection is invalid or no contact selected
+        # If contact selection is cleared, interactions are already cleared.
 
     def _display_interactions(self, interactions: list[Interaction]):
         # Clear existing items in the treeview
@@ -153,11 +162,14 @@ class InteractionLogTab(ttk.Frame):
 
     def _clear_filters(self):
         self.account_combobox.set('')
-        self.contact_combobox.set('')
-        self._clear_interaction_display()
-        # Potentially reload all interactions or a default view if desired, e.g.
-        # all_interactions = self.logic.get_all_interactions()
-        # self._display_interactions(all_interactions)
+        # This will trigger _on_account_selected, which then calls:
+        # - self._clear_interaction_display()
+        # - self._load_contacts(account_id=None) -> which clears contact_combobox.set('')
+        # So, the lines below are mostly redundant if _on_account_selected works as expected.
+        # However, explicit calls ensure the state is correctly reset.
+        self.contact_combobox.set('') # Explicitly clear contact selection
+        self._load_contacts(account_id=None) # Ensure contact list is full
+        self._clear_interaction_display() # Ensure interactions are cleared
 
     def _open_new_interaction_popup(self):
         selected_account_id = None

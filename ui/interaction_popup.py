@@ -27,22 +27,34 @@ class InteractionPopup(tk.Toplevel):
         self.subject_var = tk.StringVar()
         # Description will use a Text widget, no StringVar needed for the main content
 
-        self._setup_widgets()
-        self._load_dropdown_data()
+        self._setup_widgets() # Sets up the widgets
+        self._load_account_dropdown() # Loads all accounts initially
 
-        # Pre-select account/contact if passed
+        # Pre-select account if passed, which then triggers filtering of contacts
         if self.selected_account_id:
+            account_display_name_to_set = None
             for name, acc_id in self.accounts_map.items():
                 if acc_id == self.selected_account_id:
-                    self.account_combobox.set(name)
+                    account_display_name_to_set = name
                     break
+            if account_display_name_to_set:
+                self.account_combobox.set(account_display_name_to_set)
+                self._load_contact_dropdown(account_id=self.selected_account_id) # Filter contacts based on pre-selected account
+            else:
+                self._load_contact_dropdown() # No valid pre-selected account, load all contacts
+        else:
+            self._load_contact_dropdown() # No pre-selected account, load all contacts
 
+        # Pre-select contact if passed (after contacts are loaded and potentially filtered)
         if self.selected_contact_id:
-            for name, con_id in self.contacts_map.items():
+            contact_display_name_to_set = None
+            for name, con_id in self.contacts_map.items(): # contacts_map is now populated based on account filter if any
                 if con_id == self.selected_contact_id:
-                    self.contact_combobox.set(name)
+                    contact_display_name_to_set = name
                     break
-
+            if contact_display_name_to_set:
+                 self.contact_combobox.set(contact_display_name_to_set)
+            # If contact_id was passed but not found (e.g. not under selected_account_id), it won't be set.
 
     def _setup_widgets(self):
         main_frame = ttk.Frame(self, padding="10")
@@ -104,9 +116,7 @@ class InteractionPopup(tk.Toplevel):
         main_frame.columnconfigure(1, weight=1) # Allow entry fields to expand a bit
         main_frame.columnconfigure(3, weight=1)
 
-
-    def _load_dropdown_data(self):
-        # Load Accounts
+    def _load_account_dropdown(self):
         self.accounts_map = {}
         accounts_data = self.logic.get_accounts() # Returns (id, name)
         account_names = []
@@ -115,29 +125,45 @@ class InteractionPopup(tk.Toplevel):
                 display_name = f"{acc_name} (ID: {acc_id})"
                 account_names.append(display_name)
                 self.accounts_map[display_name] = acc_id
-        self.account_combobox['values'] = [""] + account_names # Add blank option
+        self.account_combobox['values'] = [""] + account_names
+        self.account_combobox.set("") # Default to blank
 
-        # Load Contacts
+    def _load_contact_dropdown(self, account_id=None):
         self.contacts_map = {}
-        contacts_data = self.logic.get_all_contacts() # Returns list of Contact objects
+        self.contact_combobox.set('') # Clear current contact selection
+
+        if account_id:
+            contacts_data = self.logic.get_contacts_by_account(account_id)
+        else:
+            # If no account is selected, show all contacts or make it empty.
+            # Showing all might be overwhelming if the list is long.
+            # For now, let's show all, but this could be changed to an empty list.
+            contacts_data = self.logic.get_all_contacts()
+
         contact_names = []
         if contacts_data:
             for contact in contacts_data:
                 display_name = f"{contact.name} (ID: {contact.contact_id})"
                 contact_names.append(display_name)
                 self.contacts_map[display_name] = contact.contact_id
-        self.contact_combobox['values'] = [""] + contact_names # Add blank option
+
+        self.contact_combobox['values'] = [""] + contact_names
+        self.contact_combobox.set("") # Default to blank
 
     def _on_account_selected_popup(self, event=None):
-        # If an account is selected, we might want to clear the contact or filter contacts.
-        # For now, just ensure it's a valid selection.
-        # If we automatically select a contact, we'd need more complex logic.
-        pass # No action needed to clear the other dropdown for now in popup
+        selected_account_name = self.account_combobox.get()
+        account_id = self.accounts_map.get(selected_account_name) # Will be None if "" is selected
+        self._load_contact_dropdown(account_id=account_id)
+        # Note: We don't clear the other combobox here as the user might be picking one then the other.
+        # The validation in _save_interaction will ensure at least one is meaningfully selected if required.
 
     def _on_contact_selected_popup(self, event=None):
-        # If a contact is selected, we might want to auto-populate the account if not set.
-        # For now, just ensure it's a valid selection.
-        pass # No action needed to clear the other dropdown for now in popup
+        # This event is less critical for filtering other dropdowns in the popup,
+        # as the primary filtering is Account -> Contact.
+        # If a contact is selected, we don't need to auto-filter the account based on it,
+        # as the user might be selecting a contact that can belong to multiple accounts (if data model allowed)
+        # or they might pick the account first.
+        pass
 
     def _save_interaction(self):
         try:

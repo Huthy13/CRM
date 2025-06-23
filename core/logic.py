@@ -305,3 +305,187 @@ class AddressBookLogic:
     def delete_interaction(self, interaction_id: int):
         """Delete a specific interaction."""
         self.db.delete_interaction(interaction_id)
+
+    # Task Methods
+    def create_task(self, task: 'Task') -> 'Task':
+        """
+        Creates a new task after validation.
+        Sets default status, timestamps, and created_by_user_id if not set.
+        Returns the created Task object with all fields populated.
+        """
+        from shared.structs import Task, TaskStatus # Local import for Task
+        import datetime
+
+        if not isinstance(task, Task):
+            raise TypeError("Input must be a Task object.")
+
+        # Validation (title and due_date are validated by Task constructor)
+        # Additional validation can be added here if needed.
+
+        # Set defaults
+        task.status = TaskStatus.OPEN
+        now = datetime.datetime.now(datetime.timezone.utc)
+        task.created_at = now
+        task.updated_at = now
+
+        # Ensure created_by_user_id is set (e.g., from a logged-in user or default)
+        if task.created_by_user_id is None:
+            system_user_id = self.db.get_user_id_by_username('system_user')
+            if not system_user_id: # Should not happen if DB setup is correct
+                raise Exception("Default system user not found. Please initialize the database correctly.")
+            task.created_by_user_id = system_user_id
+
+        task_data_dict = task.to_dict()
+
+        # Remove task_id for insertion, as it's auto-generated
+        task_data_dict.pop('task_id', None)
+
+        # Convert enums to values for DB storage if not already handled by to_dict
+        if isinstance(task_data_dict.get('status'), TaskStatus):
+            task_data_dict['status'] = task_data_dict['status'].value
+        if task_data_dict.get('priority') and isinstance(task_data_dict.get('priority'), Enum): # TaskPriority
+             task_data_dict['priority'] = task_data_dict['priority'].value
+
+
+        new_task_id = self.db.add_task(task_data_dict)
+        task.task_id = new_task_id
+
+        # Fetch from DB to confirm all fields, especially auto-generated ones like created_at from DB trigger (if any)
+        # However, our current DB schema relies on application to set created_at/updated_at
+        return task
+
+    def get_task_details(self, task_id: int) -> Optional['Task']:
+        """Retrieve a task by ID and return a Task object."""
+        from shared.structs import Task # Local import
+        task_data = self.db.get_task(task_id)
+        if task_data:
+            return Task.from_dict(task_data)
+        return None
+
+    def get_all_tasks(self, company_id: int = None, contact_id: int = None,
+                      status: Optional['TaskStatus'] = None,
+                      due_date_sort_order: str = None,
+                      assigned_user_id: int = None,
+                      priority: Optional['TaskPriority'] = None) -> List['Task']:
+        """
+        Retrieve all tasks, optionally filtered, as Task objects.
+        Converts enum filters to their string values for DB query.
+        """
+        from shared.structs import Task # Local import
+
+        status_str = status.value if status else None
+        priority_str = priority.value if priority else None
+
+        tasks_data = self.db.get_tasks(
+            company_id=company_id,
+            contact_id=contact_id,
+            status=status_str,
+            due_date_sort_order=due_date_sort_order,
+            assigned_user_id=assigned_user_id,
+            priority=priority_str
+        )
+
+        task_list = [Task.from_dict(data) for data in tasks_data]
+        return task_list
+
+    def update_task_details(self, task: 'Task') -> 'Task':
+        """
+        Updates an existing task after validation.
+        Sets the updated_at timestamp.
+        Returns the updated Task object.
+        """
+        from shared.structs import Task # Local import
+        import datetime
+
+        if not isinstance(task, Task):
+            raise TypeError("Input must be a Task object.")
+        if task.task_id is None:
+            raise ValueError("Task ID must be provided to update a task.")
+
+        # Validation (title and due_date are validated by Task constructor on modification)
+        # Add more validation if necessary
+
+        task.updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+        task_data_dict = task.to_dict()
+
+        # Remove task_id from data to be updated, it's used in WHERE clause
+        task_id = task_data_dict.pop('task_id')
+
+        # Convert enums to values for DB storage if not already handled by to_dict
+        if isinstance(task_data_dict.get('status'), Enum): # TaskStatus
+            task_data_dict['status'] = task_data_dict['status'].value
+        if task_data_dict.get('priority') and isinstance(task_data_dict.get('priority'), Enum): # TaskPriority
+             task_data_dict['priority'] = task_data_dict['priority'].value
+
+
+        self.db.update_task(task_id, task_data_dict)
+
+        # Fetch from DB to ensure the returned object is consistent with DB state
+        # return self.get_task_details(task_id)
+        # Or, if confident, just return the modified task object:
+        return task
+
+
+    def delete_task_by_id(self, task_id: int, soft_delete: bool = True) -> None:
+        """Deletes a task by its ID. Uses soft delete by default."""
+        self.db.delete_task(task_id, soft_delete=soft_delete)
+
+    def mark_task_completed(self, task_id: int) -> Optional['Task']:
+        """Updates task status to COMPLETED and sets updated_at."""
+        from shared.structs import TaskStatus # Local import
+        import datetime
+
+        task = self.get_task_details(task_id)
+        if not task:
+            return None # Or raise error
+
+        task.status = TaskStatus.COMPLETED
+        task.updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+        self.db.update_task_status(task.task_id, task.status.value, task.updated_at.isoformat())
+        return task
+
+    def check_and_update_overdue_tasks(self) -> int:
+        """
+        Checks for tasks that are past their due date and not yet 'Completed' or 'Overdue'.
+        Updates their status to 'Overdue'.
+        Returns the number of tasks updated.
+        """
+        from shared.structs import TaskStatus, Task # Local import
+        import datetime
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        # For due_date comparison, if due_date is just a date, compare against date part of now.
+        # If due_date includes time, compare against now (datetime).
+        # The DB stores due_date as ISO string.
+        # To correctly identify tasks due *before* today as overdue,
+        # we should compare against the beginning of the current day.
+        # If a task's due_date is 'YYYY-MM-DD', it implies by end of that day.
+        # So, it's overdue if current_date is already YYYY-MM-(DD+1).
+
+        current_day_iso_date_str = now.date().isoformat()
+        overdue_tasks_data = self.db.get_overdue_tasks(current_day_iso_date_str)
+
+        updated_count = 0
+        for task_data in overdue_tasks_data:
+            task = Task.from_dict(task_data) # Convert to Task object to easily manage status
+            if task.status != TaskStatus.COMPLETED and task.status != TaskStatus.OVERDUE:
+                updated_at_ts = datetime.datetime.now(datetime.timezone.utc)
+                self.db.update_task_status(task.task_id, TaskStatus.OVERDUE.value, updated_at_ts.isoformat())
+                updated_count += 1
+        return updated_count
+
+    # User methods
+    def get_all_users(self) -> list[tuple[int, str]]:
+        """
+        Retrieve all users from the database.
+        Returns a list of tuples, where each tuple is (user_id, username).
+        """
+        return self.db.get_all_users()
+
+from typing import TYPE_CHECKING, Optional, List
+from enum import Enum # Placed here for broader scope within the module if needed
+if TYPE_CHECKING:
+    from shared.structs import Interaction, Task, TaskStatus, TaskPriority # For type hinting
+    # from enum import Enum # No longer needed here if imported above

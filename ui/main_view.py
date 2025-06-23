@@ -4,7 +4,8 @@ from core.database import DatabaseHandler
 from core.logic import AddressBookLogic
 from ui.contact_tab import ContactTab
 from ui.account_tab import AccountTab
-from ui.interaction_tab import InteractionLogTab # Import the new tab
+from ui.interaction_tab import InteractionLogTab
+from ui.task_tab import TaskTab # Import the new TaskTab
 
 
 class AddressBookView:
@@ -31,11 +32,13 @@ class AddressBookView:
         # Initialize AccountTab and ContactTab
         self.account_tab = AccountTab(self.notebook, self.logic)
         self.contact_tab = ContactTab(self.notebook, self.logic)
-        self.interaction_log_tab = InteractionLogTab(self.notebook, self.logic) # Create instance of new tab
+        self.interaction_log_tab = InteractionLogTab(self.notebook, self.logic)
+        self.task_tab = TaskTab(self.notebook, self.logic) # Create instance of TaskTab
 
-        # Add frames from AccountTab and ContactTab to Notebook
-        # Assuming .frame attribute exists as per current structure for other tabs.
-        # If InteractionLogTab is directly a Frame, then just add it.
+        # Add frames from tabs to Notebook
+        # AccountTab and ContactTab use .frame attribute.
+        # InteractionLogTab and TaskTab are tk.Frame subclasses directly.
         self.notebook.add(self.account_tab.frame, text="Account Administration")
         self.notebook.add(self.contact_tab.frame, text="Contact Information")
-        self.notebook.add(self.interaction_log_tab, text="Interaction Log") # Add the new tab
+        self.notebook.add(self.interaction_log_tab, text="Interaction Log")
+        self.notebook.add(self.task_tab, text="Tasks") # Add the new TaskTab

@@ -95,6 +95,29 @@ class DatabaseHandler:
                 FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE SET NULL
             )
         """)
+
+        # Tasks table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER,
+                contact_id INTEGER,
+                title VARCHAR(150) NOT NULL,
+                description TEXT,
+                due_date TEXT NOT NULL, -- Storing as ISO8601 string (DATE or DATETIME)
+                status TEXT NOT NULL, -- Enum: Open, In Progress, Completed, Overdue
+                priority TEXT, -- Enum: Low, Medium, High
+                assigned_to_user_id INTEGER,
+                created_by_user_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL, -- Storing as ISO8601 string
+                updated_at TEXT NOT NULL, -- Storing as ISO8601 string
+                is_deleted INTEGER DEFAULT 0, -- For soft delete
+                FOREIGN KEY (company_id) REFERENCES accounts (id) ON DELETE SET NULL,
+                FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE SET NULL,
+                FOREIGN KEY (assigned_to_user_id) REFERENCES users (user_id) ON DELETE SET NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE CASCADE -- Or SET NULL if preferred
+            )
+        """)
         self.conn.commit()
 
 #address related methods
@@ -178,6 +201,11 @@ class DatabaseHandler:
         """, (account_id,))
         columns = [desc[0] for desc in self.cursor.description]
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def get_all_users(self) -> list[tuple[int, str]]:
+        """Retrieve all users (user_id, username)."""
+        self.cursor.execute("SELECT user_id, username FROM users ORDER BY username")
+        return self.cursor.fetchall()
 
     def get_all_contacts(self):
         """Retrieve all contacts with full details, including email, role, and account information."""
@@ -323,3 +351,140 @@ class DatabaseHandler:
         self.cursor.execute("SELECT user_id FROM users WHERE username = ?", (username,))
         result = self.cursor.fetchone()
         return result[0] if result else None
+
+# Task related methods
+    def add_task(self, task_data: dict) -> int:
+        """Add a new task and return its ID."""
+        # Ensure created_by_user_id is present, as it's NOT NULL in DB
+        if 'created_by_user_id' not in task_data or task_data['created_by_user_id'] is None:
+            # This should ideally be handled by logic layer before DB call
+            # or have a more robust default user fetching mechanism here.
+            # For now, raising an error if it's missing.
+            raise ValueError("created_by_user_id is required to create a task.")
+
+        keys = ', '.join(task_data.keys())
+        placeholders = ', '.join(['?'] * len(task_data))
+        sql = f"INSERT INTO tasks ({keys}) VALUES ({placeholders})"
+
+        self.cursor.execute(sql, list(task_data.values()))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_task(self, task_id: int) -> dict | None:
+        """Retrieve a single task by its ID, excluding soft-deleted tasks."""
+        self.cursor.execute("""
+            SELECT task_id, company_id, contact_id, title, description, due_date,
+                   status, priority, assigned_to_user_id, created_by_user_id,
+                   created_at, updated_at
+            FROM tasks
+            WHERE task_id = ? AND is_deleted = 0
+        """, (task_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_tasks(self, company_id: int = None, contact_id: int = None,
+                  status: str = None, due_date_sort_order: str = None,
+                  assigned_user_id: int = None, priority: str = None,
+                  include_deleted: bool = False) -> list[dict]:
+        """Retrieve tasks with optional filters and sorting, excluding soft-deleted by default."""
+        query = """
+            SELECT task_id, company_id, contact_id, title, description, due_date,
+                   status, priority, assigned_to_user_id, created_by_user_id,
+                   created_at, updated_at
+            FROM tasks
+            WHERE 1=1
+        """
+        params = []
+
+        if not include_deleted:
+            query += " AND is_deleted = 0"
+
+        if company_id is not None:
+            query += " AND company_id = ?"
+            params.append(company_id)
+        if contact_id is not None:
+            query += " AND contact_id = ?"
+            params.append(contact_id)
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        if assigned_user_id is not None:
+            query += " AND assigned_to_user_id = ?"
+            params.append(assigned_user_id)
+        if priority is not None:
+            query += " AND priority = ?"
+            params.append(priority)
+
+        if due_date_sort_order and due_date_sort_order.upper() in ['ASC', 'DESC']:
+            query += f" ORDER BY due_date {due_date_sort_order.upper()}"
+        else:
+            query += " ORDER BY due_date ASC" # Default sort
+
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_task(self, task_id: int, task_data: dict) -> None:
+        """Update an existing task."""
+        if not task_data:
+            return # Or raise an error: Cannot update with no data
+
+        # Ensure updated_at is always set
+        if 'updated_at' not in task_data:
+            # This should ideally be set by the logic layer.
+            # If called directly, consider adding it here or raising error if critical.
+            from datetime import datetime # Local import for safety
+            task_data['updated_at'] = datetime.now().isoformat()
+
+
+        set_clauses = ', '.join([f"{key} = ?" for key in task_data.keys()])
+        values = list(task_data.values())
+        values.append(task_id)
+
+        sql = f"UPDATE tasks SET {set_clauses} WHERE task_id = ? AND is_deleted = 0"
+
+        self.cursor.execute(sql, values)
+        self.conn.commit()
+
+    def delete_task(self, task_id: int, soft_delete: bool = True) -> None:
+        """Delete a task. Soft delete by default."""
+        if soft_delete:
+            from datetime import datetime # Local import for safety
+            self.cursor.execute(
+                "UPDATE tasks SET is_deleted = 1, updated_at = ? WHERE task_id = ?",
+                (datetime.now().isoformat(), task_id)
+            )
+        else:
+            # Hard delete, consider implications (e.g., if task is part of audit trail)
+            # For now, as per plan, this option is available.
+            self.cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+        self.conn.commit()
+
+    def update_task_status(self, task_id: int, new_status: str, updated_at_iso: str) -> None:
+        """Specifically update a task's status and updated_at timestamp."""
+        self.cursor.execute(
+            "UPDATE tasks SET status = ?, updated_at = ? WHERE task_id = ? AND is_deleted = 0",
+            (new_status, updated_at_iso, task_id)
+        )
+        self.conn.commit()
+
+    def get_overdue_tasks(self, current_date_iso: str) -> list[dict]:
+        """
+        Retrieve tasks that are overdue (due_date < current_date)
+        and not in 'Completed' or 'Overdue' status, excluding soft-deleted tasks.
+        """
+        query = """
+            SELECT task_id, company_id, contact_id, title, description, due_date,
+                   status, priority, assigned_to_user_id, created_by_user_id,
+                   created_at, updated_at
+            FROM tasks
+            WHERE due_date < ?
+              AND status NOT IN ('Completed', 'Overdue')
+              AND is_deleted = 0
+        """
+        self.cursor.execute(query, (current_date_iso,))
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]

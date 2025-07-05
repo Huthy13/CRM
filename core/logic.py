@@ -485,7 +485,7 @@ class AddressBookLogic:
         return self.db.get_all_users()
 
     # Product Methods
-    def save_product(self, product: 'Product') -> int | None:
+    def save_product(self, product: 'Product') -> Optional[int]:
         """Add a new product or update an existing one. Returns Product ID."""
         if product.product_id is None:
             # Call db.add_product with all required arguments
@@ -507,7 +507,7 @@ class AddressBookLogic:
             )
             return product.product_id
 
-    def get_product_details(self, product_id: int) -> 'Product' | None:
+    def get_product_details(self, product_id: int) -> Optional['Product']:
         """Retrieve full product details and return a Product object."""
         product_data = self.db.get_product_details(product_id) # db returns a dict
         if product_data:

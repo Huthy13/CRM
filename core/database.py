@@ -118,6 +118,16 @@ class DatabaseHandler:
                 FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE CASCADE -- Or SET NULL if preferred
             )
         """)
+
+        # Products table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                product_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                price REAL NOT NULL
+            )
+        """)
         self.conn.commit()
 
 #address related methods
@@ -488,3 +498,49 @@ class DatabaseHandler:
         self.cursor.execute(query, (current_date_iso,))
         columns = [desc[0] for desc in self.cursor.description]
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+# Product related methods
+    def add_product(self, name, description, price):
+        """Add a new product and return its ID."""
+        self.cursor.execute("""
+            INSERT INTO products (name, description, price)
+            VALUES (?, ?, ?)
+        """, (name, description, price))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_product_details(self, product_id):
+        """Retrieve a single product's details by its ID."""
+        self.cursor.execute("""
+            SELECT product_id, name, description, price
+            FROM products
+            WHERE product_id = ?
+        """, (product_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_all_products(self):
+        """Retrieve all products with full details."""
+        self.cursor.execute("""
+            SELECT product_id, name, description, price
+            FROM products
+        """)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_product(self, product_id, name, description, price):
+        """Update product details in the database."""
+        self.cursor.execute("""
+            UPDATE products
+            SET name = ?, description = ?, price = ?
+            WHERE product_id = ?
+        """, (name, description, price, product_id))
+        self.conn.commit()
+
+    def delete_product(self, product_id):
+        """Delete a specific product."""
+        self.cursor.execute("DELETE FROM products WHERE product_id = ?", (product_id,))
+        self.conn.commit()

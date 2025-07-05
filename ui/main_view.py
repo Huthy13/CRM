@@ -6,6 +6,7 @@ from ui.contact_tab import ContactTab
 from ui.account_tab import AccountTab
 from ui.interaction_tab import InteractionLogTab
 from ui.task_tab import TaskTab # Import the new TaskTab
+from ui.product_tab import ProductTab # Import ProductTab
 
 
 class AddressBookView:
@@ -34,6 +35,7 @@ class AddressBookView:
         self.contact_tab = ContactTab(self.notebook, self.logic)
         self.interaction_log_tab = InteractionLogTab(self.notebook, self.logic)
         self.task_tab = TaskTab(self.notebook, self.logic) # Create instance of TaskTab
+        self.product_tab = ProductTab(self.notebook, self.logic) # Create instance of ProductTab
 
         # Add frames from tabs to Notebook
         # AccountTab and ContactTab use .frame attribute.
@@ -42,3 +44,4 @@ class AddressBookView:
         self.notebook.add(self.contact_tab.frame, text="Contact Information")
         self.notebook.add(self.interaction_log_tab, text="Interaction Log")
         self.notebook.add(self.task_tab, text="Tasks") # Add the new TaskTab
+        self.notebook.add(self.product_tab.frame, text="Products") # Add the new ProductTab

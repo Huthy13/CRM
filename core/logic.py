@@ -1,4 +1,4 @@
-from shared.structs import Address, Account, Contact # Import Contact
+from shared.structs import Address, Account, Contact, Product # Import Product
 from typing import Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -484,8 +484,60 @@ class AddressBookLogic:
         """
         return self.db.get_all_users()
 
+    # Product Methods
+    def save_product(self, product: 'Product') -> int | None:
+        """Add a new product or update an existing one. Returns Product ID."""
+        if product.product_id is None:
+            # Call db.add_product with all required arguments
+            new_product_id = self.db.add_product(
+                name=product.name,
+                description=product.description,
+                price=product.price
+            )
+            if new_product_id:
+                product.product_id = new_product_id # Update object with new ID
+            return new_product_id
+        else:
+            # Call db.update_product with all required arguments
+            self.db.update_product(
+                product_id=product.product_id,
+                name=product.name,
+                description=product.description,
+                price=product.price
+            )
+            return product.product_id
+
+    def get_product_details(self, product_id: int) -> 'Product' | None:
+        """Retrieve full product details and return a Product object."""
+        product_data = self.db.get_product_details(product_id) # db returns a dict
+        if product_data:
+            return Product(
+                product_id=product_data["product_id"], # Ensure key matches db output
+                name=product_data["name"],
+                description=product_data["description"],
+                price=product_data["price"]
+            )
+        return None
+
+    def get_all_products(self) -> list['Product']:
+        """Retrieve all products as Product objects."""
+        products_data = self.db.get_all_products() # db returns list of dicts
+        product_list = []
+        for row_data in products_data:
+            product_list.append(Product(
+                product_id=row_data["product_id"], # Ensure key matches db output
+                name=row_data["name"],
+                description=row_data["description"],
+                price=row_data["price"]
+            ))
+        return product_list
+
+    def delete_product(self, product_id: int):
+        """Delete a specific product."""
+        self.db.delete_product(product_id)
+
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed
 if TYPE_CHECKING:
-    from shared.structs import Interaction, Task, TaskStatus, TaskPriority # For type hinting
+    from shared.structs import Interaction, Task, TaskStatus, TaskPriority, Product # For type hinting
     # from enum import Enum # No longer needed here if imported above

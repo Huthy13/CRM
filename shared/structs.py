@@ -284,3 +284,25 @@ class Task:
             created_at=created_at,
             updated_at=updated_at
         )
+
+class Product:
+    def __init__(self, product_id=None, name="", description="", price=0.0):
+        self.product_id = product_id
+        self.name = name
+        self.description = description
+        self.price = price
+
+    def __str__(self):
+        return (f"Product ID: {self.product_id}\n"
+                f"Name: {self.name}\n"
+                f"Description: {self.description}\n"
+                f"Price: {self.price}")
+
+    def to_dict(self):
+        """Returns the product as a dictionary."""
+        return {
+            "product_id": self.product_id,
+            "name": self.name,
+            "description": self.description,
+            "price": self.price
+        }

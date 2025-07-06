@@ -3,12 +3,8 @@ import sqlite3
 from datetime import datetime, date, timedelta
 import os
 
-# Add the parent directory to sys.path to allow importing product_management
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
-
-import product_management as pm
-import database_setup
+from core.logic import product_management as pm
+from core import database_setup
 
 TEST_DB_NAME = ":memory:"
 

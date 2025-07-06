@@ -1,0 +1,5 @@
+# This file will list project dependencies.
+# Add dependencies here as they are identified.
+# Example:
+# requests>=2.25.1
+# pandas==1.3.3

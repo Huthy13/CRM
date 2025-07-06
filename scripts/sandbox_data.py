@@ -2,7 +2,7 @@ import os
 import sys
 
 # Add project root to sys.path to allow imports from core and shared
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Go up one more level
 sys.path.insert(0, project_root)
 
 from core.database import DatabaseHandler

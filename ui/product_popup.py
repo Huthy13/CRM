@@ -10,9 +10,10 @@ class ProductDetailsPopup(tk.Toplevel):
         self.logic = logic
         self.product_id = product_id
         self.title(f"{'Edit' if product_id else 'Add'} Product")
-        self.geometry("400x200")  # Adjusted geometry
+        self.geometry("400x320")  # Adjusted geometry for new fields
 
         self.product_data = None # To store loaded product data if editing
+        self.is_active_var = tk.BooleanVar(value=True) # Variable for Checkbutton
 
         # --- UI Elements ---
         tk.Label(self, text="Name:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -27,12 +28,24 @@ class ProductDetailsPopup(tk.Toplevel):
         self.price_entry = tk.Entry(self, width=40)
         self.price_entry.grid(row=2, column=1, padx=5, pady=5)
 
+        tk.Label(self, text="Category:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.category_entry = tk.Entry(self, width=40)
+        self.category_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        tk.Label(self, text="Unit of Measure:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        self.unit_of_measure_entry = tk.Entry(self, width=40)
+        self.unit_of_measure_entry.grid(row=4, column=1, padx=5, pady=5)
+
+        tk.Label(self, text="Active:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        self.active_checkbutton = tk.Checkbutton(self, variable=self.is_active_var)
+        self.active_checkbutton.grid(row=5, column=1, padx=5, pady=5, sticky="w")
+
         # Save and Cancel Buttons
         self.save_button = tk.Button(self, text="Save", command=self.save_product)
-        self.save_button.grid(row=3, column=0, padx=5, pady=10, sticky="e")
+        self.save_button.grid(row=6, column=0, padx=5, pady=10, sticky="e")
 
         self.cancel_button = tk.Button(self, text="Cancel", command=self.destroy)
-        self.cancel_button.grid(row=3, column=1, padx=5, pady=10, sticky="w")
+        self.cancel_button.grid(row=6, column=1, padx=5, pady=10, sticky="w")
 
         if self.product_id:
             self.load_product_details()
@@ -44,6 +57,9 @@ class ProductDetailsPopup(tk.Toplevel):
             self.name_entry.insert(0, product_details.name if product_details.name else "")
             self.description_entry.insert(0, product_details.description if product_details.description else "")
             self.price_entry.insert(0, str(product_details.price) if product_details.price is not None else "")
+            self.category_entry.insert(0, product_details.category if product_details.category else "")
+            self.unit_of_measure_entry.insert(0, product_details.unit_of_measure if product_details.unit_of_measure else "")
+            self.is_active_var.set(product_details.is_active)
         else:
             messagebox.showerror("Error", f"Could not load details for product ID: {self.product_id}")
             self.destroy()
@@ -52,6 +68,9 @@ class ProductDetailsPopup(tk.Toplevel):
         name = self.name_entry.get().strip()
         description = self.description_entry.get().strip()
         price_str = self.price_entry.get().strip()
+        category = self.category_entry.get().strip()
+        unit_of_measure = self.unit_of_measure_entry.get().strip()
+        is_active = self.is_active_var.get()
 
         if not name:
             messagebox.showerror("Validation Error", "Name cannot be empty.")
@@ -67,10 +86,13 @@ class ProductDetailsPopup(tk.Toplevel):
             return
 
         product_obj = Product(
-            product_id=self.product_id, # Will be None for new products
+            product_id=self.product_id,
             name=name,
             description=description,
-            price=price
+            price=price,
+            category=category,
+            unit_of_measure=unit_of_measure,
+            is_active=is_active
         )
 
         try:

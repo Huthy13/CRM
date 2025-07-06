@@ -492,7 +492,10 @@ class AddressBookLogic:
             new_product_id = self.db.add_product(
                 name=product.name,
                 description=product.description,
-                price=product.price
+                price=product.price,
+                is_active=product.is_active,
+                category=product.category,
+                unit_of_measure=product.unit_of_measure
             )
             if new_product_id:
                 product.product_id = new_product_id # Update object with new ID
@@ -503,7 +506,10 @@ class AddressBookLogic:
                 product_id=product.product_id,
                 name=product.name,
                 description=product.description,
-                price=product.price
+                price=product.price,
+                is_active=product.is_active,
+                category=product.category,
+                unit_of_measure=product.unit_of_measure
             )
             return product.product_id
 
@@ -512,10 +518,13 @@ class AddressBookLogic:
         product_data = self.db.get_product_details(product_id) # db returns a dict
         if product_data:
             return Product(
-                product_id=product_data["product_id"], # Ensure key matches db output
+                product_id=product_data["product_id"],
                 name=product_data["name"],
                 description=product_data["description"],
-                price=product_data["price"]
+                price=product_data["price"],
+                is_active=product_data.get("is_active", True), # Default to True if missing
+                category=product_data.get("category", ""),
+                unit_of_measure=product_data.get("unit_of_measure", "")
             )
         return None
 
@@ -525,10 +534,13 @@ class AddressBookLogic:
         product_list = []
         for row_data in products_data:
             product_list.append(Product(
-                product_id=row_data["product_id"], # Ensure key matches db output
+                product_id=row_data["product_id"],
                 name=row_data["name"],
                 description=row_data["description"],
-                price=row_data["price"]
+                price=row_data["price"],
+                is_active=row_data.get("is_active", True),
+                category=row_data.get("category", ""),
+                unit_of_measure=row_data.get("unit_of_measure", "")
             ))
         return product_list
 

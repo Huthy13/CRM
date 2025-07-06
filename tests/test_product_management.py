@@ -19,7 +19,7 @@ class TestProductManagement(unittest.TestCase):
 
     def test_add_and_get_product(self):
         # Test adding a product and retrieving it
-        product_data = Product(name="Test Laptop", description="A laptop for testing", price=999.99)
+        product_data = Product(name="Test Laptop", description="A laptop for testing", price=999.99, is_active=True, category="Electronics", unit_of_measure="Each")
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 
@@ -28,24 +28,39 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(retrieved_product.name, "Test Laptop")
         self.assertEqual(retrieved_product.description, "A laptop for testing")
         self.assertEqual(retrieved_product.price, 999.99)
+        self.assertEqual(retrieved_product.is_active, True)
+        self.assertEqual(retrieved_product.category, "Electronics")
+        self.assertEqual(retrieved_product.unit_of_measure, "Each")
+
 
     def test_get_all_products(self):
         # Test retrieving all products
-        self.logic.save_product(Product(name="Product A", description="Desc A", price=10.0))
-        self.logic.save_product(Product(name="Product B", description="Desc B", price=20.0))
+        self.logic.save_product(Product(name="Product A", description="Desc A", price=10.0, category="Cat A", unit_of_measure="Unit A"))
+        self.logic.save_product(Product(name="Product B", description="Desc B", price=20.0, is_active=False, category="Cat B", unit_of_measure="Unit B"))
 
         all_products = self.logic.get_all_products()
         self.assertEqual(len(all_products), 2)
-        self.assertTrue(any(p.name == "Product A" for p in all_products))
-        self.assertTrue(any(p.name == "Product B" for p in all_products))
+
+        product_a = next(p for p in all_products if p.name == "Product A")
+        self.assertIsNotNone(product_a)
+        self.assertEqual(product_a.category, "Cat A")
+        self.assertEqual(product_a.unit_of_measure, "Unit A")
+        self.assertTrue(product_a.is_active) # Default is_active is True
+
+        product_b = next(p for p in all_products if p.name == "Product B")
+        self.assertIsNotNone(product_b)
+        self.assertEqual(product_b.category, "Cat B")
+        self.assertEqual(product_b.unit_of_measure, "Unit B")
+        self.assertFalse(product_b.is_active)
+
 
     def test_update_product(self):
         # Test updating an existing product
-        product_data = Product(name="Old Name", description="Old Desc", price=50.0)
+        product_data = Product(name="Old Name", description="Old Desc", price=50.0, is_active=True, category="Old Cat", unit_of_measure="Old Unit")
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 
-        updated_product_data = Product(product_id=product_id, name="New Name", description="New Desc", price=75.0)
+        updated_product_data = Product(product_id=product_id, name="New Name", description="New Desc", price=75.0, is_active=False, category="New Cat", unit_of_measure="New Unit")
         self.logic.save_product(updated_product_data)
 
         retrieved_product = self.logic.get_product_details(product_id)
@@ -53,10 +68,13 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(retrieved_product.name, "New Name")
         self.assertEqual(retrieved_product.description, "New Desc")
         self.assertEqual(retrieved_product.price, 75.0)
+        self.assertEqual(retrieved_product.is_active, False)
+        self.assertEqual(retrieved_product.category, "New Cat")
+        self.assertEqual(retrieved_product.unit_of_measure, "New Unit")
 
     def test_delete_product(self):
         # Test deleting a product
-        product_data = Product(name="To Be Deleted", description="Delete me", price=5.0)
+        product_data = Product(name="To Be Deleted", description="Delete me", price=5.0, category="Temp", unit_of_measure="Item")
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 

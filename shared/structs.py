@@ -284,3 +284,34 @@ class Task:
             created_at=created_at,
             updated_at=updated_at
         )
+
+class Product:
+    def __init__(self, product_id=None, name="", description="", cost=0.0, is_active=True, category="", unit_of_measure=""):
+        self.product_id = product_id
+        self.name = name
+        self.description = description
+        self.cost = cost # Renamed from price
+        self.is_active = is_active
+        self.category = category
+        self.unit_of_measure = unit_of_measure
+
+    def __str__(self):
+        return (f"Product ID: {self.product_id}\n"
+                f"Name: {self.name}\n"
+                f"Description: {self.description}\n"
+                f"Cost: {self.cost}\n" # Renamed from price
+                f"Active: {self.is_active}\n"
+                f"Category: {self.category}\n"
+                f"Unit of Measure: {self.unit_of_measure}")
+
+    def to_dict(self):
+        """Returns the product as a dictionary."""
+        return {
+            "product_id": self.product_id,
+            "name": self.name,
+            "description": self.description,
+            "cost": self.cost, # Renamed from price
+            "is_active": self.is_active,
+            "category": self.category,
+            "unit_of_measure": self.unit_of_measure
+        }

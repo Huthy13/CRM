@@ -1,4 +1,4 @@
-from shared.structs import Address, Account, Contact # Import Contact
+from shared.structs import Address, Account, Contact, Product # Import Product
 from typing import Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -484,8 +484,245 @@ class AddressBookLogic:
         """
         return self.db.get_all_users()
 
+    # Product Methods
+    def save_product(self, product: 'Product') -> Optional[int]:
+        """Add a new product or update an existing one. Returns Product ID.
+           The database layer now handles category name to ID conversion."""
+        if product.product_id is None:
+            new_product_id = self.db.add_product(
+                name=product.name,
+                description=product.description,
+                cost=product.cost, # Renamed from price
+                is_active=product.is_active,
+                category_name=product.category,
+                unit_of_measure_name=product.unit_of_measure
+            )
+            if new_product_id:
+                product.product_id = new_product_id
+            return new_product_id
+        else:
+            self.db.update_product(
+                product_id=product.product_id,
+                name=product.name,
+                description=product.description,
+                cost=product.cost, # Renamed from price
+                is_active=product.is_active,
+                category_name=product.category,
+                unit_of_measure_name=product.unit_of_measure
+            )
+            return product.product_id
+
+    def get_product_details(self, product_id: int) -> Optional['Product']:
+        """Retrieve full product details and return a Product object."""
+        product_data_from_db = self.db.get_product_details(product_id) # This returns a dict with 'category_id' (potentially)
+        if product_data_from_db:
+            all_categories_map = self._get_all_categories_map() # Fetch all categories for path reconstruction
+
+            # The db.get_product_details now returns category NAME directly due to JOIN.
+            # However, to build the *full path* if we only had category_id, we'd need the map.
+            # For now, db.get_product_details already provides the leaf name as 'category'.
+            # If we want the full path, we need the category_id from product and then build path.
+            # Let's assume db.get_product_details gives us 'category_id' and not the name directly for path building.
+            # This requires a change in db.get_product_details to return category_id.
+            # For now, let's assume it returns the leaf category name as 'category'.
+            # The plan was for Product.category to be the full path.
+
+            # To implement full path, db.get_product_details should return category_id.
+            # Let's adjust the expectation for product_data_from_db for a moment:
+            # It should contain 'category_id' not 'category' (name).
+            # This means db.get_product_details needs to change its SQL slightly.
+            # For now, I will proceed AS IF db.get_product_details provides 'category_id'
+            # and that the 'category' key in product_data_from_db holds the ID.
+            # This is a temporary assumption to write the path logic here.
+            # The database method was already changed to return the name as 'category'.
+            # So the path reconstruction is actually NOT needed here if Product.category is just the leaf name.
+            # Re-reading plan: "Product.category attribute will continue to store the category name (string)
+            # for ease of use... path will be constructed by the logic layer."
+            # This implies the Product object SHOULD have the full path.
+
+            # Correct approach: db.get_product_details returns category_id (not name via JOIN for this specific field)
+            # Then logic layer builds the path.
+            # Let's assume db.get_product_details returns a dict where product_data_from_db['category_id'] is the ID.
+            # This means I need to adjust the previous DB step's output description or the DB method itself.
+            # Given the current state of database.py (it returns joined name as 'category'), this path logic is redundant for now
+            # UNLESS we change DB to return category_id.
+
+            # Sticking to the plan that logic layer constructs the path:
+            # This means db.get_product_details *must* provide the category_id of the product.
+            # The current db.get_product_details returns the category name via JOIN.
+            # This is a conflict.
+            # RESOLUTION: For Product objects, `category` will be the full path.
+            # `db.get_product_details` will be modified to return `p.category_id` instead of `pc.name`.
+            # The following code assumes this change will be made to `db.get_product_details`.
+
+            category_path = ""
+            if product_data_from_db.get('category_id'): # Assuming db returns 'category_id'
+                 category_path = self._get_category_path_string(product_data_from_db['category_id'], all_categories_map)
+
+            return Product(
+                product_id=product_data_from_db["product_id"],
+                name=product_data_from_db["name"],
+                description=product_data_from_db["description"],
+                cost=product_data_from_db["cost"],
+                is_active=product_data_from_db.get("is_active", True),
+                category=category_path, # This is now the full path
+                unit_of_measure=product_data_from_db.get("unit_of_measure") # Name is fine from DB
+            )
+        return None
+
+    def get_all_products(self) -> list['Product']:
+        """Retrieve all products as Product objects."""
+        products_data_from_db = self.db.get_all_products() # Expect list of dicts, each with 'category_id'
+        all_categories_map = self._get_all_categories_map()
+        product_list = []
+
+        for row_data in products_data_from_db:
+            category_path = ""
+            if row_data.get('category_id'): # Assuming db returns 'category_id'
+                category_path = self._get_category_path_string(row_data['category_id'], all_categories_map)
+
+            product_list.append(Product(
+                product_id=row_data["product_id"],
+                name=row_data["name"],
+                description=row_data["description"],
+                cost=row_data["cost"],
+                is_active=row_data.get("is_active", True),
+                category=category_path, # Full path
+                unit_of_measure=row_data.get("unit_of_measure") # Name is fine
+            ))
+        return product_list
+
+    def delete_product(self, product_id: int):
+        """Delete a specific product."""
+        self.db.delete_product(product_id)
+
+    def get_all_product_categories(self) -> list[str]:
+        """Retrieve a list of all product category names from the dedicated table."""
+        categories_tuples = self.db.get_all_product_categories_from_table() # Returns list of (id, name)
+        return [name for id, name in categories_tuples] # Extract just the names
+
+    def get_all_product_categories(self) -> list[str]: # Renamed this back or re-added for tests/old UI
+        """Retrieve a flat, unique, sorted list of all product category names."""
+        # Fetches (id, name, parent_id)
+        categories_data = self.db.get_all_product_categories_from_table()
+        if not categories_data:
+            return []
+        # Get unique names and sort them
+        unique_names = sorted(list(set(cat[1] for cat in categories_data if cat[1]))) # Ensure name is not empty
+        return unique_names
+
+    def get_hierarchical_categories(self) -> list[dict]: # For Treeview
+        """
+        Retrieves all categories and processes them into a hierarchical structure
+        suitable for a Treeview (e.g., list of dicts with 'id', 'name', 'parent_id', 'children').
+        """
+        all_categories_raw = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+
+        categories_map = {cat_id: {'id': cat_id, 'name': name, 'parent_id': parent_id, 'children': []}
+                          for cat_id, name, parent_id in all_categories_raw}
+
+        hierarchical_list = []
+        for cat_id, data in categories_map.items():
+            if data['parent_id'] is None:
+                hierarchical_list.append(data)
+            elif data['parent_id'] in categories_map: # Check if parent exists in map
+                categories_map[data['parent_id']]['children'].append(data)
+            else: # Orphaned category (parent_id exists but parent record doesn't - should ideally not happen with FKs)
+                hierarchical_list.append(data) # Add as a root to make it visible
+
+        # Sort children for consistent display if needed (e.g., by name)
+        for cat_id in categories_map:
+            categories_map[cat_id]['children'].sort(key=lambda x: x['name'])
+        hierarchical_list.sort(key=lambda x: x['name'])
+
+        return hierarchical_list
+
+    def get_flat_category_paths(self) -> list[tuple[int, str]]:
+        """
+        Returns a flat list of (leaf_category_id, full_path_string) for all leaf categories.
+        Example: [(10, "Electronics\\Audio\\Headphones"), (12, "Books\\Fiction")]
+        """
+        all_categories_map = self._get_all_categories_map()
+        leaf_paths = []
+
+        # Identify all leaf nodes (nodes that are not parents to any other node)
+        # More simply, any node can be a leaf if it's selected.
+        # The goal is to list all categories with their full path.
+
+        for cat_id, (name, parent_id) in all_categories_map.items():
+            path = self._get_category_path_string(cat_id, all_categories_map)
+            leaf_paths.append((cat_id, path))
+
+        leaf_paths.sort(key=lambda x: x[1]) # Sort by path string
+        return leaf_paths
+
+
+    def add_category(self, name: str, parent_id: int | None = None) -> int:
+        """Adds a new category."""
+        if not name.strip():
+            raise ValueError("Category name cannot be empty.")
+        # Consider adding validation for cyclical dependencies if parent_id is provided,
+        # though basic check (cat_id != parent_id) is in DB layer.
+        return self.db.add_product_category(name.strip(), parent_id)
+
+    def update_category_name(self, category_id: int, new_name: str):
+        """Updates an existing category's name."""
+        if not new_name.strip():
+            raise ValueError("New category name cannot be empty.")
+        self.db.update_product_category_name(category_id, new_name.strip())
+
+    def update_category_parent(self, category_id: int, new_parent_id: int | None):
+        """Updates an existing category's parent."""
+        # Add more sophisticated cycle detection here if needed.
+        # E.g., ensure new_parent_id is not a descendant of category_id.
+        if category_id == new_parent_id: # Basic check already in DB, but good to have in logic too
+            raise ValueError("A category cannot be its own parent.")
+
+        # More advanced cycle detection: Walk up from new_parent_id to see if category_id is an ancestor.
+        current_ancestor_id = new_parent_id
+        all_cats_map = self._get_all_categories_map()
+        while current_ancestor_id is not None:
+            if current_ancestor_id == category_id:
+                raise ValueError("Cannot set parent to a descendant category (creates a cycle).")
+            _name, current_ancestor_id = all_cats_map.get(current_ancestor_id, (None, None))
+
+        self.db.update_product_category_parent(category_id, new_parent_id)
+
+    def delete_category(self, category_id: int):
+        """Deletes a category."""
+        # Add any pre-deletion business logic here if needed.
+        # E.g., check if category is in use by non-product entities if that becomes a feature.
+        # The DB handles setting product.category_id to NULL and child categories' parent_id to NULL.
+        self.db.delete_product_category(category_id)
+
+
+    def get_all_product_units_of_measure(self) -> list[str]:
+        """Retrieve a list of all product unit of measure names from the dedicated table."""
+        units_tuples = self.db.get_all_product_units_of_measure_from_table() # Returns list of (id, name)
+        return [name for id, name in units_tuples] # Extract just the names
+
+    def _get_category_path_string(self, category_id: int, all_categories_map: dict[int, tuple[str, int | None]]) -> str:
+        """
+        Helper function to recursively build the full category path string.
+        all_categories_map is a dictionary: {id: (name, parent_id)}
+        """
+        if category_id is None or category_id not in all_categories_map:
+            return ""
+
+        name, parent_id = all_categories_map[category_id]
+        if parent_id is None or parent_id not in all_categories_map:
+            return name
+        else:
+            parent_path = self._get_category_path_string(parent_id, all_categories_map)
+            return f"{parent_path}\\{name}"
+
+    def _get_all_categories_map(self) -> dict[int, tuple[str, int | None]]:
+        """Helper to fetch all categories and put them into a map for easy lookup."""
+        categories_data = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+        return {cat_id: (name, parent_id) for cat_id, name, parent_id in categories_data}
+
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed
 if TYPE_CHECKING:
-    from shared.structs import Interaction, Task, TaskStatus, TaskPriority # For type hinting
+    from shared.structs import Interaction, Task, TaskStatus, TaskPriority, Product # For type hinting
     # from enum import Enum # No longer needed here if imported above

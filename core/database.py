@@ -685,7 +685,7 @@ class DatabaseHandler:
     def get_product_details(self, product_id):
         """Retrieve a single product's details, joining with categories and units of measure tables."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,  # Renamed price to cost
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, -- Renamed price to cost
                    pc.name as category_name, puom.name as unit_of_measure_name
             FROM products p
             LEFT JOIN product_categories pc ON p.category_id = pc.category_id
@@ -705,7 +705,7 @@ class DatabaseHandler:
     def get_all_products(self):
         """Retrieve all products with full details, joining with categories and units of measure tables."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, # Renamed price to cost
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, -- Renamed price to cost
                    pc.name as category_name, puom.name as unit_of_measure_name
             FROM products p
             LEFT JOIN product_categories pc ON p.category_id = pc.category_id

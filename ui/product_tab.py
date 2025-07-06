@@ -66,29 +66,37 @@ class ProductTab:
         self.tree.bind("<<TreeviewSelect>>", self.on_product_select)
 
     def sort_column(self, col, reverse):
-        data = []
+        # Get data from treeview, specially handling the 'cost' column
+        data_to_sort = []
         for k in self.tree.get_children(""):
-            value = self.tree.set(k, col)
-            if col == "cost": # Specific handling for cost column
-                # Remove '$' and then convert to float. Handle potential errors if format is unexpected.
+            value_str = self.tree.set(k, col)
+            if col == "cost":
                 try:
-                    numeric_value = float(value.lstrip('$'))
-                    data.append((numeric_value, k))
+                    # Attempt to convert cost to float after stripping '$'
+                    actual_value = float(value_str.lstrip('$'))
                 except ValueError:
-                    data.append((value, k)) # Fallback to string sort if conversion fails
+                    actual_value = value_str # Fallback to string if conversion fails
             else:
-                data.append((value, k))
+                actual_value = value_str
+            data_to_sort.append((actual_value, k))
 
-        # Attempt numeric sort for relevant columns if possible, else string sort
-        try:
-            # This will apply to 'cost' if successfully converted, or other numeric columns
-            data.sort(key=lambda item: float(item[0]), reverse=reverse)
-        except ValueError:
-            # Fallback for non-numeric data or if cost conversion failed and it's treated as string
-            data.sort(key=lambda item: str(item[0]).lower(), reverse=reverse)
+        # Define a sort key that tries float conversion, falls back to string
+        def sort_key(item):
+            val = item[0]
+            if isinstance(val, (int, float)):
+                return (0, val) # Type 0 for numbers
+            try:
+                return (0, float(val)) # Try converting string to float
+            except ValueError:
+                return (1, str(val).lower()) # Type 1 for strings, case-insensitive
 
-        for index, (val, k) in enumerate(data):
+        data_to_sort.sort(key=sort_key, reverse=reverse)
+
+        # Reorder items in the treeview
+        for index, (val, k) in enumerate(data_to_sort):
             self.tree.move(k, "", index)
+
+        # Update the heading command to toggle sort direction
         self.tree.heading(col, command=lambda: self.sort_column(col, not reverse))
 
     def on_product_select(self, event=None):

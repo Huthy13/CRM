@@ -2,11 +2,11 @@ import tkinter as tk
 from tkinter import ttk
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
-from ui.contact_tab import ContactTab
-from ui.account_tab import AccountTab
-from ui.interaction_tab import InteractionLogTab
-from ui.task_tab import TaskTab # Import the new TaskTab
-from ui.product_tab import ProductTab # Import ProductTab
+from ui.contacts.contact_tab import ContactTab
+from ui.accounts.account_tab import AccountTab
+from ui.interactions.interaction_tab import InteractionLogTab
+from ui.tasks.task_tab import TaskTab
+from ui.products.product_tab import ProductTab
 
 
 class AddressBookView:

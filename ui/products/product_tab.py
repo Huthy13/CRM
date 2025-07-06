@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-from ui.product_popup import ProductDetailsPopup
+from ui.products.product_popup import ProductDetailsPopup
 from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 from shared.structs import Product
 

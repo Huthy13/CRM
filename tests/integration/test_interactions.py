@@ -2,7 +2,7 @@ import unittest
 import os
 import datetime
 from core.database import DatabaseHandler
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from shared.structs import Interaction, InteractionType, Account, Contact
 
 class TestInteractions(unittest.TestCase):

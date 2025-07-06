@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from shared.structs import Interaction, Account, Contact # Assuming these might be needed for type hinting or direct use
 
 class InteractionLogTab(ttk.Frame):

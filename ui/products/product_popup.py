@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import Product
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 
 class ProductDetailsPopup(tk.Toplevel):

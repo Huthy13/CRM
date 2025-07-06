@@ -1,7 +1,7 @@
 import unittest
 import os
 from core.database import DatabaseHandler
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from shared.structs import Product
 
 class TestAddressBookLogic(unittest.TestCase):

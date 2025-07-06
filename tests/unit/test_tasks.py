@@ -1,6 +1,6 @@
 import unittest
 import datetime
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler
 from shared.structs import Task, TaskStatus, TaskPriority, Account # Import Account for creating associated company
 

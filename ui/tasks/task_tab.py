@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from ui.task_popup import TaskDetailsPopup
+from ui.tasks.task_popup import TaskDetailsPopup
 from shared.structs import TaskStatus, TaskPriority # For potential direct use, though logic layer should handle most
 
 import datetime # Import the datetime module

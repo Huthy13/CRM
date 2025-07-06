@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime, date, timedelta
 import os
 
-from core.logic import product_management as pm
+import core.logic.product_management as pm
 from core import database_setup
 
 TEST_DB_NAME = ":memory:"

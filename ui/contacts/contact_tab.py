@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-from ui.contact_popup import ContactDetailsPopup # Renamed file, relative import
+from ui.contacts.contact_popup import ContactDetailsPopup # Renamed file, relative import
 # Import Contact if needed for type hinting, though logic layer currently returns Contact objects
 from shared.structs import Contact # Moved to shared package
 

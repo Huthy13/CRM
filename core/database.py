@@ -676,9 +676,9 @@ class DatabaseHandler:
         unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
 
         self.cursor.execute("""
-            INSERT INTO products (name, description, cost, is_active, category_id, unit_of_measure_id) # Renamed price to cost
+            INSERT INTO products (name, description, cost, is_active, category_id, unit_of_measure_id) -- Renamed price to cost
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, description, cost, is_active, category_id, unit_of_measure_id)) # Renamed price to cost
+        """, (name, description, cost, is_active, category_id, unit_of_measure_id)) # Parameter tuple, no SQL comment needed here
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -728,7 +728,7 @@ class DatabaseHandler:
 
         self.cursor.execute("""
             UPDATE products
-            SET name = ?, description = ?, cost = ?, is_active = ?, category_id = ?, unit_of_measure_id = ? # Renamed price to cost
+            SET name = ?, description = ?, cost = ?, is_active = ?, category_id = ?, unit_of_measure_id = ? -- Renamed price to cost
             WHERE product_id = ?
-        """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Renamed price to cost
+        """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Parameter tuple, no SQL comment needed here
         self.conn.commit()

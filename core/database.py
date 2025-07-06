@@ -123,7 +123,9 @@ class DatabaseHandler:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS product_categories (
                 category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
+                name TEXT UNIQUE NOT NULL,
+                parent_category_id INTEGER,
+                FOREIGN KEY (parent_category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL
             )
         """)
 
@@ -145,7 +147,7 @@ class DatabaseHandler:
                 is_active BOOLEAN DEFAULT 1,
                 category_id INTEGER,
                 unit_of_measure_id INTEGER,
-                FOREIGN KEY (category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL,
+                FOREIGN KEY (category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL, -- Ensures if a category is deleted, product's category_id becomes NULL
                 FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure (unit_id) ON DELETE SET NULL
             )
         """)
@@ -567,19 +569,60 @@ class DatabaseHandler:
         self.conn.commit()
 
 # Category specific methods
-    def add_product_category(self, name: str) -> int:
+    def add_product_category(self, name: str, parent_id: int | None = None) -> int:
         """Adds a new category to product_categories if it doesn't exist, returns the category ID."""
-        if not name: # Do not add empty category names
+        if not name:
             return None
         try:
-            self.cursor.execute("INSERT INTO product_categories (name) VALUES (?)", (name,))
+            self.cursor.execute(
+                "INSERT INTO product_categories (name, parent_category_id) VALUES (?, ?)",
+                (name, parent_id)
+            )
             self.conn.commit()
             return self.cursor.lastrowid
-        except sqlite3.IntegrityError: # Category name already exists
-            self.conn.rollback() # Rollback the failed insert
+        except sqlite3.IntegrityError:
+            self.conn.rollback()
+            # This assumes a category with this name shouldn't exist even if parent_id is different.
+            # If name + parent_id should be unique, the unique constraint in DB needs to be on (name, parent_category_id)
+            # For now, name is globally unique.
             return self.get_product_category_id_by_name(name)
 
-    def get_product_category_id_by_name(self, name: str) -> int | None:
+    def update_product_category_name(self, category_id: int, new_name: str):
+        """Updates a category's name."""
+        if not new_name: # Prevent setting empty name
+            raise ValueError("New category name cannot be empty.")
+        try:
+            self.cursor.execute("UPDATE product_categories SET name = ? WHERE category_id = ?", (new_name, category_id))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            self.conn.rollback()
+            raise ValueError(f"Category name '{new_name}' already exists.")
+
+    def update_product_category_parent(self, category_id: int, new_parent_id: int | None):
+        """Updates a category's parent_id."""
+        # Add check to prevent a category from being its own parent, or child of its descendant (more complex)
+        if category_id == new_parent_id:
+            raise ValueError("A category cannot be its own parent.")
+        # More complex cycle detection is ideally done in logic layer before calling DB.
+        self.cursor.execute("UPDATE product_categories SET parent_category_id = ? WHERE category_id = ?", (new_parent_id, category_id))
+        self.conn.commit()
+
+    def delete_product_category(self, category_id: int):
+        """Deletes a category. Products using it will have category_id set to NULL due to ON DELETE SET NULL.
+           Child categories will have parent_category_id set to NULL."""
+        # First, check if any other categories list this one as a parent.
+        # If ON DELETE SET NULL is on parent_category_id, this is handled by DB.
+        # If ON DELETE CASCADE was used for parent_category_id, children would be deleted.
+        # If ON DELETE RESTRICT, this delete would fail if children exist.
+        # With ON DELETE SET NULL for parent_category_id, children become top-level.
+
+        # Products referencing this category will have their category_id set to NULL by the DB
+        # due to the FOREIGN KEY ... ON DELETE SET NULL constraint on products.category_id.
+        self.cursor.execute("DELETE FROM product_categories WHERE category_id = ?", (category_id,))
+        self.conn.commit()
+
+
+    def get_product_category_id_by_name(self, name: str) -> int | None: # No change needed here, name is unique
         """Retrieves the ID of a category by its name."""
         if not name:
             return None
@@ -587,7 +630,7 @@ class DatabaseHandler:
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_product_category_name_by_id(self, category_id: int) -> str | None:
+    def get_product_category_name_by_id(self, category_id: int) -> str | None: # No change needed here
         """Retrieves the name of a category by its ID."""
         if category_id is None:
             return None
@@ -595,9 +638,9 @@ class DatabaseHandler:
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_all_product_categories_from_table(self) -> list[tuple[int, str]]:
-        """Retrieves all categories (ID, name) from the product_categories table."""
-        self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
+    def get_all_product_categories_from_table(self) -> list[tuple[int, str, int | None]]:
+        """Retrieves all categories (ID, name, parent_id) from the product_categories table."""
+        self.cursor.execute("SELECT category_id, name, parent_category_id FROM product_categories ORDER BY name")
         return self.cursor.fetchall()
 
 # Unit of Measure specific methods
@@ -685,10 +728,10 @@ class DatabaseHandler:
     def get_product_details(self, product_id):
         """Retrieve a single product's details, joining with categories and units of measure tables."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, -- Renamed price to cost
-                   pc.name as category_name, puom.name as unit_of_measure_name
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,
+                   p.category_id, -- Return category_id directly
+                   puom.name as unit_of_measure_name
             FROM products p
-            LEFT JOIN product_categories pc ON p.category_id = pc.category_id
             LEFT JOIN product_units_of_measure puom ON p.unit_of_measure_id = puom.unit_id
             WHERE p.product_id = ?
         """, (product_id,))
@@ -696,32 +739,30 @@ class DatabaseHandler:
         if row:
             columns = [desc[0] for desc in self.cursor.description]
             product_dict = dict(zip(columns, row))
-            product_dict['category'] = product_dict.pop('category_name', None)
+            # category_id is now directly in product_dict
             product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
-            # 'cost' column is already correctly named from SQL query
             return product_dict
         return None
 
     def get_all_products(self):
-        """Retrieve all products with full details, joining with categories and units of measure tables."""
+        """Retrieve all products with full details, returning category_id and joining for unit_of_measure name."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, -- Renamed price to cost
-                   pc.name as category_name, puom.name as unit_of_measure_name
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,
+                   p.category_id, -- Return category_id directly
+                   puom.name as unit_of_measure_name
             FROM products p
-            LEFT JOIN product_categories pc ON p.category_id = pc.category_id
             LEFT JOIN product_units_of_measure puom ON p.unit_of_measure_id = puom.unit_id
         """)
         results = []
         columns = [desc[0] for desc in self.cursor.description]
         for row_data in self.cursor.fetchall():
             product_dict = dict(zip(columns, row_data))
-            product_dict['category'] = product_dict.pop('category_name', None)
+            # category_id is now directly in product_dict
             product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
-            # 'cost' column is already correctly named from SQL query
             results.append(product_dict)
         return results
 
-    def update_product(self, product_id, name, description, cost, is_active, category_name, unit_of_measure_name): # Renamed price to cost
+    def update_product(self, product_id, name, description, cost, is_active, category_name, unit_of_measure_name):
         """Update product details. Handles category and unit_of_measure name to ID conversion."""
         category_id = self.add_product_category(category_name) if category_name else None
         unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None

@@ -91,14 +91,14 @@ class TestProductManagement(unittest.TestCase):
         # For actual UI testing, a different framework (e.g., Selenium, Appium, or tkinter-specific tools) would be needed.
         # Here, we're ensuring the database/logic layer handles data correctly.
 
-        # Test case: Valid price
-        valid_product = Product(name="Valid Price Product", description="Test", price=19.99)
+        # Test case: Valid cost
+        valid_product = Product(name="Valid Cost Product", description="Test", cost=19.99)
         valid_id = self.logic.save_product(valid_product)
         self.assertIsNotNone(valid_id)
         retrieved_valid = self.logic.get_product_details(valid_id)
-        self.assertEqual(retrieved_valid.price, 19.99)
+        self.assertEqual(retrieved_valid.cost, 19.99) # price -> cost in assertion
 
-        # The popup's price validation (e.g., non-negative, numeric) is handled in the UI layer (ProductDetailsPopup).
+        # The popup's cost validation (e.g., non-negative, numeric) is handled in the UI layer (ProductDetailsPopup).
         # Unit tests here focus on the backend logic.
 
     def test_add_product_with_new_and_existing_category(self):
@@ -128,9 +128,9 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(len(categories_after_third_add), 2) # Alpha, Beta
 
     def test_add_product_with_empty_category(self):
-        prod_id = self.logic.save_product(Product(name="Product NoCat", category="", cost=10)) # price -> cost
+        prod_id = self.logic.save_product(Product(name="Product NoCat", category="", cost=10))
         retrieved_prod = self.logic.get_product_details(prod_id)
-        self.assertEqual(retrieved_prod.category, None)
+        self.assertEqual(retrieved_prod.category, "") # Empty category path should be empty string
 
         # Ensure empty string is not added to the categories table
         categories = self.logic.get_all_product_categories()
@@ -203,7 +203,10 @@ class TestProductManagement(unittest.TestCase):
             self.logic.delete_product(p.product_id)
 
         remaining_products = self.logic.get_all_products()
-        self.assertEqual(len(remaining_products), 0) # All products deleted that had categories
+        self.assertEqual(len(remaining_products), 1) # Prod E (with empty category) should remain
+        if remaining_products: # Ensure it's the one we expect
+            self.assertEqual(remaining_products[0].name, "Prod E")
+            self.assertEqual(remaining_products[0].category, "") # Path for None category_id is ""
 
         # Categories should still exist in the product_categories table
         categories_after_deletes = self.logic.get_all_product_categories()

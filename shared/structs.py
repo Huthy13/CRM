@@ -1,3 +1,10 @@
+from enum import Enum
+
+class AccountType(Enum):
+    CUSTOMER = "Customer"
+    VENDOR = "Vendor"
+    CONTACT = "Contact"
+
 class Address:
     def __init__(self, address_id=None, street="", city="", state="", zip_code="", country=""):
         self.address_id = address_id
@@ -27,8 +34,8 @@ class Address:
         }
 
 class Account:
-    def __init__(self, account_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None, website="", description=""):
-        
+    def __init__(self, account_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None, website="", description="", account_type: AccountType = None):
+
         self.account_id = account_id
         self.name = name
         self.phone = phone
@@ -36,6 +43,7 @@ class Account:
         self.shipping_address_id = shipping_address_id
         self.website = website
         self.description = description
+        self.account_type = account_type
 
     def __str__(self):
         return (f"Data from the string method!!! Account ID: {self.account_id}\n"
@@ -44,7 +52,8 @@ class Account:
                 f"Billing Address ID: {self.billing_address_id}\n"
                 f"Shipping Address ID: {self.shipping_address_id}\n"
                 f"Website: {self.website}\n"
-                f"Description: {self.description}")
+                f"Description: {self.description}\n"
+                f"Account Type: {self.account_type.value if self.account_type else 'N/A'}")
 
     def to_dict(self):
         """Returns the account as a dictionary."""
@@ -56,9 +65,10 @@ class Account:
             "shipping_address_id": self.shipping_address_id,
             "same_as_billing": self.is_billing_same_as_shipping(),
             "website": self.website,
-            "description": self.description
+            "description": self.description,
+            "account_type": self.account_type.value if self.account_type else None
         }
-    
+
     def is_billing_same_as_shipping(self):
         """Checks if billing and shipping address IDs are the same."""
         if self.billing_address_id is None and self.shipping_address_id is None:

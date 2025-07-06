@@ -548,6 +548,10 @@ class AddressBookLogic:
         """Delete a specific product."""
         self.db.delete_product(product_id)
 
+    def get_all_product_categories(self) -> list[str]:
+        """Retrieve a unique list of all product categories."""
+        return self.db.get_all_product_categories()
+
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed
 if TYPE_CHECKING:

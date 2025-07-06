@@ -547,3 +547,13 @@ class DatabaseHandler:
         """Delete a specific product."""
         self.cursor.execute("DELETE FROM products WHERE product_id = ?", (product_id,))
         self.conn.commit()
+
+    def get_all_product_categories(self):
+        """Retrieve a unique list of all product categories."""
+        self.cursor.execute("""
+            SELECT DISTINCT category
+            FROM products
+            WHERE category IS NOT NULL AND category != ''
+            ORDER BY category
+        """)
+        return [row[0] for row in self.cursor.fetchall()]

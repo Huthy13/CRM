@@ -101,5 +101,33 @@ class TestProductManagement(unittest.TestCase):
         # The popup's price validation (e.g., non-negative, numeric) is handled in the UI layer (ProductDetailsPopup).
         # Unit tests here focus on the backend logic.
 
+    def test_get_all_product_categories(self):
+        # Test retrieving unique product categories
+        self.logic.save_product(Product(name="Product 1", category="Electronics", price=10))
+        self.logic.save_product(Product(name="Product 2", category="Books", price=20))
+        self.logic.save_product(Product(name="Product 3", category="Electronics", price=30)) # Duplicate category
+        self.logic.save_product(Product(name="Product 4", category="Home Goods", price=40))
+        self.logic.save_product(Product(name="Product 5", category="", price=50)) # Empty category
+        self.logic.save_product(Product(name="Product 6", category="Books", price=60)) # Duplicate category
+
+        categories = self.logic.get_all_product_categories()
+
+        self.assertIsInstance(categories, list)
+        self.assertEqual(len(categories), 3) # Should be unique and non-empty
+        self.assertIn("Electronics", categories)
+        self.assertIn("Books", categories)
+        self.assertIn("Home Goods", categories)
+        self.assertNotIn("", categories) # Empty strings should be excluded by DB query
+
+        # Check sorting
+        self.assertEqual(categories, sorted(categories))
+
+        # Test with no categories
+        self.tearDown() # Reset DB
+        self.setUp()
+        no_categories = self.logic.get_all_product_categories()
+        self.assertEqual(len(no_categories), 0)
+
+
 if __name__ == '__main__':
     unittest.main()

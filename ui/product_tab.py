@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 from ui.product_popup import ProductDetailsPopup
+from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 from shared.structs import Product
 
 class ProductTab:
@@ -35,6 +36,11 @@ class ProductTab:
             button_frame, text="Remove Product",
             command=self.remove_product, width=button_width)
         self.remove_product_button.pack(side=tk.LEFT, padx=5)
+
+        self.view_categories_button = tk.Button(
+            button_frame, text="View Categories",
+            command=self.view_categories, width=button_width)
+        self.view_categories_button.pack(side=tk.LEFT, padx=5)
 
         self.tree = ttk.Treeview(self.frame, columns=("id", "name", "description", "price", "active", "category", "unit_of_measure"), show="headings")
 
@@ -135,6 +141,10 @@ class ProductTab:
 
     def refresh_products_list(self):
         self.load_products()
+
+    def view_categories(self):
+        popup = CategoryListPopup(self.frame.master, self.logic)
+        self.frame.master.wait_window(popup)
 
 # Example of how to integrate into a main application (for testing)
 if __name__ == '__main__':

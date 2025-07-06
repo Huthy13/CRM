@@ -159,8 +159,13 @@ class ProductTab:
                     product.unit_of_measure
                 ))
         except Exception as e:
-            messagebox.showerror("Load Error", f"Failed to load products: {e}")
-            print(f"Error in load_products: {e}")
+            import traceback
+            detailed_error_message = f"Detailed error in load_products: {type(e).__name__}: {e}"
+            print(detailed_error_message)
+            traceback.print_exc() # Prints the traceback to standard error
+            messagebox.showerror("Load Error", f"Failed to load products. See console for details.\n{type(e).__name__}: {e}")
+            # Kept the original print for your observation too, if it helps, but traceback is more important.
+            # print(f"Original simple error in load_products: {e}")
 
     def refresh_products_list(self):
         self.load_products()

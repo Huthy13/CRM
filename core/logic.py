@@ -492,10 +492,10 @@ class AddressBookLogic:
             new_product_id = self.db.add_product(
                 name=product.name,
                 description=product.description,
-                price=product.price,
+                cost=product.cost, # Renamed from price
                 is_active=product.is_active,
                 category_name=product.category,
-                unit_of_measure_name=product.unit_of_measure # Pass unit_of_measure name
+                unit_of_measure_name=product.unit_of_measure
             )
             if new_product_id:
                 product.product_id = new_product_id
@@ -505,40 +505,40 @@ class AddressBookLogic:
                 product_id=product.product_id,
                 name=product.name,
                 description=product.description,
-                price=product.price,
+                cost=product.cost, # Renamed from price
                 is_active=product.is_active,
                 category_name=product.category,
-                unit_of_measure_name=product.unit_of_measure # Pass unit_of_measure name
+                unit_of_measure_name=product.unit_of_measure
             )
             return product.product_id
 
     def get_product_details(self, product_id: int) -> Optional['Product']:
         """Retrieve full product details and return a Product object."""
-        product_data = self.db.get_product_details(product_id) # db returns a dict with category_name
+        product_data = self.db.get_product_details(product_id)
         if product_data:
             return Product(
                 product_id=product_data["product_id"],
                 name=product_data["name"],
                 description=product_data["description"],
-                price=product_data["price"],
+                cost=product_data["cost"], # Renamed from price
                 is_active=product_data.get("is_active", True),
-                category=product_data.get("category", ""), # db.get_product_details now returns 'category' as key for name
+                category=product_data.get("category", ""),
                 unit_of_measure=product_data.get("unit_of_measure", "")
             )
         return None
 
     def get_all_products(self) -> list['Product']:
         """Retrieve all products as Product objects."""
-        products_data = self.db.get_all_products() # db returns list of dicts with category_name
+        products_data = self.db.get_all_products()
         product_list = []
         for row_data in products_data:
             product_list.append(Product(
                 product_id=row_data["product_id"],
                 name=row_data["name"],
                 description=row_data["description"],
-                price=row_data["price"],
+                cost=row_data["cost"], # Renamed from price
                 is_active=row_data.get("is_active", True),
-                category=row_data.get("category", ""), # db.get_all_products now returns 'category' as key for name
+                category=row_data.get("category", ""),
                 unit_of_measure=row_data.get("unit_of_measure", "")
             ))
         return product_list

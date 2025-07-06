@@ -19,7 +19,7 @@ class TestProductManagement(unittest.TestCase):
 
     def test_add_and_get_product(self):
         # Test adding a product and retrieving it
-        product_data = Product(name="Test Laptop", description="A laptop for testing", price=999.99, is_active=True, category="Electronics", unit_of_measure="Each")
+        product_data = Product(name="Test Laptop", description="A laptop for testing", cost=999.99, is_active=True, category="Electronics", unit_of_measure="Each") # price -> cost
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 
@@ -27,7 +27,7 @@ class TestProductManagement(unittest.TestCase):
         self.assertIsNotNone(retrieved_product)
         self.assertEqual(retrieved_product.name, "Test Laptop")
         self.assertEqual(retrieved_product.description, "A laptop for testing")
-        self.assertEqual(retrieved_product.price, 999.99)
+        self.assertEqual(retrieved_product.cost, 999.99) # price -> cost
         self.assertEqual(retrieved_product.is_active, True)
         self.assertEqual(retrieved_product.category, "Electronics")
         self.assertEqual(retrieved_product.unit_of_measure, "Each")
@@ -35,8 +35,8 @@ class TestProductManagement(unittest.TestCase):
 
     def test_get_all_products(self):
         # Test retrieving all products
-        self.logic.save_product(Product(name="Product A", description="Desc A", price=10.0, category="Cat A", unit_of_measure="Unit A"))
-        self.logic.save_product(Product(name="Product B", description="Desc B", price=20.0, is_active=False, category="Cat B", unit_of_measure="Unit B"))
+        self.logic.save_product(Product(name="Product A", description="Desc A", cost=10.0, category="Cat A", unit_of_measure="Unit A")) # price -> cost
+        self.logic.save_product(Product(name="Product B", description="Desc B", cost=20.0, is_active=False, category="Cat B", unit_of_measure="Unit B")) # price -> cost
 
         all_products = self.logic.get_all_products()
         self.assertEqual(len(all_products), 2)
@@ -45,7 +45,7 @@ class TestProductManagement(unittest.TestCase):
         self.assertIsNotNone(product_a)
         self.assertEqual(product_a.category, "Cat A")
         self.assertEqual(product_a.unit_of_measure, "Unit A")
-        self.assertTrue(product_a.is_active) # Default is_active is True
+        self.assertTrue(product_a.is_active)
 
         product_b = next(p for p in all_products if p.name == "Product B")
         self.assertIsNotNone(product_b)
@@ -56,25 +56,25 @@ class TestProductManagement(unittest.TestCase):
 
     def test_update_product(self):
         # Test updating an existing product
-        product_data = Product(name="Old Name", description="Old Desc", price=50.0, is_active=True, category="Old Cat", unit_of_measure="Old Unit")
+        product_data = Product(name="Old Name", description="Old Desc", cost=50.0, is_active=True, category="Old Cat", unit_of_measure="Old Unit") # price -> cost
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 
-        updated_product_data = Product(product_id=product_id, name="New Name", description="New Desc", price=75.0, is_active=False, category="New Cat", unit_of_measure="New Unit")
+        updated_product_data = Product(product_id=product_id, name="New Name", description="New Desc", cost=75.0, is_active=False, category="New Cat", unit_of_measure="New Unit") # price -> cost
         self.logic.save_product(updated_product_data)
 
         retrieved_product = self.logic.get_product_details(product_id)
         self.assertIsNotNone(retrieved_product)
         self.assertEqual(retrieved_product.name, "New Name")
         self.assertEqual(retrieved_product.description, "New Desc")
-        self.assertEqual(retrieved_product.price, 75.0)
+        self.assertEqual(retrieved_product.cost, 75.0) # price -> cost
         self.assertEqual(retrieved_product.is_active, False)
         self.assertEqual(retrieved_product.category, "New Cat")
         self.assertEqual(retrieved_product.unit_of_measure, "New Unit")
 
     def test_delete_product(self):
         # Test deleting a product
-        product_data = Product(name="To Be Deleted", description="Delete me", price=5.0, category="Temp", unit_of_measure="Item")
+        product_data = Product(name="To Be Deleted", description="Delete me", cost=5.0, category="Temp", unit_of_measure="Item") # price -> cost
         product_id = self.logic.save_product(product_data)
         self.assertIsNotNone(product_id)
 
@@ -103,7 +103,7 @@ class TestProductManagement(unittest.TestCase):
 
     def test_add_product_with_new_and_existing_category(self):
         # Add product with a new category
-        prod1_id = self.logic.save_product(Product(name="Product 1", category="Alpha", price=10))
+        prod1_id = self.logic.save_product(Product(name="Product 1", category="Alpha", cost=10)) # price -> cost
         retrieved_prod1 = self.logic.get_product_details(prod1_id)
         self.assertEqual(retrieved_prod1.category, "Alpha")
 
@@ -112,7 +112,7 @@ class TestProductManagement(unittest.TestCase):
         self.assertIn("Alpha", categories)
 
         # Add product with an existing category
-        prod2_id = self.logic.save_product(Product(name="Product 2", category="Alpha", price=20))
+        prod2_id = self.logic.save_product(Product(name="Product 2", category="Alpha", cost=20)) # price -> cost
         retrieved_prod2 = self.logic.get_product_details(prod2_id)
         self.assertEqual(retrieved_prod2.category, "Alpha")
 
@@ -122,29 +122,29 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(len(categories_after_second_add), 1)
 
         # Add product with another new category
-        self.logic.save_product(Product(name="Product 3", category="Beta", price=30))
+        self.logic.save_product(Product(name="Product 3", category="Beta", cost=30)) # price -> cost
         categories_after_third_add = self.logic.get_all_product_categories()
         self.assertIn("Beta", categories_after_third_add)
         self.assertEqual(len(categories_after_third_add), 2) # Alpha, Beta
 
     def test_add_product_with_empty_category(self):
-        prod_id = self.logic.save_product(Product(name="Product NoCat", category="", price=10))
+        prod_id = self.logic.save_product(Product(name="Product NoCat", category="", cost=10)) # price -> cost
         retrieved_prod = self.logic.get_product_details(prod_id)
-        self.assertEqual(retrieved_prod.category, None) # Empty string should result in None/NULL category
+        self.assertEqual(retrieved_prod.category, None)
 
         # Ensure empty string is not added to the categories table
         categories = self.logic.get_all_product_categories()
         self.assertNotIn("", categories)
-        self.assertEqual(len(categories), 0) # No actual categories added
+        self.assertEqual(len(categories), 0)
 
     def test_update_product_category(self):
         # Add product with initial category
-        prod_id = self.logic.save_product(Product(name="Product X", category="InitialCat", price=100))
+        prod_id = self.logic.save_product(Product(name="Product X", category="InitialCat", cost=100)) # price -> cost
         retrieved_prod_initial = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_initial.category, "InitialCat")
 
         # Update to a new category
-        self.logic.save_product(Product(product_id=prod_id, name="Product X Updated", category="UpdatedCat", price=110))
+        self.logic.save_product(Product(product_id=prod_id, name="Product X Updated", category="UpdatedCat", cost=110)) # price -> cost
         retrieved_prod_updated = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_updated.category, "UpdatedCat")
 
@@ -154,24 +154,24 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(len(categories), 2)
 
         # Update to an existing category
-        self.logic.save_product(Product(product_id=prod_id, name="Product X Final", category="InitialCat", price=120))
+        self.logic.save_product(Product(product_id=prod_id, name="Product X Final", category="InitialCat", cost=120)) # price -> cost
         retrieved_prod_final = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_final.category, "InitialCat")
 
         categories_final = self.logic.get_all_product_categories()
-        self.assertEqual(categories_final.count("InitialCat"), 1) # Should not be duplicated
+        self.assertEqual(categories_final.count("InitialCat"), 1)
         self.assertEqual(categories_final.count("UpdatedCat"), 1)
         self.assertEqual(len(categories_final), 2)
 
 
     def test_get_all_product_categories_from_table(self):
         # Test retrieving unique product categories from the dedicated table
-        self.logic.save_product(Product(name="Prod A", category="Electronics", price=10))
-        self.logic.save_product(Product(name="Prod B", category="Books", price=20))
-        self.logic.save_product(Product(name="Prod C", category="Electronics", price=30))
-        self.logic.save_product(Product(name="Prod D", category="Home Goods", price=40))
-        self.logic.save_product(Product(name="Prod E", category="", price=50)) # Empty, should not be in list
-        self.logic.save_product(Product(name="Prod F", category="Books", price=60))
+        self.logic.save_product(Product(name="Prod A", category="Electronics", cost=10)) # price -> cost
+        self.logic.save_product(Product(name="Prod B", category="Books", cost=20)) # price -> cost
+        self.logic.save_product(Product(name="Prod C", category="Electronics", cost=30)) # price -> cost
+        self.logic.save_product(Product(name="Prod D", category="Home Goods", cost=40)) # price -> cost
+        self.logic.save_product(Product(name="Prod E", category="", cost=50)) # price -> cost
+        self.logic.save_product(Product(name="Prod F", category="Books", cost=60)) # price -> cost
 
         categories = self.logic.get_all_product_categories() # This now calls get_all_product_categories_from_table
 
@@ -222,14 +222,14 @@ class TestProductManagement(unittest.TestCase):
 # --- Unit of Measure Tests ---
 
     def test_add_product_with_new_and_existing_unit(self):
-        prod1_id = self.logic.save_product(Product(name="Product U1", unit_of_measure="Piece", price=10))
+        prod1_id = self.logic.save_product(Product(name="Product U1", unit_of_measure="Piece", cost=10)) # price -> cost
         retrieved_prod1 = self.logic.get_product_details(prod1_id)
         self.assertEqual(retrieved_prod1.unit_of_measure, "Piece")
 
         units = self.logic.get_all_product_units_of_measure()
         self.assertIn("Piece", units)
 
-        prod2_id = self.logic.save_product(Product(name="Product U2", unit_of_measure="Piece", price=20))
+        prod2_id = self.logic.save_product(Product(name="Product U2", unit_of_measure="Piece", cost=20)) # price -> cost
         retrieved_prod2 = self.logic.get_product_details(prod2_id)
         self.assertEqual(retrieved_prod2.unit_of_measure, "Piece")
 
@@ -237,13 +237,13 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(units_after_second_add.count("Piece"), 1)
         self.assertEqual(len(units_after_second_add), 1)
 
-        self.logic.save_product(Product(name="Product U3", unit_of_measure="Box", price=30))
+        self.logic.save_product(Product(name="Product U3", unit_of_measure="Box", cost=30)) # price -> cost
         units_after_third_add = self.logic.get_all_product_units_of_measure()
         self.assertIn("Box", units_after_third_add)
         self.assertEqual(len(units_after_third_add), 2)
 
     def test_add_product_with_empty_unit_of_measure(self):
-        prod_id = self.logic.save_product(Product(name="Product NoUnit", unit_of_measure="", price=10))
+        prod_id = self.logic.save_product(Product(name="Product NoUnit", unit_of_measure="", cost=10)) # price -> cost
         retrieved_prod = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod.unit_of_measure, None)
 
@@ -252,11 +252,11 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(len(units), 0)
 
     def test_update_product_unit_of_measure(self):
-        prod_id = self.logic.save_product(Product(name="Product Y", unit_of_measure="InitialUnit", price=100))
+        prod_id = self.logic.save_product(Product(name="Product Y", unit_of_measure="InitialUnit", cost=100)) # price -> cost
         retrieved_prod_initial = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_initial.unit_of_measure, "InitialUnit")
 
-        self.logic.save_product(Product(product_id=prod_id, name="Product Y Updated", unit_of_measure="UpdatedUnit", price=110))
+        self.logic.save_product(Product(product_id=prod_id, name="Product Y Updated", unit_of_measure="UpdatedUnit", cost=110)) # price -> cost
         retrieved_prod_updated = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_updated.unit_of_measure, "UpdatedUnit")
 
@@ -265,7 +265,7 @@ class TestProductManagement(unittest.TestCase):
         self.assertIn("UpdatedUnit", units)
         self.assertEqual(len(units), 2)
 
-        self.logic.save_product(Product(product_id=prod_id, name="Product Y Final", unit_of_measure="InitialUnit", price=120))
+        self.logic.save_product(Product(product_id=prod_id, name="Product Y Final", unit_of_measure="InitialUnit", cost=120)) # price -> cost
         retrieved_prod_final = self.logic.get_product_details(prod_id)
         self.assertEqual(retrieved_prod_final.unit_of_measure, "InitialUnit")
 
@@ -275,11 +275,11 @@ class TestProductManagement(unittest.TestCase):
         self.assertEqual(len(units_final), 2)
 
     def test_get_all_product_units_of_measure_from_table(self):
-        self.logic.save_product(Product(name="UnitProd A", unit_of_measure="KG", price=10))
-        self.logic.save_product(Product(name="UnitProd B", unit_of_measure="Meter", price=20))
-        self.logic.save_product(Product(name="UnitProd C", unit_of_measure="KG", price=30))
-        self.logic.save_product(Product(name="UnitProd D", unit_of_measure="Liter", price=40))
-        self.logic.save_product(Product(name="UnitProd E", unit_of_measure="", price=50))
+        self.logic.save_product(Product(name="UnitProd A", unit_of_measure="KG", cost=10)) # price -> cost
+        self.logic.save_product(Product(name="UnitProd B", unit_of_measure="Meter", cost=20)) # price -> cost
+        self.logic.save_product(Product(name="UnitProd C", unit_of_measure="KG", cost=30)) # price -> cost
+        self.logic.save_product(Product(name="UnitProd D", unit_of_measure="Liter", cost=40)) # price -> cost
+        self.logic.save_product(Product(name="UnitProd E", unit_of_measure="", cost=50)) # price -> cost
 
         units = self.logic.get_all_product_units_of_measure()
 

@@ -24,9 +24,9 @@ class ProductDetailsPopup(tk.Toplevel):
         self.description_entry = tk.Entry(self, width=40)
         self.description_entry.grid(row=1, column=1, padx=5, pady=5)
 
-        tk.Label(self, text="Price:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        self.price_entry = tk.Entry(self, width=40)
-        self.price_entry.grid(row=2, column=1, padx=5, pady=5)
+        tk.Label(self, text="Cost:").grid(row=2, column=0, padx=5, pady=5, sticky="w") # Label changed
+        self.cost_entry = tk.Entry(self, width=40) # Renamed from price_entry
+        self.cost_entry.grid(row=2, column=1, padx=5, pady=5)
 
         tk.Label(self, text="Category:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.category_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
@@ -79,7 +79,7 @@ class ProductDetailsPopup(tk.Toplevel):
             self.product_data = product_details
             self.name_entry.insert(0, product_details.name if product_details.name else "")
             self.description_entry.insert(0, product_details.description if product_details.description else "")
-            self.price_entry.insert(0, str(product_details.price) if product_details.price is not None else "")
+            self.cost_entry.insert(0, str(product_details.cost) if product_details.cost is not None else "") # Renamed price_entry, product_details.price
 
             current_category = product_details.category if product_details.category else ""
             if current_category and current_category not in self.category_combobox['values']:
@@ -103,9 +103,9 @@ class ProductDetailsPopup(tk.Toplevel):
     def save_product(self):
         name = self.name_entry.get().strip()
         description = self.description_entry.get().strip()
-        price_str = self.price_entry.get().strip()
+        cost_str = self.cost_entry.get().strip() # Renamed from price_str
         category = self.category_combobox.get().strip()
-        unit_of_measure = self.unit_of_measure_combobox.get().strip() # Get from Combobox
+        unit_of_measure = self.unit_of_measure_combobox.get().strip()
         is_active = self.is_active_var.get()
 
         if not name:
@@ -113,19 +113,19 @@ class ProductDetailsPopup(tk.Toplevel):
             return
 
         try:
-            price = float(price_str)
-            if price < 0:
-                messagebox.showerror("Validation Error", "Price cannot be negative.")
+            cost = float(cost_str) # Renamed from price
+            if cost < 0:
+                messagebox.showerror("Validation Error", "Cost cannot be negative.") # Message updated
                 return
         except ValueError:
-            messagebox.showerror("Validation Error", "Price must be a valid number.")
+            messagebox.showerror("Validation Error", "Cost must be a valid number.") # Message updated
             return
 
         product_obj = Product(
             product_id=self.product_id,
             name=name,
             description=description,
-            price=price,
+            cost=cost, # Renamed from price
             category=category,
             unit_of_measure=unit_of_measure,
             is_active=is_active

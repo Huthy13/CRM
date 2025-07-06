@@ -42,19 +42,19 @@ class ProductTab:
             command=self.view_categories, width=button_width)
         self.view_categories_button.pack(side=tk.LEFT, padx=5)
 
-        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "description", "price", "active", "category", "unit_of_measure"), show="headings")
+        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "description", "cost", "active", "category", "unit_of_measure"), show="headings") # "price" -> "cost"
 
         self.tree.column("id", width=0, stretch=False) # Hidden ID column
         self.tree.heading("name", text="Product Name", command=lambda: self.sort_column("name", False))
         self.tree.heading("description", text="Description", command=lambda: self.sort_column("description", False))
-        self.tree.heading("price", text="Price", command=lambda: self.sort_column("price", False))
+        self.tree.heading("cost", text="Cost", command=lambda: self.sort_column("cost", False)) # "price" -> "cost"
         self.tree.heading("active", text="Active", command=lambda: self.sort_column("active", False))
         self.tree.heading("category", text="Category", command=lambda: self.sort_column("category", False))
         self.tree.heading("unit_of_measure", text="Unit of Measure", command=lambda: self.sort_column("unit_of_measure", False))
 
         self.tree.column("name", width=150, anchor=tk.W)
         self.tree.column("description", width=250, anchor=tk.W)
-        self.tree.column("price", width=80, anchor=tk.E)
+        self.tree.column("cost", width=80, anchor=tk.E)  # "price" -> "cost"
         self.tree.column("active", width=60, anchor=tk.CENTER)
         self.tree.column("category", width=100, anchor=tk.W)
         self.tree.column("unit_of_measure", width=100, anchor=tk.W)
@@ -130,7 +130,7 @@ class ProductTab:
                     product.product_id,
                     product.name,
                     product.description,
-                    f"{product.price:.2f}", # Format price
+                    f"${product.cost:.2f}", # Format cost with $
                     "Yes" if product.is_active else "No",
                     product.category,
                     product.unit_of_measure

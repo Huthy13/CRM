@@ -141,7 +141,7 @@ class DatabaseHandler:
                 product_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 description TEXT,
-                price REAL NOT NULL,
+                cost REAL NOT NULL, /* Renamed from price */
                 is_active BOOLEAN DEFAULT 1,
                 category_id INTEGER,
                 unit_of_measure_id INTEGER,
@@ -632,25 +632,60 @@ class DatabaseHandler:
     def get_all_product_units_of_measure_from_table(self) -> list[tuple[int, str]]:
         """Retrieves all units of measure (ID, name) from the product_units_of_measure table."""
         self.cursor.execute("SELECT unit_id, name FROM product_units_of_measure ORDER BY name")
+        self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
+        return self.cursor.fetchall()
+
+# Unit of Measure specific methods
+    def add_product_unit_of_measure(self, name: str) -> int:
+        """Adds a new unit of measure to product_units_of_measure if it doesn't exist, returns the unit ID."""
+        if not name:
+            return None
+        try:
+            self.cursor.execute("INSERT INTO product_units_of_measure (name) VALUES (?)", (name,))
+            self.conn.commit()
+            return self.cursor.lastrowid
+        except sqlite3.IntegrityError: # Unit name already exists
+            self.conn.rollback()
+            return self.get_product_unit_of_measure_id_by_name(name)
+
+    def get_product_unit_of_measure_id_by_name(self, name: str) -> int | None:
+        """Retrieves the ID of a unit of measure by its name."""
+        if not name:
+            return None
+        self.cursor.execute("SELECT unit_id FROM product_units_of_measure WHERE name = ?", (name,))
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def get_product_unit_of_measure_name_by_id(self, unit_id: int) -> str | None:
+        """Retrieves the name of a unit of measure by its ID."""
+        if unit_id is None:
+            return None
+        self.cursor.execute("SELECT name FROM product_units_of_measure WHERE unit_id = ?", (unit_id,))
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def get_all_product_units_of_measure_from_table(self) -> list[tuple[int, str]]:
+        """Retrieves all units of measure (ID, name) from the product_units_of_measure table."""
+        self.cursor.execute("SELECT unit_id, name FROM product_units_of_measure ORDER BY name")
         return self.cursor.fetchall()
 
 # Updated Product CRUD methods
-    def add_product(self, name, description, price, is_active, category_name, unit_of_measure_name):
+    def add_product(self, name, description, cost, is_active, category_name, unit_of_measure_name): # Renamed price to cost
         """Add a new product. Handles category and unit_of_measure name to ID conversion."""
         category_id = self.add_product_category(category_name) if category_name else None
         unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
 
         self.cursor.execute("""
-            INSERT INTO products (name, description, price, is_active, category_id, unit_of_measure_id)
+            INSERT INTO products (name, description, cost, is_active, category_id, unit_of_measure_id) # Renamed price to cost
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, description, price, is_active, category_id, unit_of_measure_id))
+        """, (name, description, cost, is_active, category_id, unit_of_measure_id)) # Renamed price to cost
         self.conn.commit()
         return self.cursor.lastrowid
 
     def get_product_details(self, product_id):
         """Retrieve a single product's details, joining with categories and units of measure tables."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.price, p.is_active,
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,  # Renamed price to cost
                    pc.name as category_name, puom.name as unit_of_measure_name
             FROM products p
             LEFT JOIN product_categories pc ON p.category_id = pc.category_id
@@ -663,13 +698,14 @@ class DatabaseHandler:
             product_dict = dict(zip(columns, row))
             product_dict['category'] = product_dict.pop('category_name', None)
             product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
+            # 'cost' column is already correctly named from SQL query
             return product_dict
         return None
 
     def get_all_products(self):
         """Retrieve all products with full details, joining with categories and units of measure tables."""
         self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.price, p.is_active,
+            SELECT p.product_id, p.name, p.description, p.cost, p.is_active, # Renamed price to cost
                    pc.name as category_name, puom.name as unit_of_measure_name
             FROM products p
             LEFT JOIN product_categories pc ON p.category_id = pc.category_id
@@ -681,17 +717,18 @@ class DatabaseHandler:
             product_dict = dict(zip(columns, row_data))
             product_dict['category'] = product_dict.pop('category_name', None)
             product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
+            # 'cost' column is already correctly named from SQL query
             results.append(product_dict)
         return results
 
-    def update_product(self, product_id, name, description, price, is_active, category_name, unit_of_measure_name):
+    def update_product(self, product_id, name, description, cost, is_active, category_name, unit_of_measure_name): # Renamed price to cost
         """Update product details. Handles category and unit_of_measure name to ID conversion."""
         category_id = self.add_product_category(category_name) if category_name else None
         unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
 
         self.cursor.execute("""
             UPDATE products
-            SET name = ?, description = ?, price = ?, is_active = ?, category_id = ?, unit_of_measure_id = ?
+            SET name = ?, description = ?, cost = ?, is_active = ?, category_id = ?, unit_of_measure_id = ? # Renamed price to cost
             WHERE product_id = ?
-        """, (name, description, price, is_active, category_id, unit_of_measure_id, product_id))
+        """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Renamed price to cost
         self.conn.commit()

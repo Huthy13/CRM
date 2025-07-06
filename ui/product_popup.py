@@ -79,7 +79,9 @@ class ProductDetailsPopup(tk.Toplevel):
             self.product_data = product_details
             self.name_entry.insert(0, product_details.name if product_details.name else "")
             self.description_entry.insert(0, product_details.description if product_details.description else "")
-            self.cost_entry.insert(0, str(product_details.cost) if product_details.cost is not None else "") # Renamed price_entry, product_details.price
+            # Format cost with $ for display
+            cost_display = f"${product_details.cost:.2f}" if product_details.cost is not None else ""
+            self.cost_entry.insert(0, cost_display)
 
             current_category = product_details.category if product_details.category else ""
             if current_category and current_category not in self.category_combobox['values']:
@@ -112,13 +114,19 @@ class ProductDetailsPopup(tk.Toplevel):
             messagebox.showerror("Validation Error", "Name cannot be empty.")
             return
 
+        # Attempt to parse cost, stripping '$' if present
+        if cost_str.startswith('$'):
+            cost_str_to_parse = cost_str[1:]
+        else:
+            cost_str_to_parse = cost_str
+
         try:
-            cost = float(cost_str) # Renamed from price
+            cost = float(cost_str_to_parse)
             if cost < 0:
-                messagebox.showerror("Validation Error", "Cost cannot be negative.") # Message updated
+                messagebox.showerror("Validation Error", "Cost cannot be negative.")
                 return
         except ValueError:
-            messagebox.showerror("Validation Error", "Cost must be a valid number.") # Message updated
+            messagebox.showerror("Validation Error", "Cost must be a valid number (e.g., 123.45).")
             return
 
         product_obj = Product(

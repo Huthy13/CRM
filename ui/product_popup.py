@@ -57,38 +57,65 @@ class ProductDetailsPopup(tk.Toplevel):
 
 
     def populate_category_combobox(self):
+        self.category_path_to_leaf_id_map = {}
+        self.leaf_id_to_category_path_map = {}
         try:
-            categories = self.logic.get_all_product_categories()
-            self.category_combobox['values'] = categories
+            flat_paths_data = self.logic.get_flat_category_paths() # list of (leaf_id, "Path\\To\\Leaf")
+            display_paths = []
+            for leaf_id, path_str in flat_paths_data:
+                display_paths.append(path_str)
+                self.category_path_to_leaf_id_map[path_str] = leaf_id
+                self.leaf_id_to_category_path_map[leaf_id] = path_str
+
+            self.category_combobox['values'] = display_paths
+            if not self.product_id and display_paths: # For new product, default to first if available
+                self.category_combobox.set("") # Or set to first: display_paths[0]
+            elif not display_paths:
+                 self.category_combobox.set("")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load categories: {e}")
+            messagebox.showerror("Error", f"Failed to load categories: {e}", parent=self)
             self.category_combobox['values'] = []
+            self.category_combobox.set("")
+
 
     def populate_unit_of_measure_combobox(self):
         try:
             units = self.logic.get_all_product_units_of_measure()
             self.unit_of_measure_combobox['values'] = units
+            if not self.product_id and units: # For new product
+                self.unit_of_measure_combobox.set("") # Or set to first: units[0]
+            elif not units:
+                self.unit_of_measure_combobox.set("")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load units of measure: {e}")
+            messagebox.showerror("Error", f"Failed to load units of measure: {e}", parent=self)
             self.unit_of_measure_combobox['values'] = []
+            self.unit_of_measure_combobox.set("")
 
 
     def load_product_details(self):
-        product_details = self.logic.get_product_details(self.product_id)
+        product_details = self.logic.get_product_details(self.product_id) # Product.category is full path
         if product_details:
             self.product_data = product_details
             self.name_entry.insert(0, product_details.name if product_details.name else "")
             self.description_entry.insert(0, product_details.description if product_details.description else "")
-            # Format cost with $ for display
             cost_display = f"${product_details.cost:.2f}" if product_details.cost is not None else ""
             self.cost_entry.insert(0, cost_display)
 
-            current_category = product_details.category if product_details.category else ""
-            if current_category and current_category not in self.category_combobox['values']:
-                current_values = list(self.category_combobox['values'])
-                updated_values = [current_category] + current_values
-                self.category_combobox['values'] = updated_values
-            self.category_combobox.set(current_category)
+            # Product.category from logic layer is the full path string
+            category_path_to_set = product_details.category if product_details.category else ""
+
+            # Ensure this path is in the combobox values. If not, it implies an issue or stale data.
+            # For robustness, it might be good to refresh combobox values if path not found,
+            # but for now, we assume populate_category_combobox has run and is up-to-date.
+            if category_path_to_set and category_path_to_set not in self.category_combobox['values']:
+                # This case should ideally not happen if categories are managed correctly and list is fresh
+                # If it does, we could add it or show a warning. For now, just try to set it.
+                # To be safe, add it to the list if it's a valid path from an existing product
+                # but somehow not in the current combobox list (e.g. if list was filtered)
+                # However, get_flat_category_paths() should list all.
+                 pass # Or log a warning: print(f"Warning: Category path '{category_path_to_set}' not in combobox values during load.")
+
+            self.category_combobox.set(category_path_to_set)
 
             current_unit = product_details.unit_of_measure if product_details.unit_of_measure else ""
             if current_unit and current_unit not in self.unit_of_measure_combobox['values']:
@@ -106,7 +133,13 @@ class ProductDetailsPopup(tk.Toplevel):
         name = self.name_entry.get().strip()
         description = self.description_entry.get().strip()
         cost_str = self.cost_entry.get().strip() # Renamed from price_str
-        category = self.category_combobox.get().strip()
+
+        selected_category_path = self.category_combobox.get().strip()
+        leaf_category_name = ""
+        if selected_category_path:
+            # Extract leaf name from path "Parent\\Child\\Leaf" -> "Leaf"
+            leaf_category_name = selected_category_path.split('\\')[-1]
+
         unit_of_measure = self.unit_of_measure_combobox.get().strip()
         is_active = self.is_active_var.get()
 
@@ -133,8 +166,8 @@ class ProductDetailsPopup(tk.Toplevel):
             product_id=self.product_id,
             name=name,
             description=description,
-            cost=cost, # Renamed from price
-            category=category,
+            cost=cost,
+            category=leaf_category_name, # Save only the leaf name
             unit_of_measure=unit_of_measure,
             is_active=is_active
         )

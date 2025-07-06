@@ -1,6 +1,6 @@
 import tkinter as tk
 from ui.main_view import AddressBookView
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler
 
 if __name__ == '__main__':

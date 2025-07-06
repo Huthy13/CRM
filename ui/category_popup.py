@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 
 from tkinter import simpledialog, messagebox
 

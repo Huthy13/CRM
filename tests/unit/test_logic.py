@@ -1,6 +1,6 @@
 import unittest
 import sqlite3 # Using sqlite3 for in-memory database for testing
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler # Assuming this is your DB handler class
 from shared.structs import Account, Contact, Address
 

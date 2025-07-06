@@ -1,10 +1,10 @@
 import unittest
 import os
 from core.database import DatabaseHandler
-from core.logic import AddressBookLogic
+from core.address_book_logic import AddressBookLogic
 from shared.structs import Product
 
-class TestProductManagement(unittest.TestCase):
+class TestAddressBookLogic(unittest.TestCase):
     def setUp(self):
         # Use a temporary database for testing
         self.test_db_name = "test_product_management.db"

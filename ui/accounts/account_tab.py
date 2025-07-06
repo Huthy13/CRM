@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-from ui.account_popup import AccountDetailsPopup # Renamed file, relative import
+from ui.accounts.account_popup import AccountDetailsPopup # Renamed file, relative import
 from shared.structs import Account # Moved to shared package
 
 class AccountTab:

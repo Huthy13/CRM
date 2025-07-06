@@ -9,8 +9,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 # If test.py is in the root, current_dir is the root.
 # If you move test.py into a subfolder (e.g., a 'scripts' folder),
 # you might need to adjust this (e.g., os.path.dirname(current_dir) to get to the actual root).
-# For now, assuming test.py is at the root of the project.
-project_root = current_dir
+# test.py is now in 'scripts', so project_root is one level up.
+project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 
@@ -34,8 +34,8 @@ def run_tests():
     loader = unittest.TestLoader()
 
     # Define the directory where tests are located
-    # Assuming 'test.py' is in the root and 'tests' is a subdirectory
-    tests_dir = os.path.join(os.path.dirname(__file__), 'tests')
+    # 'project_root' is already set to the actual root of the project.
+    tests_dir = os.path.join(project_root, 'tests')
 
     # Discover all tests in the 'tests' directory
     # The pattern 'test_*.py' will find any file starting with 'test_'

@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import Contact  # Import Contact
-from core.logic import AddressBookLogic # Assuming this is how logic is passed
+from core.address_book_logic import AddressBookLogic # Assuming this is how logic is passed
 
 NO_ACCOUNT_LABEL = "<No Account>"
 

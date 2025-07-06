@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from shared.structs import Product  # Import Product
+from shared.structs import Product
 from core.logic import AddressBookLogic
+from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 
 class ProductDetailsPopup(tk.Toplevel):
     def __init__(self, master_window, product_tab_controller, logic: AddressBookLogic, product_id=None):
@@ -29,9 +30,16 @@ class ProductDetailsPopup(tk.Toplevel):
         self.cost_entry.grid(row=2, column=1, padx=5, pady=5)
 
         tk.Label(self, text="Category:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.category_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
-        self.category_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.category_combobox = ttk.Combobox(self, width=37)
+        self.category_combobox.grid(row=3, column=1, padx=5, pady=5, sticky="ew") # Use sticky
+
+        self.manage_categories_button = ttk.Button(self, text="...", command=self.open_category_manager, width=3)
+        self.manage_categories_button.grid(row=3, column=2, padx=(0, 5), pady=5, sticky="w")
+
+        self.grid_columnconfigure(1, weight=1) # Allow combobox to expand a bit if window is resized
+
         self.populate_category_combobox()
+
 
         tk.Label(self, text="Unit of Measure:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.unit_of_measure_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
@@ -90,6 +98,24 @@ class ProductDetailsPopup(tk.Toplevel):
             messagebox.showerror("Error", f"Failed to load units of measure: {e}", parent=self)
             self.unit_of_measure_combobox['values'] = []
             self.unit_of_measure_combobox.set("")
+
+    def open_category_manager(self):
+        # Store current selection to try and re-select it later
+        current_selected_path = self.category_combobox.get()
+
+        category_manager_popup = CategoryListPopup(self, self.logic)
+        self.wait_window(category_manager_popup) # Wait for the category manager to close
+
+        # Refresh the combobox contents
+        self.populate_category_combobox()
+
+        # Try to re-select the previously selected/typed path
+        if current_selected_path in self.category_combobox['values']:
+            self.category_combobox.set(current_selected_path)
+        elif self.category_combobox['values']: # If previous not found, select first available
+            self.category_combobox.current(0)
+        else: # If list is empty
+            self.category_combobox.set('')
 
 
     def load_product_details(self):

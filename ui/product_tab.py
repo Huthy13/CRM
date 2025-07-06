@@ -66,10 +66,25 @@ class ProductTab:
         self.tree.bind("<<TreeviewSelect>>", self.on_product_select)
 
     def sort_column(self, col, reverse):
-        data = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
+        data = []
+        for k in self.tree.get_children(""):
+            value = self.tree.set(k, col)
+            if col == "cost": # Specific handling for cost column
+                # Remove '$' and then convert to float. Handle potential errors if format is unexpected.
+                try:
+                    numeric_value = float(value.lstrip('$'))
+                    data.append((numeric_value, k))
+                except ValueError:
+                    data.append((value, k)) # Fallback to string sort if conversion fails
+            else:
+                data.append((value, k))
+
+        # Attempt numeric sort for relevant columns if possible, else string sort
         try:
+            # This will apply to 'cost' if successfully converted, or other numeric columns
             data.sort(key=lambda item: float(item[0]), reverse=reverse)
         except ValueError:
+            # Fallback for non-numeric data or if cost conversion failed and it's treated as string
             data.sort(key=lambda item: str(item[0]).lower(), reverse=reverse)
 
         for index, (val, k) in enumerate(data):

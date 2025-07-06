@@ -34,8 +34,9 @@ class ProductDetailsPopup(tk.Toplevel):
         self.populate_category_combobox()
 
         tk.Label(self, text="Unit of Measure:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        self.unit_of_measure_entry = tk.Entry(self, width=40)
-        self.unit_of_measure_entry.grid(row=4, column=1, padx=5, pady=5)
+        self.unit_of_measure_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
+        self.unit_of_measure_combobox.grid(row=4, column=1, padx=5, pady=5)
+        self.populate_unit_of_measure_combobox()
 
         tk.Label(self, text="Active:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.active_checkbutton = tk.Checkbutton(self, variable=self.is_active_var)
@@ -50,8 +51,9 @@ class ProductDetailsPopup(tk.Toplevel):
 
         if self.product_id:
             self.load_product_details()
-        else: # For new product, still populate categories but don't set a specific one
+        else: # For new product, still populate lists but don't set specific values
             self.category_combobox.set("")
+            self.unit_of_measure_combobox.set("")
 
 
     def populate_category_combobox(self):
@@ -62,6 +64,14 @@ class ProductDetailsPopup(tk.Toplevel):
             messagebox.showerror("Error", f"Failed to load categories: {e}")
             self.category_combobox['values'] = []
 
+    def populate_unit_of_measure_combobox(self):
+        try:
+            units = self.logic.get_all_product_units_of_measure()
+            self.unit_of_measure_combobox['values'] = units
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load units of measure: {e}")
+            self.unit_of_measure_combobox['values'] = []
+
 
     def load_product_details(self):
         product_details = self.logic.get_product_details(self.product_id)
@@ -71,20 +81,20 @@ class ProductDetailsPopup(tk.Toplevel):
             self.description_entry.insert(0, product_details.description if product_details.description else "")
             self.price_entry.insert(0, str(product_details.price) if product_details.price is not None else "")
 
-            # Set category in combobox
             current_category = product_details.category if product_details.category else ""
-            # Ensure the current category is in the list, if not, add it temporarily for display
-            # This handles cases where a category might have been removed from the master list
-            # but is still assigned to this product. Or if categories haven't loaded yet.
-            # For a robust solution, one might refresh categories before setting.
             if current_category and current_category not in self.category_combobox['values']:
                 current_values = list(self.category_combobox['values'])
                 updated_values = [current_category] + current_values
                 self.category_combobox['values'] = updated_values
-
             self.category_combobox.set(current_category)
 
-            self.unit_of_measure_entry.insert(0, product_details.unit_of_measure if product_details.unit_of_measure else "")
+            current_unit = product_details.unit_of_measure if product_details.unit_of_measure else ""
+            if current_unit and current_unit not in self.unit_of_measure_combobox['values']:
+                current_values_uom = list(self.unit_of_measure_combobox['values'])
+                updated_values_uom = [current_unit] + current_values_uom
+                self.unit_of_measure_combobox['values'] = updated_values_uom
+            self.unit_of_measure_combobox.set(current_unit)
+
             self.is_active_var.set(product_details.is_active)
         else:
             messagebox.showerror("Error", f"Could not load details for product ID: {self.product_id}")
@@ -94,8 +104,8 @@ class ProductDetailsPopup(tk.Toplevel):
         name = self.name_entry.get().strip()
         description = self.description_entry.get().strip()
         price_str = self.price_entry.get().strip()
-        category = self.category_combobox.get().strip() # Get from Combobox
-        unit_of_measure = self.unit_of_measure_entry.get().strip()
+        category = self.category_combobox.get().strip()
+        unit_of_measure = self.unit_of_measure_combobox.get().strip() # Get from Combobox
         is_active = self.is_active_var.get()
 
         if not name:

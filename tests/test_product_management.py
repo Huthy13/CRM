@@ -219,6 +219,97 @@ class TestProductManagement(unittest.TestCase):
         no_categories = self.logic.get_all_product_categories()
         self.assertEqual(len(no_categories), 0)
 
+# --- Unit of Measure Tests ---
+
+    def test_add_product_with_new_and_existing_unit(self):
+        prod1_id = self.logic.save_product(Product(name="Product U1", unit_of_measure="Piece", price=10))
+        retrieved_prod1 = self.logic.get_product_details(prod1_id)
+        self.assertEqual(retrieved_prod1.unit_of_measure, "Piece")
+
+        units = self.logic.get_all_product_units_of_measure()
+        self.assertIn("Piece", units)
+
+        prod2_id = self.logic.save_product(Product(name="Product U2", unit_of_measure="Piece", price=20))
+        retrieved_prod2 = self.logic.get_product_details(prod2_id)
+        self.assertEqual(retrieved_prod2.unit_of_measure, "Piece")
+
+        units_after_second_add = self.logic.get_all_product_units_of_measure()
+        self.assertEqual(units_after_second_add.count("Piece"), 1)
+        self.assertEqual(len(units_after_second_add), 1)
+
+        self.logic.save_product(Product(name="Product U3", unit_of_measure="Box", price=30))
+        units_after_third_add = self.logic.get_all_product_units_of_measure()
+        self.assertIn("Box", units_after_third_add)
+        self.assertEqual(len(units_after_third_add), 2)
+
+    def test_add_product_with_empty_unit_of_measure(self):
+        prod_id = self.logic.save_product(Product(name="Product NoUnit", unit_of_measure="", price=10))
+        retrieved_prod = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod.unit_of_measure, None)
+
+        units = self.logic.get_all_product_units_of_measure()
+        self.assertNotIn("", units)
+        self.assertEqual(len(units), 0)
+
+    def test_update_product_unit_of_measure(self):
+        prod_id = self.logic.save_product(Product(name="Product Y", unit_of_measure="InitialUnit", price=100))
+        retrieved_prod_initial = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_initial.unit_of_measure, "InitialUnit")
+
+        self.logic.save_product(Product(product_id=prod_id, name="Product Y Updated", unit_of_measure="UpdatedUnit", price=110))
+        retrieved_prod_updated = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_updated.unit_of_measure, "UpdatedUnit")
+
+        units = self.logic.get_all_product_units_of_measure()
+        self.assertIn("InitialUnit", units)
+        self.assertIn("UpdatedUnit", units)
+        self.assertEqual(len(units), 2)
+
+        self.logic.save_product(Product(product_id=prod_id, name="Product Y Final", unit_of_measure="InitialUnit", price=120))
+        retrieved_prod_final = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_final.unit_of_measure, "InitialUnit")
+
+        units_final = self.logic.get_all_product_units_of_measure()
+        self.assertEqual(units_final.count("InitialUnit"), 1)
+        self.assertEqual(units_final.count("UpdatedUnit"), 1)
+        self.assertEqual(len(units_final), 2)
+
+    def test_get_all_product_units_of_measure_from_table(self):
+        self.logic.save_product(Product(name="UnitProd A", unit_of_measure="KG", price=10))
+        self.logic.save_product(Product(name="UnitProd B", unit_of_measure="Meter", price=20))
+        self.logic.save_product(Product(name="UnitProd C", unit_of_measure="KG", price=30))
+        self.logic.save_product(Product(name="UnitProd D", unit_of_measure="Liter", price=40))
+        self.logic.save_product(Product(name="UnitProd E", unit_of_measure="", price=50))
+
+        units = self.logic.get_all_product_units_of_measure()
+
+        self.assertIsInstance(units, list)
+        self.assertEqual(len(units), 3)
+        self.assertIn("KG", units)
+        self.assertIn("Meter", units)
+        self.assertIn("Liter", units)
+        self.assertNotIn("", units)
+        self.assertEqual(units, sorted(units))
+
+        # Test persistence after product deletion
+        products_to_delete = self.logic.get_all_products()
+        for p in products_to_delete:
+            self.logic.delete_product(p.product_id)
+
+        remaining_products = self.logic.get_all_products()
+        self.assertEqual(len(remaining_products), 0)
+
+        units_after_deletes = self.logic.get_all_product_units_of_measure()
+        self.assertEqual(len(units_after_deletes), 3)
+        self.assertIn("KG", units_after_deletes)
+        self.assertIn("Meter", units_after_deletes)
+        self.assertIn("Liter", units_after_deletes)
+
+        self.tearDown()
+        self.setUp()
+        no_units = self.logic.get_all_product_units_of_measure()
+        self.assertEqual(len(no_units), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

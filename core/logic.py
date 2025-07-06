@@ -494,8 +494,8 @@ class AddressBookLogic:
                 description=product.description,
                 price=product.price,
                 is_active=product.is_active,
-                category_name=product.category, # Pass category name
-                unit_of_measure=product.unit_of_measure
+                category_name=product.category,
+                unit_of_measure_name=product.unit_of_measure # Pass unit_of_measure name
             )
             if new_product_id:
                 product.product_id = new_product_id
@@ -507,8 +507,8 @@ class AddressBookLogic:
                 description=product.description,
                 price=product.price,
                 is_active=product.is_active,
-                category_name=product.category, # Pass category name
-                unit_of_measure=product.unit_of_measure
+                category_name=product.category,
+                unit_of_measure_name=product.unit_of_measure # Pass unit_of_measure name
             )
             return product.product_id
 
@@ -551,6 +551,11 @@ class AddressBookLogic:
         """Retrieve a list of all product category names from the dedicated table."""
         categories_tuples = self.db.get_all_product_categories_from_table() # Returns list of (id, name)
         return [name for id, name in categories_tuples] # Extract just the names
+
+    def get_all_product_units_of_measure(self) -> list[str]:
+        """Retrieve a list of all product unit of measure names from the dedicated table."""
+        units_tuples = self.db.get_all_product_units_of_measure_from_table() # Returns list of (id, name)
+        return [name for id, name in units_tuples] # Extract just the names
 
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed

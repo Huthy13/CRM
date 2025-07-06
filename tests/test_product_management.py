@@ -101,29 +101,120 @@ class TestProductManagement(unittest.TestCase):
         # The popup's price validation (e.g., non-negative, numeric) is handled in the UI layer (ProductDetailsPopup).
         # Unit tests here focus on the backend logic.
 
-    def test_get_all_product_categories(self):
-        # Test retrieving unique product categories
-        self.logic.save_product(Product(name="Product 1", category="Electronics", price=10))
-        self.logic.save_product(Product(name="Product 2", category="Books", price=20))
-        self.logic.save_product(Product(name="Product 3", category="Electronics", price=30)) # Duplicate category
-        self.logic.save_product(Product(name="Product 4", category="Home Goods", price=40))
-        self.logic.save_product(Product(name="Product 5", category="", price=50)) # Empty category
-        self.logic.save_product(Product(name="Product 6", category="Books", price=60)) # Duplicate category
+    def test_add_product_with_new_and_existing_category(self):
+        # Add product with a new category
+        prod1_id = self.logic.save_product(Product(name="Product 1", category="Alpha", price=10))
+        retrieved_prod1 = self.logic.get_product_details(prod1_id)
+        self.assertEqual(retrieved_prod1.category, "Alpha")
+
+        # Check if "Alpha" is in the categories table
+        categories = self.logic.get_all_product_categories()
+        self.assertIn("Alpha", categories)
+
+        # Add product with an existing category
+        prod2_id = self.logic.save_product(Product(name="Product 2", category="Alpha", price=20))
+        retrieved_prod2 = self.logic.get_product_details(prod2_id)
+        self.assertEqual(retrieved_prod2.category, "Alpha")
+
+        # Ensure "Alpha" is still there and not duplicated in the master list
+        categories_after_second_add = self.logic.get_all_product_categories()
+        self.assertEqual(categories_after_second_add.count("Alpha"), 1)
+        self.assertEqual(len(categories_after_second_add), 1)
+
+        # Add product with another new category
+        self.logic.save_product(Product(name="Product 3", category="Beta", price=30))
+        categories_after_third_add = self.logic.get_all_product_categories()
+        self.assertIn("Beta", categories_after_third_add)
+        self.assertEqual(len(categories_after_third_add), 2) # Alpha, Beta
+
+    def test_add_product_with_empty_category(self):
+        prod_id = self.logic.save_product(Product(name="Product NoCat", category="", price=10))
+        retrieved_prod = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod.category, None) # Empty string should result in None/NULL category
+
+        # Ensure empty string is not added to the categories table
+        categories = self.logic.get_all_product_categories()
+        self.assertNotIn("", categories)
+        self.assertEqual(len(categories), 0) # No actual categories added
+
+    def test_update_product_category(self):
+        # Add product with initial category
+        prod_id = self.logic.save_product(Product(name="Product X", category="InitialCat", price=100))
+        retrieved_prod_initial = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_initial.category, "InitialCat")
+
+        # Update to a new category
+        self.logic.save_product(Product(product_id=prod_id, name="Product X Updated", category="UpdatedCat", price=110))
+        retrieved_prod_updated = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_updated.category, "UpdatedCat")
 
         categories = self.logic.get_all_product_categories()
+        self.assertIn("InitialCat", categories)
+        self.assertIn("UpdatedCat", categories)
+        self.assertEqual(len(categories), 2)
+
+        # Update to an existing category
+        self.logic.save_product(Product(product_id=prod_id, name="Product X Final", category="InitialCat", price=120))
+        retrieved_prod_final = self.logic.get_product_details(prod_id)
+        self.assertEqual(retrieved_prod_final.category, "InitialCat")
+
+        categories_final = self.logic.get_all_product_categories()
+        self.assertEqual(categories_final.count("InitialCat"), 1) # Should not be duplicated
+        self.assertEqual(categories_final.count("UpdatedCat"), 1)
+        self.assertEqual(len(categories_final), 2)
+
+
+    def test_get_all_product_categories_from_table(self):
+        # Test retrieving unique product categories from the dedicated table
+        self.logic.save_product(Product(name="Prod A", category="Electronics", price=10))
+        self.logic.save_product(Product(name="Prod B", category="Books", price=20))
+        self.logic.save_product(Product(name="Prod C", category="Electronics", price=30))
+        self.logic.save_product(Product(name="Prod D", category="Home Goods", price=40))
+        self.logic.save_product(Product(name="Prod E", category="", price=50)) # Empty, should not be in list
+        self.logic.save_product(Product(name="Prod F", category="Books", price=60))
+
+        categories = self.logic.get_all_product_categories() # This now calls get_all_product_categories_from_table
 
         self.assertIsInstance(categories, list)
-        self.assertEqual(len(categories), 3) # Should be unique and non-empty
+        self.assertEqual(len(categories), 3)
         self.assertIn("Electronics", categories)
         self.assertIn("Books", categories)
         self.assertIn("Home Goods", categories)
-        self.assertNotIn("", categories) # Empty strings should be excluded by DB query
+        self.assertNotIn("", categories)
 
-        # Check sorting
+        # Check sorting (logic layer should receive sorted list from DB)
         self.assertEqual(categories, sorted(categories))
 
-        # Test with no categories
-        self.tearDown() # Reset DB
+        # Test that categories persist even if no product uses them
+        prod_a_id = self.logic.get_all_products()[0].product_id # Get an ID
+        self.logic.delete_product(prod_a_id)
+        # Find another product with a unique category to delete
+        home_goods_prod = next(p for p in self.logic.get_all_products() if p.category == "Home Goods")
+        self.logic.delete_product(home_goods_prod.product_id)
+
+        # Delete all products for "Books"
+        book_products = [p for p in self.logic.get_all_products() if p.category == "Books"]
+        for p in book_products:
+            self.logic.delete_product(p.product_id)
+
+        # Delete all products for "Electronics"
+        elec_products = [p for p in self.logic.get_all_products() if p.category == "Electronics"]
+        for p in elec_products:
+            self.logic.delete_product(p.product_id)
+
+        remaining_products = self.logic.get_all_products()
+        self.assertEqual(len(remaining_products), 0) # All products deleted that had categories
+
+        # Categories should still exist in the product_categories table
+        categories_after_deletes = self.logic.get_all_product_categories()
+        self.assertEqual(len(categories_after_deletes), 3) # Electronics, Books, Home Goods should persist
+        self.assertIn("Electronics", categories_after_deletes)
+        self.assertIn("Books", categories_after_deletes)
+        self.assertIn("Home Goods", categories_after_deletes)
+
+
+        # Test with no categories initially
+        self.tearDown()
         self.setUp()
         no_categories = self.logic.get_all_product_categories()
         self.assertEqual(len(no_categories), 0)

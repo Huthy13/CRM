@@ -486,51 +486,50 @@ class AddressBookLogic:
 
     # Product Methods
     def save_product(self, product: 'Product') -> Optional[int]:
-        """Add a new product or update an existing one. Returns Product ID."""
+        """Add a new product or update an existing one. Returns Product ID.
+           The database layer now handles category name to ID conversion."""
         if product.product_id is None:
-            # Call db.add_product with all required arguments
             new_product_id = self.db.add_product(
                 name=product.name,
                 description=product.description,
                 price=product.price,
                 is_active=product.is_active,
-                category=product.category,
+                category_name=product.category, # Pass category name
                 unit_of_measure=product.unit_of_measure
             )
             if new_product_id:
-                product.product_id = new_product_id # Update object with new ID
+                product.product_id = new_product_id
             return new_product_id
         else:
-            # Call db.update_product with all required arguments
             self.db.update_product(
                 product_id=product.product_id,
                 name=product.name,
                 description=product.description,
                 price=product.price,
                 is_active=product.is_active,
-                category=product.category,
+                category_name=product.category, # Pass category name
                 unit_of_measure=product.unit_of_measure
             )
             return product.product_id
 
     def get_product_details(self, product_id: int) -> Optional['Product']:
         """Retrieve full product details and return a Product object."""
-        product_data = self.db.get_product_details(product_id) # db returns a dict
+        product_data = self.db.get_product_details(product_id) # db returns a dict with category_name
         if product_data:
             return Product(
                 product_id=product_data["product_id"],
                 name=product_data["name"],
                 description=product_data["description"],
                 price=product_data["price"],
-                is_active=product_data.get("is_active", True), # Default to True if missing
-                category=product_data.get("category", ""),
+                is_active=product_data.get("is_active", True),
+                category=product_data.get("category", ""), # db.get_product_details now returns 'category' as key for name
                 unit_of_measure=product_data.get("unit_of_measure", "")
             )
         return None
 
     def get_all_products(self) -> list['Product']:
         """Retrieve all products as Product objects."""
-        products_data = self.db.get_all_products() # db returns list of dicts
+        products_data = self.db.get_all_products() # db returns list of dicts with category_name
         product_list = []
         for row_data in products_data:
             product_list.append(Product(
@@ -539,7 +538,7 @@ class AddressBookLogic:
                 description=row_data["description"],
                 price=row_data["price"],
                 is_active=row_data.get("is_active", True),
-                category=row_data.get("category", ""),
+                category=row_data.get("category", ""), # db.get_all_products now returns 'category' as key for name
                 unit_of_measure=row_data.get("unit_of_measure", "")
             ))
         return product_list
@@ -549,8 +548,9 @@ class AddressBookLogic:
         self.db.delete_product(product_id)
 
     def get_all_product_categories(self) -> list[str]:
-        """Retrieve a unique list of all product categories."""
-        return self.db.get_all_product_categories()
+        """Retrieve a list of all product category names from the dedicated table."""
+        categories_tuples = self.db.get_all_product_categories_from_table() # Returns list of (id, name)
+        return [name for id, name in categories_tuples] # Extract just the names
 
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed

@@ -119,6 +119,14 @@ class DatabaseHandler:
             )
         """)
 
+        # Product Categories table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS product_categories (
+                category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+        """)
+
         # Products table
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS products (
@@ -127,8 +135,9 @@ class DatabaseHandler:
                 description TEXT,
                 price REAL NOT NULL,
                 is_active BOOLEAN DEFAULT 1,
-                category TEXT,
-                unit_of_measure TEXT
+                category_id INTEGER,
+                unit_of_measure TEXT,
+                FOREIGN KEY (category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL
             )
         """)
         self.conn.commit()
@@ -548,12 +557,91 @@ class DatabaseHandler:
         self.cursor.execute("DELETE FROM products WHERE product_id = ?", (product_id,))
         self.conn.commit()
 
-    def get_all_product_categories(self):
-        """Retrieve a unique list of all product categories."""
+# Category specific methods
+    def add_product_category(self, name: str) -> int:
+        """Adds a new category to product_categories if it doesn't exist, returns the category ID."""
+        if not name: # Do not add empty category names
+            return None
+        try:
+            self.cursor.execute("INSERT INTO product_categories (name) VALUES (?)", (name,))
+            self.conn.commit()
+            return self.cursor.lastrowid
+        except sqlite3.IntegrityError: # Category name already exists
+            self.conn.rollback() # Rollback the failed insert
+            return self.get_product_category_id_by_name(name)
+
+    def get_product_category_id_by_name(self, name: str) -> int | None:
+        """Retrieves the ID of a category by its name."""
+        if not name:
+            return None
+        self.cursor.execute("SELECT category_id FROM product_categories WHERE name = ?", (name,))
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def get_product_category_name_by_id(self, category_id: int) -> str | None:
+        """Retrieves the name of a category by its ID."""
+        if category_id is None:
+            return None
+        self.cursor.execute("SELECT name FROM product_categories WHERE category_id = ?", (category_id,))
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def get_all_product_categories_from_table(self) -> list[tuple[int, str]]:
+        """Retrieves all categories (ID, name) from the product_categories table."""
+        self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
+        return self.cursor.fetchall()
+
+# Updated Product CRUD methods
+    def add_product(self, name, description, price, is_active, category_name, unit_of_measure):
+        """Add a new product and return its ID. Handles category name to ID conversion."""
+        category_id = self.add_product_category(category_name) if category_name else None
+
         self.cursor.execute("""
-            SELECT DISTINCT category
-            FROM products
-            WHERE category IS NOT NULL AND category != ''
-            ORDER BY category
+            INSERT INTO products (name, description, price, is_active, category_id, unit_of_measure)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, description, price, is_active, category_id, unit_of_measure))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_product_details(self, product_id):
+        """Retrieve a single product's details by its ID, joining with categories table."""
+        self.cursor.execute("""
+            SELECT p.product_id, p.name, p.description, p.price, p.is_active, pc.name as category_name, p.unit_of_measure
+            FROM products p
+            LEFT JOIN product_categories pc ON p.category_id = pc.category_id
+            WHERE p.product_id = ?
+        """, (product_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            # Manually map category_name because of the alias in the query
+            product_dict = dict(zip(columns, row))
+            product_dict['category'] = product_dict.pop('category_name', None) # Rename for consistency
+            return product_dict
+        return None
+
+    def get_all_products(self):
+        """Retrieve all products with full details, joining with categories table."""
+        self.cursor.execute("""
+            SELECT p.product_id, p.name, p.description, p.price, p.is_active, pc.name as category_name, p.unit_of_measure
+            FROM products p
+            LEFT JOIN product_categories pc ON p.category_id = pc.category_id
         """)
-        return [row[0] for row in self.cursor.fetchall()]
+        results = []
+        columns = [desc[0] for desc in self.cursor.description]
+        for row_data in self.cursor.fetchall():
+            product_dict = dict(zip(columns, row_data))
+            product_dict['category'] = product_dict.pop('category_name', None) # Rename for consistency
+            results.append(product_dict)
+        return results
+
+    def update_product(self, product_id, name, description, price, is_active, category_name, unit_of_measure):
+        """Update product details in the database. Handles category name to ID conversion."""
+        category_id = self.add_product_category(category_name) if category_name else None
+
+        self.cursor.execute("""
+            UPDATE products
+            SET name = ?, description = ?, price = ?, is_active = ?, category_id = ?, unit_of_measure = ?
+            WHERE product_id = ?
+        """, (name, description, price, is_active, category_id, unit_of_measure, product_id))
+        self.conn.commit()

@@ -29,8 +29,9 @@ class ProductDetailsPopup(tk.Toplevel):
         self.price_entry.grid(row=2, column=1, padx=5, pady=5)
 
         tk.Label(self, text="Category:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        self.category_entry = tk.Entry(self, width=40)
-        self.category_entry.grid(row=3, column=1, padx=5, pady=5)
+        self.category_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
+        self.category_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.populate_category_combobox()
 
         tk.Label(self, text="Unit of Measure:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.unit_of_measure_entry = tk.Entry(self, width=40)
@@ -49,6 +50,18 @@ class ProductDetailsPopup(tk.Toplevel):
 
         if self.product_id:
             self.load_product_details()
+        else: # For new product, still populate categories but don't set a specific one
+            self.category_combobox.set("")
+
+
+    def populate_category_combobox(self):
+        try:
+            categories = self.logic.get_all_product_categories()
+            self.category_combobox['values'] = categories
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load categories: {e}")
+            self.category_combobox['values'] = []
+
 
     def load_product_details(self):
         product_details = self.logic.get_product_details(self.product_id)
@@ -57,7 +70,20 @@ class ProductDetailsPopup(tk.Toplevel):
             self.name_entry.insert(0, product_details.name if product_details.name else "")
             self.description_entry.insert(0, product_details.description if product_details.description else "")
             self.price_entry.insert(0, str(product_details.price) if product_details.price is not None else "")
-            self.category_entry.insert(0, product_details.category if product_details.category else "")
+
+            # Set category in combobox
+            current_category = product_details.category if product_details.category else ""
+            # Ensure the current category is in the list, if not, add it temporarily for display
+            # This handles cases where a category might have been removed from the master list
+            # but is still assigned to this product. Or if categories haven't loaded yet.
+            # For a robust solution, one might refresh categories before setting.
+            if current_category and current_category not in self.category_combobox['values']:
+                current_values = list(self.category_combobox['values'])
+                updated_values = [current_category] + current_values
+                self.category_combobox['values'] = updated_values
+
+            self.category_combobox.set(current_category)
+
             self.unit_of_measure_entry.insert(0, product_details.unit_of_measure if product_details.unit_of_measure else "")
             self.is_active_var.set(product_details.is_active)
         else:
@@ -68,7 +94,7 @@ class ProductDetailsPopup(tk.Toplevel):
         name = self.name_entry.get().strip()
         description = self.description_entry.get().strip()
         price_str = self.price_entry.get().strip()
-        category = self.category_entry.get().strip()
+        category = self.category_combobox.get().strip() # Get from Combobox
         unit_of_measure = self.unit_of_measure_entry.get().strip()
         is_active = self.is_active_var.get()
 

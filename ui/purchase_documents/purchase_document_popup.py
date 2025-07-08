@@ -225,10 +225,22 @@ class PurchaseDocumentPopup(tk.Toplevel):
 
 
     def add_item(self):
-        messagebox.showinfo("TODO", "Add Item functionality not fully implemented.")
-        # Placeholder: Open a simple dialog to get item details
-        # Then call self.purchase_logic.add_item_to_document(self.document_data.id, ...)
-        # self.load_items_for_document()
+        if not self.document_data or self.document_data.id is None:
+            messagebox.showwarning("No Document", "Please save the main document before adding items.", parent=self)
+            return
+
+        if not self.can_edit_items():
+            messagebox.showwarning("Cannot Add Items", "Items cannot be added to a document with the current status.", parent=self)
+            return
+
+        from .purchase_document_item_popup import PurchaseDocumentItemPopup # Local import
+
+        # Master for item popup should be this popup itself, to ensure modality over it.
+        item_popup = PurchaseDocumentItemPopup(self, self.purchase_logic, self.document_data.id)
+        self.wait_window(item_popup) # Wait for the item_popup to close
+
+        if hasattr(item_popup, 'item_saved') and item_popup.item_saved:
+            self.load_items_for_document() # Refresh the list in this popup
 
     def edit_item(self):
         selected = self.items_tree.selection()

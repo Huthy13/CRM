@@ -11,11 +11,12 @@ from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocum
 NO_VENDOR_LABEL = "<Select Vendor>"
 
 class PurchaseDocumentPopup(tk.Toplevel):
-    def __init__(self, master, purchase_logic, account_logic, document_id=None):
+    def __init__(self, master, purchase_logic, account_logic, document_id=None, parent_controller=None): # Added parent_controller
         super().__init__(master)
         self.purchase_logic = purchase_logic
         self.account_logic = account_logic # For populating vendor dropdown
         self.document_id = document_id
+        self.parent_controller = parent_controller # Store it
 
         self.title(f"{'Edit' if document_id else 'New'} Purchase Document")
         self.geometry("700x500") # Adjusted size
@@ -273,19 +274,35 @@ class PurchaseDocumentPopup(tk.Toplevel):
 
         try:
             if self.document_id is None: # Creating a new document (RFQ)
+                # Ensure a vendor is selected
+                if current_vendor_id is None or selected_vendor_name == NO_VENDOR_LABEL: # Double check, though validated above
+                    messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.")
+                    return
+
                 new_doc = self.purchase_logic.create_rfq(
                     vendor_id=current_vendor_id,
                     notes=notes_content
                 )
                 if new_doc:
-                    self.document_id = new_doc.id
-                    self.document_data = new_doc # Update local data
-                    messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created.")
-                    # After creating, we might want to allow adding items.
-                    # The popup stays open. Refresh details.
+                    self.document_id = new_doc.id # IMPORTANT: Update the popup's state
+                    self.document_data = new_doc
+                    messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.")
+
+                    # Refresh the entire popup to reflect the new document's state
+                    # This will correctly set doc number, status, and enable item tab functionalities.
                     self.load_document_and_items()
+
+                    # Update the title to "Edit Purchase Document" as it's no longer new
+                    self.title(f"Edit Purchase Document - {new_doc.document_number}")
+
+                    # Switch to the items tab to encourage adding items
+                    self.notebook.select(self.items_tab)
+
+                    # Notify the main tab to refresh its list
+                    if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
+                         self.parent_controller.load_documents()
                 else:
-                    messagebox.showerror("Error", "Failed to create RFQ.")
+                    messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.")
             else: # Updating an existing document
                 # Only notes and potentially vendor (if status allows) are directly updatable here.
                 # Status changes have dedicated methods in logic.

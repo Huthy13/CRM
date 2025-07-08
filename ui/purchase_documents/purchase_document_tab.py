@@ -100,11 +100,17 @@ class PurchaseDocumentTab:
             self.delete_button.config(state=tk.DISABLED)
 
     def open_new_document_popup(self):
-        # from .purchase_document_popup import PurchaseDocumentPopup # Local import to avoid circularity at module level
-        # popup = PurchaseDocumentPopup(self.frame.winfo_toplevel(), self.purchase_logic, self.account_logic)
-        # self.frame.wait_window(popup)
-        # self.load_documents()
-        messagebox.showinfo("TODO", "New Document Popup not yet implemented.")
+        from .purchase_document_popup import PurchaseDocumentPopup # Local import
+        # Pass the tab instance (self) as the 'parent_controller'
+        popup = PurchaseDocumentPopup(
+            master=self.frame.winfo_toplevel(), # Actual master for window behavior
+            purchase_logic=self.purchase_logic,
+            account_logic=self.account_logic,
+            document_id=None,
+            parent_controller=self # Pass the tab instance
+        )
+        self.frame.wait_window(popup) # Wait for the popup to close
+        # self.load_documents() is now called by the popup via parent_controller
 
 
     def open_edit_document_popup(self):

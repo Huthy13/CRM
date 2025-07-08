@@ -90,7 +90,7 @@ class CategoryListPopup(tk.Toplevel):
         name = simpledialog.askstring("New Top-Level Category", "Enter category name:", parent=self)
         if name:
             try:
-                self.product_logic.add_category(name, parent_id=None) # Use product_logic
+                self.product_logic.add_product_category(name, parent_id=None) # Corrected method name
                 self.load_categories_to_treeview()
             except ValueError as ve:
                  messagebox.showerror("Validation Error", str(ve), parent=self)
@@ -106,7 +106,7 @@ class CategoryListPopup(tk.Toplevel):
         name = simpledialog.askstring("New Sub-category", f"Enter name for sub-category under '{parent_name}':", parent=self)
         if name:
             try:
-                self.product_logic.add_category(name, parent_id=int(parent_id)) # Use product_logic
+                self.product_logic.add_product_category(name, parent_id=int(parent_id)) # Corrected method name
                 self.load_categories_to_treeview()
                 # Optionally, try to expand the parent node here
                 self.tree.item(parent_id, open=True)
@@ -124,7 +124,7 @@ class CategoryListPopup(tk.Toplevel):
         new_name = simpledialog.askstring("Edit Category Name", "Enter new name:", initialvalue=current_name, parent=self)
         if new_name and new_name != current_name:
             try:
-                self.product_logic.update_category_name(int(category_id), new_name) # Use product_logic
+                self.product_logic.update_product_category_name(int(category_id), new_name) # Corrected method name
                 self.load_categories_to_treeview()
             except ValueError as ve:
                  messagebox.showerror("Validation Error", str(ve), parent=self)
@@ -139,7 +139,7 @@ class CategoryListPopup(tk.Toplevel):
         category_name = self.tree.item(category_id, "text")
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete category '{category_name}'?\nProducts using this category will be unassigned.\nChild categories will become top-level.", parent=self):
             try:
-                self.product_logic.delete_category(int(category_id)) # Use product_logic
+                self.product_logic.delete_product_category(int(category_id)) # Corrected method name
                 self.load_categories_to_treeview()
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete category: {e}", parent=self)

@@ -92,10 +92,18 @@ class PurchaseDocumentTab:
     def on_tree_select(self, event):
         selected_items = self.tree.selection()
         if selected_items:
-            self.selected_document_id = int(self.tree.item(selected_items[0], "text")) # Assuming iid is int
-            # Or if using iid directly: self.selected_document_id = int(selected_items[0])
-            self.edit_button.config(state=tk.NORMAL)
-            self.delete_button.config(state=tk.NORMAL)
+            # The iid was set as str(doc.id) during insert.
+            # selected_items[0] is the iid of the selected item.
+            try:
+                self.selected_document_id = int(selected_items[0])
+                self.edit_button.config(state=tk.NORMAL)
+                self.delete_button.config(state=tk.NORMAL)
+            except ValueError:
+                # This might happen if iid is not a valid int string, though it should be.
+                print(f"Error: Could not parse document ID from tree selection: {selected_items[0]}")
+                self.selected_document_id = None
+                self.edit_button.config(state=tk.DISABLED)
+                self.delete_button.config(state=tk.DISABLED)
         else:
             self.selected_document_id = None
             self.edit_button.config(state=tk.DISABLED)

@@ -7,17 +7,23 @@ from ui.accounts.account_tab import AccountTab
 from ui.interactions.interaction_tab import InteractionLogTab
 from ui.tasks.task_tab import TaskTab
 from ui.products.product_tab import ProductTab
+from core.purchase_logic import PurchaseLogic # Import PurchaseLogic
+from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab # Import PurchaseDocumentTab
 
 
 class AddressBookView:
-    def __init__(self, root, logic): # Add logic parameter
+    def __init__(self, root, logic: AddressBookLogic): # Type hint for logic
         self.root = root
         self.root.title("Ace's CRM")
-        self.root.geometry("900x700") # Adjusted for potentially more content
+        self.root.geometry("950x750") # Slightly larger for new tab potentially
 
-        # Use the passed-in logic instance
-        self.logic = logic
-        # db_handler is part of logic or not directly needed by main_view if logic handles all DB interactions
+        # Use the passed-in logic instance (this is AddressBookLogic)
+        self.address_book_logic = logic
+
+        # Initialize PurchaseLogic, it needs a db_handler instance
+        # Assuming AddressBookLogic has a 'db' attribute which is the DatabaseHandler
+        self.purchase_logic = PurchaseLogic(self.address_book_logic.db)
+
 
         # Track the currently selected contact's ID and account's ID
         self.selected_contact_id = None
@@ -30,18 +36,19 @@ class AddressBookView:
         self.root.rowconfigure(0, weight=1)    # Allow notebook to expand
 
 
-        # Initialize AccountTab and ContactTab
-        self.account_tab = AccountTab(self.notebook, self.logic)
-        self.contact_tab = ContactTab(self.notebook, self.logic)
-        self.interaction_log_tab = InteractionLogTab(self.notebook, self.logic)
-        self.task_tab = TaskTab(self.notebook, self.logic) # Create instance of TaskTab
-        self.product_tab = ProductTab(self.notebook, self.logic) # Create instance of ProductTab
+        # Initialize all tabs
+        self.account_tab = AccountTab(self.notebook, self.address_book_logic)
+        self.contact_tab = ContactTab(self.notebook, self.address_book_logic)
+        self.interaction_log_tab = InteractionLogTab(self.notebook, self.address_book_logic)
+        self.task_tab = TaskTab(self.notebook, self.address_book_logic)
+        self.product_tab = ProductTab(self.notebook, self.address_book_logic)
+        self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic)
+
 
         # Add frames from tabs to Notebook
-        # AccountTab and ContactTab use .frame attribute.
-        # InteractionLogTab and TaskTab are tk.Frame subclasses directly.
         self.notebook.add(self.account_tab.frame, text="Account Administration")
         self.notebook.add(self.contact_tab.frame, text="Contact Information")
         self.notebook.add(self.interaction_log_tab, text="Interaction Log")
-        self.notebook.add(self.task_tab, text="Tasks") # Add the new TaskTab
-        self.notebook.add(self.product_tab.frame, text="Products") # Add the new ProductTab
+        self.notebook.add(self.task_tab, text="Tasks")
+        self.notebook.add(self.product_tab.frame, text="Products")
+        self.notebook.add(self.purchase_document_tab.frame, text="Purchase Documents")

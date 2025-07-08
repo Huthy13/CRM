@@ -175,7 +175,7 @@ class ProductTab:
         self.load_products()
 
     def view_categories(self):
-        popup = CategoryListPopup(self.frame.master, self.logic)
+        popup = CategoryListPopup(self.frame.master, self.product_logic) # Use self.product_logic
         self.frame.master.wait_window(popup)
 
 # Example of how to integrate into a main application (for testing)

@@ -325,3 +325,66 @@ class Product:
             "category": self.category,
             "unit_of_measure": self.unit_of_measure
         }
+
+class PurchaseDocumentStatus(Enum):
+    RFQ = "RFQ"
+    QUOTED = "Quoted"
+    PO_ISSUED = "PO-Issued" # Matches spec
+    RECEIVED = "Received"
+    CLOSED = "Closed"
+
+class PurchaseDocument:
+    def __init__(self, doc_id=None, document_number: str = "", vendor_id: int = None,
+                 created_date: str = None, status: PurchaseDocumentStatus = None, notes: str = None):
+        self.id = doc_id # Using 'id' to match table column consistently
+        self.document_number = document_number
+        self.vendor_id = vendor_id
+        self.created_date = created_date # Should be ISO string
+        self.status = status
+        self.notes = notes
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "document_number": self.document_number,
+            "vendor_id": self.vendor_id,
+            "created_date": self.created_date,
+            "status": self.status.value if self.status else None,
+            "notes": self.notes
+        }
+
+    def __str__(self) -> str:
+        return (f"PurchaseDocument(ID: {self.id}, Number: {self.document_number}, VendorID: {self.vendor_id}, "
+                f"Status: {self.status.value if self.status else 'N/A'}, Created: {self.created_date})")
+
+class PurchaseDocumentItem:
+    def __init__(self, item_id=None, purchase_document_id: int = None, product_description: str = "",
+                 quantity: float = 0.0, unit_price: float = None, total_price: float = None):
+        self.id = item_id # Using 'id'
+        self.purchase_document_id = purchase_document_id
+        self.product_description = product_description
+        self.quantity = quantity
+        self.unit_price = unit_price
+        self.total_price = total_price # Should be calculated quantity * unit_price if unit_price is known
+
+    def calculate_total_price(self):
+        """Calculates total price if quantity and unit_price are set."""
+        if self.quantity is not None and self.unit_price is not None:
+            self.total_price = self.quantity * self.unit_price
+        else:
+            self.total_price = None # Or 0.0, depending on desired behavior for null unit_price
+        return self.total_price
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "purchase_document_id": self.purchase_document_id,
+            "product_description": self.product_description,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "total_price": self.total_price
+        }
+
+    def __str__(self) -> str:
+        return (f"PurchaseDocumentItem(ID: {self.id}, DocID: {self.purchase_document_id}, "
+                f"Product: {self.product_description}, Qty: {self.quantity}, UnitPrice: {self.unit_price})")

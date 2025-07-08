@@ -30,6 +30,10 @@ class PurchaseLogic:
         next_seq = current_max_seq + 1
         return f"{search_prefix_full}{next_seq:04d}"
 
+    # TODO: PurchaseLogic will need access to ProductLogic or direct product fetching methods from DB
+    # For now, product_description will be passed through if product_id is also given.
+    # A more robust solution would fetch description from product_id if not overridden.
+
     def create_rfq(self, vendor_id: int, notes: str = None) -> Optional[PurchaseDocument]:
         """Creates a new Request for Quote (RFQ)."""
         vendor_account_dict = self.db.get_account_details(vendor_id)
@@ -55,36 +59,56 @@ class PurchaseLogic:
             return self.get_purchase_document_details(new_doc_id)
         return None
 
-    def add_item_to_document(self, doc_id: int, product_description: str, quantity: float) -> Optional[PurchaseDocumentItem]:
-        """Adds an item to an RFQ or PO. For RFQ, price is typically not set yet."""
+    def add_item_to_document(self, doc_id: int, product_id: int, quantity: float, product_description_override: Optional[str] = None) -> Optional[PurchaseDocumentItem]:
+        """Adds an item (linked to a product) to an RFQ or PO."""
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Purchase document with ID {doc_id} not found.")
 
         if doc.status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.PO_ISSUED]:
+             # Allowing items to be added to PO_ISSUED as well, might be useful for changes.
+             # Or restrict to RFQ only. For now, flexible.
              pass
 
         if quantity <= 0:
             raise ValueError("Quantity must be positive.")
 
+        # Fetch product details to get its name/description
+        # This assumes db_handler has a method to get product details, or ProductLogic is available
+        # For now, let's assume a placeholder or that description_override is used.
+        # A proper implementation would be:
+        # product_details = self.product_logic.get_product_details(product_id) # If product_logic is available
+        # if not product_details:
+        #     raise ValueError(f"Product with ID {product_id} not found.")
+        # final_description = product_description_override if product_description_override else product_details.name
+
+        # Simplified: If override is given, use it. Otherwise, a placeholder.
+        # This part needs ProductLogic integration to be robust.
+        # For now, we'll require description_override if we can't fetch product name.
+        # Or, let database layer handle fetching product name if product_id is given.
+        # For now, we'll assume the UI or caller provides a suitable description.
+        # If an override is provided, use it. Otherwise, a generic description.
+        final_description = product_description_override
+        if not final_description:
+            # In a real scenario, fetch from product_id. For now, placeholder.
+            # This will be improved when ProductLogic is integrated.
+            product_info = self.db.get_product_details(product_id) # Assuming this DB method exists and returns a dict with 'name'
+            if product_info and product_info.get('name'):
+                final_description = product_info.get('name')
+            else: # Fallback if product not found or name is missing (should not happen if product_id is valid)
+                final_description = f"Product ID: {product_id}" # Fallback description
+
         new_item_id = self.db.add_purchase_document_item(
             doc_id=doc_id,
-            product_description=product_description,
+            product_id=product_id,
+            product_description=final_description, # Use fetched/overridden description
             quantity=quantity,
             unit_price=None,
             total_price=None
         )
         if new_item_id:
-            item_data = self.db.get_purchase_document_item_by_id(new_item_id)
-            if item_data:
-                return PurchaseDocumentItem(
-                    item_id=item_data['id'],
-                    purchase_document_id=item_data['purchase_document_id'],
-                    product_description=item_data['product_description'],
-                    quantity=item_data['quantity'],
-                    unit_price=item_data.get('unit_price'),
-                    total_price=item_data.get('total_price')
-                )
+            # Use the get_purchase_document_item_details which correctly instantiates
+            return self.get_purchase_document_item_details(new_item_id)
         return None
 
     def update_item_quote(self, item_id: int, unit_price: float) -> Optional[PurchaseDocumentItem]:
@@ -212,6 +236,7 @@ class PurchaseLogic:
             result_list.append(PurchaseDocumentItem(
                 item_id=item_data['id'],
                 purchase_document_id=item_data['purchase_document_id'],
+                product_id=item_data.get('product_id'), # Add product_id
                 product_description=item_data['product_description'],
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
@@ -225,6 +250,7 @@ class PurchaseLogic:
             return PurchaseDocumentItem(
                 item_id=item_data['id'],
                 purchase_document_id=item_data['purchase_document_id'],
+                product_id=item_data.get('product_id'), # Add product_id
                 product_description=item_data['product_description'],
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),

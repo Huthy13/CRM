@@ -85,28 +85,36 @@ class TestPurchaseLogic(unittest.TestCase):
             "id": doc_id, "document_number": "RFQ-001", "vendor_id": 1,
             "created_date": "date", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
         }
+        # Mock product fetching
+        product_id_to_add = 101
+        mock_product_name = "Mocked Product Name"
+        self.mock_db_handler.get_product_details.return_value = {"id": product_id_to_add, "name": mock_product_name, "description": "Desc"}
+
         self.mock_db_handler.add_purchase_document_item.return_value = 50 # New item ID
 
-        # Mock get_purchase_document_item_by_id to return the item dict
+        # Mock get_purchase_document_item_by_id to return the item dict including product_id
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
-            "id": 50, "purchase_document_id": doc_id, "product_description": "Test Item",
+            "id": 50, "purchase_document_id": doc_id, "product_id": product_id_to_add,
+            "product_description": mock_product_name, # Description from fetched product
             "quantity": 2.0, "unit_price": None, "total_price": None
         }
 
-        item = self.purchase_logic.add_item_to_document(doc_id, "Test Item", 2.0)
+        item = self.purchase_logic.add_item_to_document(doc_id, product_id=product_id_to_add, quantity=2.0)
         self.assertIsNotNone(item)
         self.assertEqual(item.id, 50)
-        self.assertEqual(item.product_description, "Test Item")
+        self.assertEqual(item.product_id, product_id_to_add)
+        self.assertEqual(item.product_description, mock_product_name)
         self.assertEqual(item.quantity, 2.0)
         self.mock_db_handler.add_purchase_document_item.assert_called_with(
-            doc_id=doc_id, product_description="Test Item", quantity=2.0,
+            doc_id=doc_id, product_id=product_id_to_add,
+            product_description=mock_product_name, quantity=2.0,
             unit_price=None, total_price=None
         )
 
     def test_add_item_to_document_doc_not_found(self):
         self.mock_db_handler.get_purchase_document_by_id.return_value = None
         with self.assertRaisesRegex(ValueError, "Purchase document with ID 999 not found."):
-            self.purchase_logic.add_item_to_document(999, "Test Item", 1)
+            self.purchase_logic.add_item_to_document(999, product_id=1, quantity=1) # Added product_id
 
     def test_add_item_to_document_invalid_quantity(self):
         # Ensure the mock returns all necessary fields for PurchaseDocument instantiation
@@ -115,7 +123,7 @@ class TestPurchaseLogic(unittest.TestCase):
             "created_date": "date_str", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
         }
         with self.assertRaisesRegex(ValueError, "Quantity must be positive."):
-            self.purchase_logic.add_item_to_document(1, "Test Item", 0)
+            self.purchase_logic.add_item_to_document(doc_id=1, product_id=101, quantity=0) # Use product_id and provide a placeholder
 
 
     def test_update_item_quote_success(self):

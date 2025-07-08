@@ -172,10 +172,12 @@ class DatabaseHandler:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 purchase_document_id INTEGER NOT NULL,
                 product_description TEXT NOT NULL,
+                product_id INTEGER, -- New column
                 quantity REAL NOT NULL CHECK(quantity > 0),
                 unit_price REAL CHECK(unit_price >= 0 OR unit_price IS NULL),
                 total_price REAL CHECK(total_price >= 0 OR total_price IS NULL),
-                FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents (id) ON DELETE CASCADE
+                FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents (id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES products (product_id) ON DELETE SET NULL -- New FK
             )
         """)
         # Added ON DELETE CASCADE for items when a document is deleted for data integrity.
@@ -863,12 +865,12 @@ class DatabaseHandler:
         self.conn.commit()
 
 # Purchase Document Item related methods
-    def add_purchase_document_item(self, doc_id: int, product_description: str, quantity: float, unit_price: float = None, total_price: float = None) -> int:
+    def add_purchase_document_item(self, doc_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None) -> int:
         """Adds a new item to a purchase document and returns its ID."""
         self.cursor.execute("""
-            INSERT INTO purchase_document_items (purchase_document_id, product_description, quantity, unit_price, total_price)
-            VALUES (?, ?, ?, ?, ?)
-        """, (doc_id, product_description, quantity, unit_price, total_price))
+            INSERT INTO purchase_document_items (purchase_document_id, product_description, quantity, product_id, unit_price, total_price)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (doc_id, product_description, quantity, product_id, unit_price, total_price))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -878,13 +880,13 @@ class DatabaseHandler:
         columns = [desc[0] for desc in self.cursor.description]
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
-    def update_purchase_document_item(self, item_id: int, product_description: str, quantity: float, unit_price: float = None, total_price: float = None):
+    def update_purchase_document_item(self, item_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None):
         """Updates an existing purchase document item."""
         self.cursor.execute("""
             UPDATE purchase_document_items
-            SET product_description = ?, quantity = ?, unit_price = ?, total_price = ?
+            SET product_description = ?, quantity = ?, product_id = ?, unit_price = ?, total_price = ?
             WHERE id = ?
-        """, (product_description, quantity, unit_price, total_price, item_id))
+        """, (product_description, quantity, product_id, unit_price, total_price, item_id))
         self.conn.commit()
 
     def delete_purchase_document_item(self, item_id: int):

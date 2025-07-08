@@ -132,7 +132,8 @@ class TestPurchaseDocumentItemClass(unittest.TestCase):
         item.calculate_total_price()
         item_dict = item.to_dict()
         expected_dict = {
-            "id": 1, "purchase_document_id": 2, "product_description": "Another Product",
+            "id": 1, "purchase_document_id": 2, "product_id": None, # Added product_id
+            "product_description": "Another Product",
             "quantity": 3, "unit_price": 5.0, "total_price": 15.0
         }
         self.assertEqual(item_dict, expected_dict)

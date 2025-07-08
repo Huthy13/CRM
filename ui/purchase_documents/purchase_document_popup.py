@@ -11,12 +11,13 @@ from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocum
 NO_VENDOR_LABEL = "<Select Vendor>"
 
 class PurchaseDocumentPopup(tk.Toplevel):
-    def __init__(self, master, purchase_logic, account_logic, document_id=None, parent_controller=None): # Added parent_controller
+    def __init__(self, master, purchase_logic, account_logic, product_logic, document_id=None, parent_controller=None): # Added product_logic
         super().__init__(master)
         self.purchase_logic = purchase_logic
-        self.account_logic = account_logic # For populating vendor dropdown
+        self.account_logic = account_logic
+        self.product_logic = product_logic # Store product_logic
         self.document_id = document_id
-        self.parent_controller = parent_controller # Store it
+        self.parent_controller = parent_controller
 
         self.title(f"{'Edit' if document_id else 'New'} Purchase Document")
         self.geometry("700x500") # Adjusted size
@@ -236,7 +237,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         from .purchase_document_item_popup import PurchaseDocumentItemPopup # Local import
 
         # Master for item popup should be this popup itself, to ensure modality over it.
-        item_popup = PurchaseDocumentItemPopup(self, self.purchase_logic, self.document_data.id)
+        item_popup = PurchaseDocumentItemPopup(self, self.purchase_logic, self.product_logic, self.document_data.id) # Pass product_logic
         self.wait_window(item_popup) # Wait for the item_popup to close
 
         if hasattr(item_popup, 'item_saved') and item_popup.item_saved:

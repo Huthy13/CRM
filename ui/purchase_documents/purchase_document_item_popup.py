@@ -2,14 +2,18 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional
 # from core.purchase_logic import PurchaseLogic # Will be passed in
-# from shared.structs import PurchaseDocumentItem # For type hinting
+# from core.logic.product_management import ProductLogic # Will be passed in (adjust import path if needed)
+from shared.structs import PurchaseDocumentItem, Product # For type hinting
 
 class PurchaseDocumentItemPopup(tk.Toplevel):
-    def __init__(self, master, purchase_logic, document_id: int, item_data: Optional[dict] = None):
+    def __init__(self, master, purchase_logic, product_logic, document_id: int, item_data: Optional[dict] = None): # Added product_logic
         super().__init__(master)
         self.purchase_logic = purchase_logic
+        self.product_logic = product_logic # Store product_logic
         self.document_id = document_id
         self.item_id = item_data.get('id') if item_data else None # For editing later
+
+        self.product_map = {} # To map product name to product_id
 
         self.title(f"{'Edit' if self.item_id else 'Add'} Document Item")
         self.geometry("400x200") # Initial size, can adjust
@@ -25,12 +29,22 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         frame.pack(expand=True, fill=tk.BOTH)
 
         row = 0
-        ttk.Label(frame, text="Product/Service Description:").grid(row=row, column=0, columnspan=2, padx=5, pady=(0,2), sticky=tk.W)
+        # Product Selection
+        ttk.Label(frame, text="Product:").grid(row=row, column=0, padx=5, pady=(0,2), sticky=tk.W)
+        self.product_combobox = ttk.Combobox(frame, width=47, state="readonly") # Width might need adjustment
+        self.product_combobox.grid(row=row, column=1, padx=5, pady=(0,5), sticky=tk.EW)
+        self.populate_products_dropdown()
+        self.product_combobox.focus_set() # Focus here first
         row += 1
-        self.description_entry = ttk.Entry(frame, width=50)
-        self.description_entry.grid(row=row, column=0, columnspan=2, padx=5, pady=(0,5), sticky=tk.EW)
-        self.description_entry.focus_set() # Focus on this field initially
-        row += 1
+
+        # Description display (read-only, updates based on product selection or if manually set for non-catalog)
+        # For now, we assume description comes from product. If manual override needed, this would change.
+        # ttk.Label(frame, text="Description:").grid(row=row, column=0, padx=5, pady=(0,2), sticky=tk.W)
+        # self.description_display = ttk.Label(frame, text="", width=50, relief="groove", padding=2) # Or a disabled Entry
+        # self.description_display.grid(row=row, column=1, padx=5, pady=(0,5), sticky=tk.EW)
+        # self.product_combobox.bind("<<ComboboxSelected>>", self.update_description_display) # TODO
+        # row += 1
+
 
         ttk.Label(frame, text="Quantity:").grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
         self.quantity_var = tk.StringVar()
@@ -66,21 +80,62 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.cancel_button.pack(side=tk.RIGHT)
 
         if item_data:
-            self.description_entry.insert(0, item_data.get('product_description', ''))
+            # If editing, try to set the product combobox
+            if item_data.get('product_id'):
+                # This requires product_map to be populated first by populate_products_dropdown
+                # We might need to find the product name from product_id to set the combobox
+                # For now, this part of editing is deferred until full edit mode is implemented
+                pass
+            # self.description_entry.insert(0, item_data.get('product_description', '')) # No longer direct entry
             self.quantity_var.set(str(item_data.get('quantity', '')))
             if item_data.get('unit_price') is not None:
                  self.unit_price_var.set(str(item_data.get('unit_price', '')))
 
+    def populate_products_dropdown(self):
+        self.product_map.clear()
+        product_display_names = ["<Select Product>"]
+
+        # Assuming self.product_logic.get_all_products() returns a list of Product objects
+        all_products = self.product_logic.get_all_products()
+        for prod in all_products:
+            # Using a more unique display if names can be non-unique, e.g., "Name (ID: X)"
+            # For now, assuming names are reasonably distinct for selection.
+            display_name = f"{prod.name}" # Consider adding (ID: {prod.product_id}) if names aren't unique
+            self.product_map[display_name] = prod.product_id
+            product_display_names.append(display_name)
+
+        self.product_combobox['values'] = sorted(product_display_names)
+        self.product_combobox.set("<Select Product>")
+        # TODO: If editing an item, set the combobox to the item's current product.
+
+    # def update_description_display(self, event=None): # TODO if using a separate description label
+    #     selected_product_name = self.product_combobox.get()
+    #     product_id = self.product_map.get(selected_product_name)
+    #     if product_id:
+    #         # Fetch full product details if needed, or use already fetched data
+    #         # For now, assume name is description enough or product_logic provides it
+    #         # self.description_display.config(text=selected_product_name) # Or product.description
+    #         pass
+    #     else:
+    #         # self.description_display.config(text="")
+    #         pass
 
     def save_item(self):
-        description = self.description_entry.get().strip()
+        selected_product_name = self.product_combobox.get()
         quantity_str = self.quantity_var.get().strip()
-        # unit_price_str = self.unit_price_var.get().strip() # For later
 
-        if not description:
-            messagebox.showerror("Validation Error", "Product/Service Description cannot be empty.", parent=self)
-            self.description_entry.focus_set()
+        if not selected_product_name or selected_product_name == "<Select Product>":
+            messagebox.showerror("Validation Error", "Please select a product.", parent=self)
+            self.product_combobox.focus_set()
             return
+
+        selected_product_id = self.product_map.get(selected_product_name)
+        if selected_product_id is None: # Should not happen if combobox is populated correctly
+            messagebox.showerror("Error", "Invalid product selection.", parent=self)
+            return
+
+        # Description will be handled by PurchaseLogic based on product_id
+        # Or, if a description override field exists, get it here.
 
         try:
             quantity = float(quantity_str)
@@ -104,11 +159,12 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
 
         try:
             if self.item_id is None: # Adding new item
+                # product_description_override can be added if we want to allow overriding the fetched product name
                 new_item = self.purchase_logic.add_item_to_document(
                     doc_id=self.document_id,
-                    product_description=description,
+                    product_id=selected_product_id,
                     quantity=quantity
-                    # unit_price will be None for initial RFQ item add via this path
+                    # product_description_override = "Optional override" # If needed
                 )
                 if new_item:
                     messagebox.showinfo("Success", "Item added successfully.", parent=self)

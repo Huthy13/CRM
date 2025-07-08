@@ -4,12 +4,14 @@ import datetime # Import datetime
 # from .purchase_document_popup import PurchaseDocumentPopup # Will be created
 # from core.purchase_logic import PurchaseLogic # Will be passed in
 # from shared.structs import PurchaseDocument # For type hinting
+# from core.logic.product_management import ProductLogic # For type hinting
 
 class PurchaseDocumentTab:
-    def __init__(self, master, purchase_logic, account_logic): # account_logic for vendor names
+    def __init__(self, master, purchase_logic, account_logic, product_logic): # Added product_logic
         self.frame = ttk.Frame(master)
         self.purchase_logic = purchase_logic
         self.account_logic = account_logic
+        self.product_logic = product_logic # Store product_logic
         self.selected_document_id = None
 
         self._setup_ui()
@@ -103,13 +105,14 @@ class PurchaseDocumentTab:
         from .purchase_document_popup import PurchaseDocumentPopup # Local import
         # Pass the tab instance (self) as the 'parent_controller'
         popup = PurchaseDocumentPopup(
-            master=self.frame.winfo_toplevel(), # Actual master for window behavior
+            master=self.frame.winfo_toplevel(),
             purchase_logic=self.purchase_logic,
             account_logic=self.account_logic,
+            product_logic=self.product_logic, # Pass product_logic
             document_id=None,
-            parent_controller=self # Pass the tab instance
+            parent_controller=self
         )
-        self.frame.wait_window(popup) # Wait for the popup to close
+        self.frame.wait_window(popup)
         # self.load_documents() is now called by the popup via parent_controller
 
 
@@ -117,11 +120,18 @@ class PurchaseDocumentTab:
         if not self.selected_document_id:
             messagebox.showwarning("No Selection", "Please select a document to edit.")
             return
-        # from .purchase_document_popup import PurchaseDocumentPopup
-        # popup = PurchaseDocumentPopup(self.frame.winfo_toplevel(), self.purchase_logic, self.account_logic, document_id=self.selected_document_id)
-        # self.frame.wait_window(popup)
-        # self.load_documents()
-        messagebox.showinfo("TODO", f"Edit Document Popup for ID {self.selected_document_id} not yet implemented.")
+        from .purchase_document_popup import PurchaseDocumentPopup # Local import
+        popup = PurchaseDocumentPopup(
+            master=self.frame.winfo_toplevel(),
+            purchase_logic=self.purchase_logic,
+            account_logic=self.account_logic,
+            product_logic=self.product_logic, # Pass product_logic
+            document_id=self.selected_document_id,
+            parent_controller=self
+        )
+        self.frame.wait_window(popup)
+        # self.load_documents() # Popup should call this via parent_controller if save occurs
+        messagebox.showinfo("TODO", f"Edit Document Popup for ID {self.selected_document_id} is opened, but full edit save logic is WIP.")
 
 
     def delete_selected_document(self):

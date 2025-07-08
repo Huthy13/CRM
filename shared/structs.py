@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional # Import Optional
 
 class AccountType(Enum):
     CUSTOMER = "Customer"
@@ -358,11 +359,13 @@ class PurchaseDocument:
                 f"Status: {self.status.value if self.status else 'N/A'}, Created: {self.created_date})")
 
 class PurchaseDocumentItem:
-    def __init__(self, item_id=None, purchase_document_id: int = None, product_description: str = "",
-                 quantity: float = 0.0, unit_price: float = None, total_price: float = None):
+    def __init__(self, item_id=None, purchase_document_id: int = None, product_id: Optional[int] = None,
+                 product_description: str = "", quantity: float = 0.0,
+                 unit_price: float = None, total_price: float = None):
         self.id = item_id # Using 'id'
         self.purchase_document_id = purchase_document_id
-        self.product_description = product_description
+        self.product_id = product_id
+        self.product_description = product_description # Could be from product or overridden
         self.quantity = quantity
         self.unit_price = unit_price
         self.total_price = total_price # Should be calculated quantity * unit_price if unit_price is known
@@ -379,6 +382,7 @@ class PurchaseDocumentItem:
         return {
             "id": self.id,
             "purchase_document_id": self.purchase_document_id,
+            "product_id": self.product_id,
             "product_description": self.product_description,
             "quantity": self.quantity,
             "unit_price": self.unit_price,

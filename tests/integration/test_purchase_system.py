@@ -3,7 +3,8 @@ import os
 import datetime
 from core.database import DatabaseHandler
 from core.purchase_logic import PurchaseLogic
-from shared.structs import PurchaseDocumentStatus, AccountType
+from core.logic.product_management import ProductLogic # Import ProductLogic
+from shared.structs import PurchaseDocumentStatus, AccountType, Product # Import Product for creation
 
 class TestPurchaseSystemIntegration(unittest.TestCase):
     @classmethod
@@ -13,8 +14,27 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
             os.remove(cls.test_db_name)
 
         cls.db_handler = DatabaseHandler(db_name=cls.test_db_name)
-        # The PurchaseLogic class expects db_handler, not the connection
         cls.purchase_logic = PurchaseLogic(cls.db_handler)
+        cls.product_logic = ProductLogic(cls.db_handler) # Instantiate ProductLogic
+
+        # Create some products to be used in tests
+        cls.product1 = cls.product_logic.save_product(Product(name="Test Laptop X1", description="High-end testing laptop", cost=1200.00, category="Electronics", unit_of_measure="Unit"))
+        cls.product2 = cls.product_logic.save_product(Product(name="Wireless Test Mouse", description="Ergonomic mouse for testing", cost=25.00, category="Peripherals", unit_of_measure="Unit"))
+        # save_product should return the product object with id, or just the id.
+        # Assuming save_product returns the object with ID for simplicity here.
+        # If it returns ID, we'd fetch the object.
+        # Let's assume product_logic.save_product returns the full Product object with ID.
+        # If not, we'll need to adjust or fetch them.
+        # For now, let's assume product1 and product2 have their IDs set by save_product.
+        # If save_product returns ID:
+        # p1_id = cls.product_logic.save_product(...)
+        # cls.product1 = cls.product_logic.get_product_details(p1_id)
+        # To be safe, let's get them after saving if save_product only returns ID
+        if isinstance(cls.product1, int): # If save_product returns ID
+             cls.product1 = cls.product_logic.get_product_details(cls.product1)
+        if isinstance(cls.product2, int):
+             cls.product2 = cls.product_logic.get_product_details(cls.product2)
+
 
         # Setup a vendor account
         # Ensure add_account in DatabaseHandler includes account_type if modified
@@ -66,16 +86,23 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         self.assertEqual(rfq_doc.vendor_id, self.vendor1_id)
         self.assertTrue(rfq_doc.document_number.startswith("RFQ-"))
 
-        # 2. Add items to RFQ
-        item1 = self.purchase_logic.add_item_to_document(rfq_doc.id, "Product Alpha", 10)
+        # 2. Add items to RFQ (using product_id)
+        self.assertIsNotNone(self.product1, "Product1 should be loaded")
+        self.assertIsNotNone(self.product1.product_id, "Product1 ID should not be None")
+        item1 = self.purchase_logic.add_item_to_document(rfq_doc.id, product_id=self.product1.product_id, quantity=10)
         self.assertIsNotNone(item1)
-        self.assertEqual(item1.product_description, "Product Alpha")
+        self.assertEqual(item1.product_id, self.product1.product_id)
+        self.assertEqual(item1.product_description, self.product1.name) # Assuming logic fetches name as description
         self.assertEqual(item1.quantity, 10)
         self.assertIsNone(item1.unit_price)
 
-        item2 = self.purchase_logic.add_item_to_document(rfq_doc.id, "Service Beta", 1) # e.g. a service
+        self.assertIsNotNone(self.product2, "Product2 should be loaded")
+        self.assertIsNotNone(self.product2.product_id, "Product2 ID should not be None")
+        item2 = self.purchase_logic.add_item_to_document(rfq_doc.id, product_id=self.product2.product_id, quantity=1)
         self.assertIsNotNone(item2)
-        self.assertEqual(item2.product_description, "Service Beta")
+        self.assertEqual(item2.product_id, self.product2.product_id)
+        self.assertEqual(item2.product_description, self.product2.name)
+
 
         # 3. Update item quotes (and document becomes 'Quoted')
         updated_item1 = self.purchase_logic.update_item_quote(item1.id, 50.25) # Price $50.25
@@ -121,7 +148,8 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         rfq1_v2 = self.purchase_logic.create_rfq(vendor_id=self.vendor2_id, notes="V2 RFQ1")
 
         # Add items and quote rfq1_v1 to change its status
-        item_rfq1_v1 = self.purchase_logic.add_item_to_document(rfq1_v1.id, "Item", 1)
+        self.assertIsNotNone(self.product1, "Product1 must exist")
+        item_rfq1_v1 = self.purchase_logic.add_item_to_document(rfq1_v1.id, product_id=self.product1.product_id, quantity=1)
         self.purchase_logic.update_item_quote(item_rfq1_v1.id, 10) # Now rfq1_v1 is QUOTED
 
         # Get all
@@ -150,8 +178,10 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
 
     def test_delete_document_and_items_cascade(self):
         rfq_to_delete = self.purchase_logic.create_rfq(vendor_id=self.vendor1_id, notes="To be deleted")
-        item_a = self.purchase_logic.add_item_to_document(rfq_to_delete.id, "Item A", 1)
-        item_b = self.purchase_logic.add_item_to_document(rfq_to_delete.id, "Item B", 2)
+        self.assertIsNotNone(self.product1, "Product1 must exist for this test")
+        self.assertIsNotNone(self.product2, "Product2 must exist for this test")
+        item_a = self.purchase_logic.add_item_to_document(rfq_to_delete.id, product_id=self.product1.product_id, quantity=1)
+        item_b = self.purchase_logic.add_item_to_document(rfq_to_delete.id, product_id=self.product2.product_id, quantity=2)
 
         items_before_delete = self.purchase_logic.get_items_for_document(rfq_to_delete.id)
         self.assertEqual(len(items_before_delete), 2)
@@ -168,8 +198,10 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
 
     def test_delete_specific_item(self):
         rfq = self.purchase_logic.create_rfq(vendor_id=self.vendor1_id)
-        item1 = self.purchase_logic.add_item_to_document(rfq.id, "Keep", 1)
-        item2_to_delete = self.purchase_logic.add_item_to_document(rfq.id, "DeleteMe", 1)
+        self.assertIsNotNone(self.product1, "Product1 must exist")
+        self.assertIsNotNone(self.product2, "Product2 must exist")
+        item1 = self.purchase_logic.add_item_to_document(rfq.id, product_id=self.product1.product_id, quantity=1)
+        item2_to_delete = self.purchase_logic.add_item_to_document(rfq.id, product_id=self.product2.product_id, quantity=1)
 
         items_before = self.purchase_logic.get_items_for_document(rfq.id)
         self.assertEqual(len(items_before), 2)
@@ -179,7 +211,7 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         items_after = self.purchase_logic.get_items_for_document(rfq.id)
         self.assertEqual(len(items_after), 1)
         self.assertEqual(items_after[0].id, item1.id)
-        self.assertEqual(items_after[0].product_description, "Keep")
+        self.assertEqual(items_after[0].product_description, self.product1.name) # Expect product name
 
 if __name__ == '__main__':
     unittest.main()

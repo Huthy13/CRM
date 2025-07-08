@@ -3,11 +3,13 @@ from tkinter import messagebox, ttk
 from ui.products.product_popup import ProductDetailsPopup
 from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 from shared.structs import Product
+# from core.logic.product_management import ProductLogic # For type hinting
 
 class ProductTab:
-    def __init__(self, master, logic):
+    def __init__(self, master, address_book_logic, product_logic): # Changed 'logic' to specific logics
         self.frame = tk.Frame(master)
-        self.logic = logic
+        self.address_book_logic = address_book_logic # May not be needed by product_tab directly
+        self.product_logic = product_logic # Store and use this for product operations
         self.selected_product_id = None
 
         self.setup_product_tab()
@@ -119,7 +121,7 @@ class ProductTab:
 
         if confirm:
             try:
-                self.logic.delete_product(id_to_process)
+                self.product_logic.delete_product(id_to_process) # Use product_logic
                 self.load_products()
                 messagebox.showinfo(
                     "Success",
@@ -133,12 +135,14 @@ class ProductTab:
         if not self.selected_product_id:
             messagebox.showwarning("No Selection", "Please select a product to edit.")
             return
-        popup = ProductDetailsPopup(self.frame.master, self, self.logic, product_id=self.selected_product_id)
+        # Pass self.product_logic to the popup
+        popup = ProductDetailsPopup(self.frame.master, self, self.product_logic, product_id=self.selected_product_id)
         self.frame.master.wait_window(popup)
         self.load_products()
 
     def create_new_product(self):
-        popup = ProductDetailsPopup(self.frame.master, self, self.logic, product_id=None)
+        # Pass self.product_logic to the popup
+        popup = ProductDetailsPopup(self.frame.master, self, self.product_logic, product_id=None)
         self.frame.master.wait_window(popup)
         self.load_products()
 
@@ -147,7 +151,7 @@ class ProductTab:
         self.selected_product_id = None
 
         try:
-            products = self.logic.get_all_products()
+            products = self.product_logic.get_all_products() # Use product_logic
             for product in products:
                 self.tree.insert("", "end", iid=product.product_id, values=(
                     product.product_id,

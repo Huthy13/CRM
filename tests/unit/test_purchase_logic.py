@@ -125,82 +125,26 @@ class TestPurchaseLogic(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Quantity must be positive."):
             self.purchase_logic.add_item_to_document(doc_id=1, product_id=101, quantity=0) # Use product_id and provide a placeholder
 
+    # Removed test_update_item_quote_success as its functionality is covered by
+    # test_update_document_item_success_price_change_rfq_to_quoted
 
-    def test_update_item_quote_success(self):
-        item_id = 5
-        doc_id = 1
-        # Mock existing item and its document
-        self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
-            "id": item_id, "purchase_document_id": doc_id, "product_description": "Old Desc",
-            "quantity": 10.0, "unit_price": None, "total_price": None # All keys for PurchaseDocumentItem
-        }
-        # Mock for get_purchase_document_details called within update_item_quote
-        self.mock_db_handler.get_purchase_document_by_id.side_effect = [
-            { # First call for the document status check
-                "id": doc_id, "document_number": "RFQ-DOC-001", "vendor_id": 1,
-                "created_date": "date1", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
-            },
-            { # Second call for returning the updated document (if get_purchase_document_item_details calls it)
-              # Actually, get_purchase_document_item_details is called, which calls get_purchase_document_item_by_id again.
-              # So, the mock for get_purchase_document_item_by_id needs to be robust or reset.
-              # Let's ensure the second call to get_purchase_document_item_by_id for the return also works.
-                "id": doc_id, "document_number": "RFQ-DOC-001", "vendor_id": 1,
-                "created_date": "date1", "status": PurchaseDocumentStatus.QUOTED.value, "notes": "" # Status is now QUOTED
-            }
-        ]
-        # Adjust get_purchase_document_item_by_id to be called multiple times if necessary
-        # For simplicity, the second call to get_purchase_document_item_details will use the same item data initially
-        # then it's updated. The key is that get_purchase_document_item_by_id is called for the return.
-        # Let's make it simpler: get_purchase_document_item_by_id returns the item that will be updated.
-        # The return value of update_item_quote calls get_purchase_document_item_details(item_id)
-        # which in turn calls self.db.get_purchase_document_item_by_id(item_id)
-
-        # Store the expected updated state for the second call
-        expected_updated_item_dict = {
-            "id": item_id, "purchase_document_id": doc_id, "product_description": "Old Desc",
-            "quantity": 10.0, "unit_price": 5.0, "total_price": 50.0
-        }
-
-        def mock_get_item_side_effect(called_item_id):
-            if called_item_id == item_id:
-                # First call returns original, subsequent calls could return updated
-                # For this test, let's assume it's called once for initial fetch, then for return.
-                # The logic updates it in DB, then re-fetches. So the mock should reflect that.
-                if self.mock_db_handler.update_purchase_document_item.called:
-                     return expected_updated_item_dict # After update
-                return { # Before update
-                    "id": item_id, "purchase_document_id": doc_id, "product_description": "Old Desc",
-                    "quantity": 10.0, "unit_price": None, "total_price": None
-                }
-            return None
-
-        self.mock_db_handler.get_purchase_document_item_by_id.side_effect = mock_get_item_side_effect
-
-        updated_item = self.purchase_logic.update_item_quote(item_id, 5.0)
-
-        self.assertIsNotNone(updated_item)
-        self.assertEqual(updated_item.unit_price, 5.0)
-        self.assertEqual(updated_item.total_price, 50.0) # 10 * 5
-
-        self.mock_db_handler.update_purchase_document_item.assert_called_with(
-            item_id=item_id, product_description="Old Desc", quantity=10.0,
-            unit_price=5.0, total_price=50.0
-        )
-        self.mock_db_handler.update_purchase_document_status.assert_called_with(doc_id, PurchaseDocumentStatus.QUOTED.value)
-
-    def test_update_item_quote_item_not_found(self):
-        self.mock_db_handler.get_purchase_document_item_by_id.side_effect = None # Clear side_effect from previous test
-        self.mock_db_handler.get_purchase_document_item_by_id.return_value = None
-        with self.assertRaisesRegex(ValueError, "Item with ID 999 not found."):
-            self.purchase_logic.update_item_quote(999, 10.0)
-
-    def test_update_item_quote_negative_price(self):
+    def test_update_document_item_item_not_found(self): # Renamed
         self.mock_db_handler.get_purchase_document_item_by_id.side_effect = None
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = None
+        with self.assertRaisesRegex(ValueError, "Item with ID 999 not found for update."): # Adjusted message if PurchaseLogic changes it
+            self.purchase_logic.update_document_item(item_id=999, product_id=1, quantity=1, unit_price=10.0)
+
+    def test_update_document_item_negative_price(self): # Renamed
+        self.mock_db_handler.get_purchase_document_item_by_id.side_effect = None
+        # Mock return for get_purchase_document_item_details
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
-            "id": 1, "purchase_document_id": 1, "product_description": "Test", "quantity": 1 # More complete
+            "id": 1, "purchase_document_id": 1, "product_id":101,
+            "product_description": "Test", "quantity": 1
         }
-        with self.assertRaisesRegex(ValueError, "Unit price cannot be negative."):
-            self.purchase_logic.update_item_quote(1, -5.0)
+        with self.assertRaisesRegex(ValueError, "Unit price cannot be negative if provided."): # Adjusted message
+            self.purchase_logic.update_document_item(item_id=1, product_id=101, quantity=1, unit_price=-5.0)
+
+    # The old test_update_item_quote_success is covered by test_update_document_item_success_price_change_rfq_to_quoted
 
     def test_convert_rfq_to_po_success(self):
         doc_id = 1
@@ -297,6 +241,94 @@ class TestPurchaseLogic(unittest.TestCase):
         self.assertIsInstance(items_list[0], PurchaseDocumentItem)
         self.assertEqual(items_list[0].product_description, "Item A")
         self.mock_db_handler.get_items_for_document.assert_called_with(doc_id)
+
+    def test_update_document_item_success_price_change_rfq_to_quoted(self):
+        item_id = 10
+        doc_id = 1
+        original_item_data = {
+            "id": item_id, "purchase_document_id": doc_id, "product_id": 101,
+            "product_description": "Test Product", "quantity": 2.0,
+            "unit_price": None, "total_price": None
+        }
+        # Mock for initial get_purchase_document_item_details
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = original_item_data
+
+        # Mock for parent document status check
+        parent_doc_data_rfq = {
+            "id": doc_id, "document_number": "RFQ123", "vendor_id": 1,
+            "created_date": "date", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
+        }
+        # Mock for fetching updated item after save
+        updated_item_data_after_save = {
+            "id": item_id, "purchase_document_id": doc_id, "product_id": 101,
+            "product_description": "Test Product", "quantity": 2.0,
+            "unit_price": 10.0, "total_price": 20.0
+        }
+        # get_purchase_document_by_id will be called to check status, then potentially to re-fetch doc for return (not strictly needed for this test focus)
+        # get_purchase_document_item_by_id will be called to fetch item, then again to return the updated item.
+        self.mock_db_handler.get_purchase_document_by_id.return_value = parent_doc_data_rfq
+
+        def get_item_side_effect(current_item_id):
+            if current_item_id == item_id:
+                if self.mock_db_handler.update_purchase_document_item.called: # After DB update call
+                    return updated_item_data_after_save
+                return original_item_data # Before DB update call
+            return None
+        self.mock_db_handler.get_purchase_document_item_by_id.side_effect = get_item_side_effect
+
+        updated_item = self.purchase_logic.update_document_item(
+            item_id=item_id, product_id=101, quantity=2.0, unit_price=10.0
+        )
+
+        self.assertIsNotNone(updated_item)
+        self.assertEqual(updated_item.unit_price, 10.0)
+        self.assertEqual(updated_item.total_price, 20.0)
+        self.mock_db_handler.update_purchase_document_item.assert_called_with(
+            item_id=item_id, product_id=101, product_description="Test Product",
+            quantity=2.0, unit_price=10.0, total_price=20.0
+        )
+        # Verify status update for parent document
+        self.mock_db_handler.update_purchase_document_status.assert_called_with(doc_id, PurchaseDocumentStatus.QUOTED.value)
+
+    def test_update_document_item_quantity_change_no_status_change(self):
+        item_id = 11
+        doc_id = 2
+        original_item_data = {
+            "id": item_id, "purchase_document_id": doc_id, "product_id": 102,
+            "product_description": "Another Product", "quantity": 5.0,
+            "unit_price": 4.0, "total_price": 20.0 # Already quoted
+        }
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = original_item_data
+
+        parent_doc_data_quoted = {
+            "id": doc_id, "document_number": "RFQ124", "vendor_id": 1,
+            "created_date": "date", "status": PurchaseDocumentStatus.QUOTED.value, "notes": ""
+        }
+        updated_item_data_after_save = {
+            "id": item_id, "purchase_document_id": doc_id, "product_id": 102,
+            "product_description": "Another Product", "quantity": 7.0,
+            "unit_price": 4.0, "total_price": 28.0
+        }
+        self.mock_db_handler.get_purchase_document_by_id.return_value = parent_doc_data_quoted
+
+        def get_item_side_effect(current_item_id):
+            if current_item_id == item_id:
+                if self.mock_db_handler.update_purchase_document_item.called:
+                    return updated_item_data_after_save
+                return original_item_data
+            return None
+        self.mock_db_handler.get_purchase_document_item_by_id.side_effect = get_item_side_effect
+
+        updated_item = self.purchase_logic.update_document_item(
+            item_id=item_id, product_id=102, quantity=7.0, unit_price=4.0
+        )
+        self.assertEqual(updated_item.quantity, 7.0)
+        self.assertEqual(updated_item.total_price, 28.0)
+        self.mock_db_handler.update_purchase_document_item.assert_called_with(
+            item_id=item_id, product_id=102, product_description="Another Product",
+            quantity=7.0, unit_price=4.0, total_price=28.0
+        )
+        self.mock_db_handler.update_purchase_document_status.assert_not_called() # Status should not change
 
 if __name__ == '__main__':
     unittest.main()

@@ -50,24 +50,23 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.quantity_var = tk.StringVar()
         self.quantity_entry = ttk.Entry(frame, width=15, textvariable=self.quantity_var)
         self.quantity_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
-        # TODO: Add validation for quantity to be numeric (e.g., using validatecommand)
         row += 1
 
-        # Unit Price - for now, only visible if editing an existing item that might have it
-        # or if we decide to allow setting it during 'add' for certain document statuses.
-        # For simplicity in "Add Item" for an RFQ, this might be hidden or disabled.
-        self.unit_price_label = ttk.Label(frame, text="Unit Price:")
-        self.unit_price_var = tk.StringVar()
-        self.unit_price_entry = ttk.Entry(frame, width=15, textvariable=self.unit_price_var)
+        # Unit Price
+        self.unit_price_label.grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
+        self.unit_price_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
+        row += 1
 
-        # For "Add Item" to RFQ, unit price is usually not set.
-        # We'll handle visibility/state based on whether it's a new item or editing, and doc status.
-        # For now, let's assume it's not part of the "Add Item" for an RFQ.
-        # If item_data and 'unit_price' in item_data: # Logic for edit mode
-        #     self.unit_price_label.grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
-        #     self.unit_price_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
-        #     row += 1
+        # Total Price (Read-only display)
+        self.total_price_label = ttk.Label(frame, text="Total Price:") # Define if not already
+        self.total_price_label.grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
+        self.total_price_display_var = tk.StringVar(value="$0.00") # Default display
+        self.total_price_display_label = ttk.Label(frame, textvariable=self.total_price_display_var, width=15, anchor=tk.E, relief="sunken", borderwidth=1)
+        self.total_price_display_label.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
+        row += 1
 
+        # Adjust popup geometry if new fields make it too cramped
+        self.geometry("400x250") # Increased height
 
         # --- Buttons ---
         button_frame = ttk.Frame(frame)
@@ -86,10 +85,39 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                 # We might need to find the product name from product_id to set the combobox
                 # For now, this part of editing is deferred until full edit mode is implemented
                 pass
-            # self.description_entry.insert(0, item_data.get('product_description', '')) # No longer direct entry
-            self.quantity_var.set(str(item_data.get('quantity', '')))
+            self.quantity_var.set(str(item_data.get('quantity', '0'))) # Default to '0' if None
             if item_data.get('unit_price') is not None:
-                 self.unit_price_var.set(str(item_data.get('unit_price', '')))
+                 self.unit_price_var.set(f"{item_data.get('unit_price', 0.0):.2f}") # Format to 2 decimal places
+            else:
+                self.unit_price_var.set("0.00")
+            self._calculate_and_display_total_price() # Calculate on load if editing
+        else: # New item
+            self.quantity_var.set("1") # Default quantity for new item
+            self.unit_price_var.set("0.00") # Default unit price
+            self._calculate_and_display_total_price()
+
+
+        # Bindings for auto-calculation
+        self.quantity_var.trace_add("write", self._on_price_quantity_change)
+        self.unit_price_var.trace_add("write", self._on_price_quantity_change)
+
+    def _on_price_quantity_change(self, *args):
+        self._calculate_and_display_total_price()
+
+    def _calculate_and_display_total_price(self):
+        try:
+            quantity = float(self.quantity_var.get()) if self.quantity_var.get() else 0.0
+            unit_price = float(self.unit_price_var.get()) if self.unit_price_var.get() else 0.0
+        except ValueError:
+            self.total_price_display_var.set("Invalid") # Or some error indication
+            return
+
+        if quantity < 0: quantity = 0 # Treat negative as 0 for calculation
+        if unit_price < 0: unit_price = 0 # Treat negative as 0
+
+        total_price = quantity * unit_price
+        self.total_price_display_var.set(f"${total_price:.2f}")
+
 
     def populate_products_dropdown(self):
         self.product_map.clear()
@@ -130,12 +158,11 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
             return
 
         selected_product_id = self.product_map.get(selected_product_name)
-        if selected_product_id is None: # Should not happen if combobox is populated correctly
+        if selected_product_id is None:
             messagebox.showerror("Error", "Invalid product selection.", parent=self)
             return
 
-        # Description will be handled by PurchaseLogic based on product_id
-        # Or, if a description override field exists, get it here.
+        unit_price_str = self.unit_price_var.get().strip()
 
         try:
             quantity = float(quantity_str)
@@ -146,25 +173,35 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
             self.quantity_entry.focus_set()
             return
 
-        # unit_price = None # For RFQ add item
-        # if self.item_id and unit_price_str: # If editing and price is provided
-        #     try:
-        #         unit_price = float(unit_price_str)
-        #         if unit_price < 0:
-        #             raise ValueError("Unit price cannot be negative.")
-        #     except ValueError:
-        #         messagebox.showerror("Validation Error", "Unit Price must be a valid non-negative number.", parent=self)
-        #         self.unit_price_entry.focus_set()
-        #         return
+        unit_price = None
+        if unit_price_str: # Only parse if not empty
+            try:
+                unit_price = float(unit_price_str)
+                if unit_price < 0:
+                    # Allow zero price, but not negative
+                    messagebox.showerror("Validation Error", "Unit Price cannot be negative.", parent=self)
+                    self.unit_price_entry.focus_set()
+                    return
+            except ValueError:
+                messagebox.showerror("Validation Error", "Unit Price must be a valid number (e.g., 123.45).", parent=self)
+                self.unit_price_entry.focus_set()
+                return
+
+        # Recalculate total_price based on validated quantity and unit_price for saving
+        # This ensures the saved total_price is accurate even if display had a temp "Invalid"
+        current_total_price = None
+        if quantity is not None and unit_price is not None:
+             current_total_price = quantity * unit_price
 
         try:
             if self.item_id is None: # Adding new item
-                # product_description_override can be added if we want to allow overriding the fetched product name
                 new_item = self.purchase_logic.add_item_to_document(
                     doc_id=self.document_id,
                     product_id=selected_product_id,
-                    quantity=quantity
-                    # product_description_override = "Optional override" # If needed
+                    quantity=quantity,
+                    # product_description_override can be passed if needed
+                    unit_price=unit_price, # Pass the parsed unit price
+                    total_price=current_total_price # Pass the calculated total price
                 )
                 if new_item:
                     messagebox.showinfo("Success", "Item added successfully.", parent=self)
@@ -172,14 +209,21 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                     self.destroy()
                 else:
                     messagebox.showerror("Error", "Failed to add item.", parent=self)
-            else:
-                # TODO: Implement update logic for item (will use self.item_id)
-                # self.purchase_logic.update_document_item(...)
-                messagebox.showinfo("TODO", "Item update not yet implemented.", parent=self)
-                # For now, just close if it was an "edit" attempt
-                # self.item_saved = True
-                # self.destroy()
-                pass
+            else: # Editing existing item
+                 # This will call the new update_document_item in PurchaseLogic
+                updated_item = self.purchase_logic.update_document_item(
+                    item_id=self.item_id,
+                    product_id=selected_product_id, # Assuming product can be changed, or keep original if not
+                    # description will be fetched by logic based on product_id or use override
+                    quantity=quantity,
+                    unit_price=unit_price
+                )
+                if updated_item:
+                    messagebox.showinfo("Success", "Item updated successfully.", parent=self)
+                    self.item_saved = True
+                    self.destroy()
+                else:
+                    messagebox.showerror("Error", "Failed to update item.", parent=self)
 
         except ValueError as ve:
             messagebox.showerror("Error", str(ve), parent=self)

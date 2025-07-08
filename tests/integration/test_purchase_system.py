@@ -105,7 +105,13 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
 
 
         # 3. Update item quotes (and document becomes 'Quoted')
-        updated_item1 = self.purchase_logic.update_item_quote(item1.id, 50.25) # Price $50.25
+        # Simulate editing item1 to add a price
+        updated_item1 = self.purchase_logic.update_document_item(
+            item_id=item1.id,
+            product_id=item1.product_id, # Keep the same product
+            quantity=item1.quantity,    # Keep the same quantity
+            unit_price=50.25            # Set the unit price
+        )
         self.assertIsNotNone(updated_item1)
         self.assertEqual(updated_item1.unit_price, 50.25)
         self.assertEqual(updated_item1.total_price, 502.50) # 10 * 50.25
@@ -114,7 +120,13 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         rfq_doc_after_quote = self.purchase_logic.get_purchase_document_details(rfq_doc.id)
         self.assertEqual(rfq_doc_after_quote.status, PurchaseDocumentStatus.QUOTED)
 
-        updated_item2 = self.purchase_logic.update_item_quote(item2.id, 150.00)
+        # Simulate editing item2 to add a price
+        updated_item2 = self.purchase_logic.update_document_item(
+            item_id=item2.id,
+            product_id=item2.product_id,
+            quantity=item2.quantity,
+            unit_price=150.00
+        )
         self.assertEqual(updated_item2.unit_price, 150.00)
         self.assertEqual(updated_item2.total_price, 150.00)
 
@@ -150,7 +162,13 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         # Add items and quote rfq1_v1 to change its status
         self.assertIsNotNone(self.product1, "Product1 must exist")
         item_rfq1_v1 = self.purchase_logic.add_item_to_document(rfq1_v1.id, product_id=self.product1.product_id, quantity=1)
-        self.purchase_logic.update_item_quote(item_rfq1_v1.id, 10) # Now rfq1_v1 is QUOTED
+        self.assertIsNotNone(item_rfq1_v1, "Item should be created for rfq1_v1")
+        self.purchase_logic.update_document_item( # Use update_document_item
+            item_id=item_rfq1_v1.id,
+            product_id=item_rfq1_v1.product_id,
+            quantity=item_rfq1_v1.quantity,
+            unit_price=10.0 # Set price to quote
+        ) # Now rfq1_v1 is QUOTED
 
         # Get all
         all_docs = self.purchase_logic.get_all_documents_by_criteria()

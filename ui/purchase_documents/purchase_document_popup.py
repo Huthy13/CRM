@@ -100,7 +100,15 @@ class PurchaseDocumentPopup(tk.Toplevel):
         ttk.Label(frame, text="Notes:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.NW)
         self.notes_text = tk.Text(frame, height=5, width=50)
         self.notes_text.grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        frame.grid_columnconfigure(1, weight=1) # Allow notes text to expand
+        row += 1
+
+        # Document Subtotal
+        ttk.Label(frame, text="Document Subtotal:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.subtotal_var = tk.StringVar(value="$0.00")
+        ttk.Label(frame, textvariable=self.subtotal_var, font=('TkDefaultFont', 10, 'bold')).grid(row=row, column=1, padx=5, pady=5, sticky=tk.E)
+        row += 1
+
+        frame.grid_columnconfigure(1, weight=1) # Allow notes text and subtotal to expand/align correctly
 
     def _setup_items_tab(self):
         frame = self.items_tab
@@ -186,6 +194,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     f"{item.total_price:.2f}" if item.total_price is not None else ""
                 ), iid=str(item.id))
         self.on_item_tree_select(None)
+        self._update_document_subtotal() # Update subtotal after items are loaded/reloaded
 
 
     def on_item_tree_select(self, event):
@@ -251,15 +260,76 @@ class PurchaseDocumentPopup(tk.Toplevel):
             self.load_items_for_document() # Refresh the list in this popup
 
     def edit_item(self):
+        selected_tree_item = self.items_tree.selection()
+        if not selected_tree_item:
+            messagebox.showwarning("No Selection", "Please select an item to edit.", parent=self)
+            return
+
+        item_id_str = selected_tree_item[0] # This is the iid, which we set as str(item.id)
+        try:
+            item_id = int(item_id_str)
+        except ValueError:
+            messagebox.showerror("Error", "Invalid item selection.", parent=self)
+            return
+
+        # Fetch the full item data to pass to the popup
+        item_to_edit_obj = self.purchase_logic.get_purchase_document_item_details(item_id)
+
+        if not item_to_edit_obj:
+            messagebox.showerror("Error", f"Could not load details for item ID: {item_id}.", parent=self)
+            self.load_items_for_document() # Refresh list in case item was deleted elsewhere
+            return
+
+        if not self.can_edit_items(): # Check based on main document status
+            messagebox.showwarning("Cannot Edit", "Items cannot be edited for the current document status.", parent=self)
+            return
+
+        from .purchase_document_item_popup import PurchaseDocumentItemPopup
+
+        # Convert PurchaseDocumentItem object to a dictionary for the item_popup
+        # The item_popup currently expects a dict for item_data (or None)
+        # Alternatively, modify item_popup to accept PurchaseDocumentItem object.
+        # For now, converting to dict to match item_popup's current expectation.
+        item_data_dict = item_to_edit_obj.to_dict() if item_to_edit_obj else None
+
+        edit_item_popup = PurchaseDocumentItemPopup(
+            self, # Master is this popup
+            self.purchase_logic,
+            self.product_logic,
+            self.document_data.id, # document_id
+            item_data=item_data_dict # Pass existing item data as a dictionary
+        )
+        self.wait_window(edit_item_popup)
+
+        if hasattr(edit_item_popup, 'item_saved') and edit_item_popup.item_saved:
+            self.load_items_for_document() # This will also call _update_document_subtotal via its own call
+
+            # Potentially refresh the main document status if it changed (e.g. RFQ to Quoted)
+            # and update UI states which might depend on the new status or subtotal.
+            new_doc_data = self.purchase_logic.get_purchase_document_details(self.document_id)
+            if new_doc_data: # Check if document still exists (could be deleted in a rare case)
+                self.document_data = new_doc_data
+                self.status_var.set(self.document_data.status.value if self.document_data.status else "N/A")
+                # update_ui_states_based_on_status() is called by load_items_for_document if it's part of load_document_and_items
+                # or called at the end of load_items_for_document itself.
+                # For clarity, ensure it's called after status might have changed.
+                self.update_ui_states_based_on_status()
+
+
+    def _update_document_subtotal(self):
+        """Calculates and updates the document subtotal display."""
+        current_subtotal = 0.0
+        for item in self.items_data: # self.items_data is populated by load_items_for_document
+            if item.total_price is not None:
+                current_subtotal += item.total_price
+        self.subtotal_var.set(f"${current_subtotal:.2f}")
+
+
+    def remove_item(self):
         selected = self.items_tree.selection()
-        if not selected: return
-        item_id = int(selected[0])
-        messagebox.showinfo("TODO", f"Edit Item {item_id} functionality not fully implemented.")
-        # Placeholder: Open dialog, prefill with item data, then update
-        # item_to_edit = next((i for i in self.items_data if i.id == item_id), None)
-        # ...
-        # self.purchase_logic.update_item_quote(item_id, new_unit_price) or a more general update
-        # self.load_items_for_document()
+            if self.document_data:
+                self.status_var.set(self.document_data.status.value if self.document_data.status else "N/A")
+                self.update_ui_states_based_on_status() # Refresh UI states like button enablement
 
     def remove_item(self):
         selected = self.items_tree.selection()
@@ -274,9 +344,9 @@ class PurchaseDocumentPopup(tk.Toplevel):
         if confirm:
             try:
                 self.purchase_logic.delete_document_item(item_id)
-                self.load_items_for_document()
+                self.load_items_for_document() # This will call _update_document_subtotal
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete item: {e}")
+                messagebox.showerror("Error", f"Failed to delete item: {e}", parent=self)
 
     def save_document(self):
         # Validate Vendor

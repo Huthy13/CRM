@@ -175,6 +175,38 @@ class ProductLogic:
     def delete_product_category(self, category_id: int):
         return self.db.delete_product_category(category_id)
 
+    def get_hierarchical_categories(self) -> list[dict]: # For Treeview
+        """
+        Retrieves all categories and processes them into a hierarchical structure
+        suitable for a Treeview (e.g., list of dicts with 'id', 'name', 'parent_id', 'children').
+        """
+        # Ensure this method exists in your DatabaseHandler or adjust accordingly
+        all_categories_raw = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+
+        categories_map = {cat_id: {'id': cat_id, 'name': name, 'parent_id': parent_id, 'children': []}
+                          for cat_id, name, parent_id in all_categories_raw}
+
+        hierarchical_list = []
+        for cat_id, data in categories_map.items():
+            if data['parent_id'] is None: # Root category
+                hierarchical_list.append(data)
+            elif data['parent_id'] in categories_map: # Child of an existing category in the map
+                categories_map[data['parent_id']]['children'].append(data)
+            else: # Orphaned category (parent_id points to a non-existent category)
+                  # This case should ideally be prevented by DB constraints or data validation.
+                  # For robustness, add it as a root or log a warning.
+                print(f"Warning: Category ID {cat_id} has parent_id {data['parent_id']} which was not found. Treating as root.")
+                hierarchical_list.append(data)
+
+        # Sort children for consistent display if needed (e.g., by name)
+        for cat_id_key in categories_map: # Iterate over keys of categories_map
+            if categories_map[cat_id_key]['children']: # Check if children list is not empty
+                categories_map[cat_id_key]['children'].sort(key=lambda x: x['name'])
+
+        hierarchical_list.sort(key=lambda x: x['name']) # Sort root categories
+
+        return hierarchical_list
+
 # --- Standalone functions (to be refactored or wrapped by ProductLogic class) ---
 # These functions currently manage their own DB connections or expect one to be passed.
 # For ProductLogic to use them, they'd ideally be refactored to take a cursor or use methods on self.db.

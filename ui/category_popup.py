@@ -1,15 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
-from core.address_book_logic import AddressBookLogic
-
+# from core.address_book_logic import AddressBookLogic # No longer needed directly for this popup
+from core.logic.product_management import ProductLogic # Import ProductLogic
 from tkinter import simpledialog, messagebox
 
 class CategoryListPopup(tk.Toplevel):
-    def __init__(self, master_window, logic: AddressBookLogic):
+    def __init__(self, master_window, product_logic: ProductLogic): # Changed to product_logic
         super().__init__(master_window)
-        self.logic = logic
+        self.product_logic = product_logic # Store and use product_logic
         self.title("Manage Product Categories")
-        self.geometry("500x450") # Adjusted size for treeview and buttons
+        self.geometry("500x450")
 
         self.setup_ui()
         self.load_categories_to_treeview()
@@ -71,7 +71,7 @@ class CategoryListPopup(tk.Toplevel):
         for i in self.tree.get_children(): # Clear existing items
             self.tree.delete(i)
         try:
-            hierarchical_categories = self.logic.get_hierarchical_categories()
+            hierarchical_categories = self.product_logic.get_hierarchical_categories() # Use product_logic
             self._populate_tree('', hierarchical_categories) # '' is the root for treeview items
         except Exception as e:
             messagebox.showerror("Load Error", f"Failed to load categories: {e}")
@@ -90,7 +90,7 @@ class CategoryListPopup(tk.Toplevel):
         name = simpledialog.askstring("New Top-Level Category", "Enter category name:", parent=self)
         if name:
             try:
-                self.logic.add_category(name, parent_id=None)
+                self.product_logic.add_category(name, parent_id=None) # Use product_logic
                 self.load_categories_to_treeview()
             except ValueError as ve:
                  messagebox.showerror("Validation Error", str(ve), parent=self)
@@ -106,7 +106,7 @@ class CategoryListPopup(tk.Toplevel):
         name = simpledialog.askstring("New Sub-category", f"Enter name for sub-category under '{parent_name}':", parent=self)
         if name:
             try:
-                self.logic.add_category(name, parent_id=int(parent_id)) # Ensure parent_id is int
+                self.product_logic.add_category(name, parent_id=int(parent_id)) # Use product_logic
                 self.load_categories_to_treeview()
                 # Optionally, try to expand the parent node here
                 self.tree.item(parent_id, open=True)
@@ -124,7 +124,7 @@ class CategoryListPopup(tk.Toplevel):
         new_name = simpledialog.askstring("Edit Category Name", "Enter new name:", initialvalue=current_name, parent=self)
         if new_name and new_name != current_name:
             try:
-                self.logic.update_category_name(int(category_id), new_name) # Ensure category_id is int
+                self.product_logic.update_category_name(int(category_id), new_name) # Use product_logic
                 self.load_categories_to_treeview()
             except ValueError as ve:
                  messagebox.showerror("Validation Error", str(ve), parent=self)
@@ -139,18 +139,29 @@ class CategoryListPopup(tk.Toplevel):
         category_name = self.tree.item(category_id, "text")
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete category '{category_name}'?\nProducts using this category will be unassigned.\nChild categories will become top-level.", parent=self):
             try:
-                self.logic.delete_category(int(category_id)) # Ensure category_id is int
+                self.product_logic.delete_category(int(category_id)) # Use product_logic
                 self.load_categories_to_treeview()
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete category: {e}", parent=self)
 
 
 if __name__ == '__main__':
-    # This is for testing purposes. Requires a more complete MockLogic for hierarchy.
-    class MockLogic:
-        def get_all_product_categories(self):
-            print("Mock: get_all_product_categories called")
-            return ["Electronics", "Books", "Home Goods", "Clothing", "Sports"]
+    # This is for testing purposes. Requires a more complete MockProductLogic for hierarchy.
+    class MockProductLogic: # Renamed to MockProductLogic
+        def get_hierarchical_categories(self): # Mock this method
+            print("MockProductLogic: get_hierarchical_categories called")
+            # Return a simple hierarchy for testing
+            return [
+                {'id': 1, 'name': 'Electronics', 'parent_id': None, 'children': [
+                    {'id': 2, 'name': 'Laptops', 'parent_id': 1, 'children': []}
+                ]},
+                {'id': 3, 'name': 'Books', 'parent_id': None, 'children': []}
+            ]
+        # Add other methods if their calls are not guarded by user interaction in this test script
+        def add_category(self, name, parent_id=None): print(f"Mock: Add category {name}, parent {parent_id}")
+        def update_category_name(self, cat_id, name): print(f"Mock: Update cat {cat_id} to {name}")
+        def delete_category(self, cat_id): print(f"Mock: Delete cat {cat_id}")
+
 
     class MockMaster(tk.Tk):
         def __init__(self):
@@ -160,7 +171,7 @@ if __name__ == '__main__':
             tk.Button(self, text="Show Categories", command=self.show_category_popup).pack(pady=20)
 
         def show_category_popup(self):
-            popup = CategoryListPopup(self, MockLogic())
+            popup = CategoryListPopup(self, MockProductLogic()) # Use MockProductLogic
             self.wait_window(popup)
 
     app = MockMaster()

@@ -120,18 +120,19 @@ class PurchaseDocumentTab:
         if not self.selected_document_id:
             messagebox.showwarning("No Selection", "Please select a document to edit.")
             return
-        from .purchase_document_popup import PurchaseDocumentPopup # Local import
+
+        from .purchase_document_popup import PurchaseDocumentPopup # Local import for safety
+
         popup = PurchaseDocumentPopup(
-            master=self.frame.winfo_toplevel(),
+            master=self.frame.winfo_toplevel(), # Use toplevel for proper window behavior
             purchase_logic=self.purchase_logic,
             account_logic=self.account_logic,
-            product_logic=self.product_logic, # Pass product_logic
+            product_logic=self.product_logic,
             document_id=self.selected_document_id,
-            parent_controller=self
+            parent_controller=self # Pass the tab instance for callbacks
         )
         self.frame.wait_window(popup)
-        # self.load_documents() # Popup should call this via parent_controller if save occurs
-        messagebox.showinfo("TODO", f"Edit Document Popup for ID {self.selected_document_id} is opened, but full edit save logic is WIP.")
+        # self.load_documents() # Refresh is handled by the popup via parent_controller callback
 
 
     def delete_selected_document(self):

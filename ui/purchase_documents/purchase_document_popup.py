@@ -207,22 +207,29 @@ class PurchaseDocumentPopup(tk.Toplevel):
         can_edit_doc_details = True # Default
         can_edit_items_flag = self.can_edit_items()
 
+        # Default states
+        self.vendor_combobox.config(state="readonly") # Default to readonly, can be disabled below
+        self.notes_text.config(state=tk.NORMAL)
+
+
         if self.document_data and self.document_data.status:
             current_status = self.document_data.status
             if current_status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
                 self.vendor_combobox.config(state=tk.DISABLED)
-                # Notes might still be editable
+
             if current_status in [PurchaseDocumentStatus.PO_ISSUED, PurchaseDocumentStatus.RECEIVED, PurchaseDocumentStatus.CLOSED]:
-                 self.notes_text.config(state=tk.DISABLED) # Example: lock notes after PO issued
-                 can_edit_doc_details = False
+                 self.notes_text.config(state=tk.DISABLED)
+                 can_edit_doc_details = False # General flag for other potential detail fields
 
-
-        # Item buttons
-        self.edit_item_button.config(state=tk.NORMAL if can_edit_items_flag and self.items_tree.selection() else tk.DISABLED)
-        self.remove_item_button.config(state=tk.NORMAL if can_edit_items_flag and self.items_tree.selection() else tk.DISABLED)
-        # Add item button
+        # Item buttons based on can_edit_items_flag
         add_item_btn = self.items_tab.winfo_children()[0].winfo_children()[0] # Find "Add Item" button
         add_item_btn.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
+
+        # Edit/Remove item buttons also depend on selection, handled in on_item_tree_select
+        # but their base enabled state depends on can_edit_items_flag
+        selected_item = self.items_tree.selection()
+        self.edit_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
+        self.remove_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
 
 
     def add_item(self):
@@ -275,21 +282,20 @@ class PurchaseDocumentPopup(tk.Toplevel):
         # Validate Vendor
         selected_vendor_name = self.vendor_combobox.get()
         if not selected_vendor_name or selected_vendor_name == NO_VENDOR_LABEL:
-            messagebox.showerror("Validation Error", "Please select a vendor.")
+            messagebox.showerror("Validation Error", "Please select a vendor.", parent=self)
             return
 
         current_vendor_id = self.vendor_map.get(selected_vendor_name)
         if current_vendor_id is None: # Should not happen if list is populated correctly
-            messagebox.showerror("Error", "Selected vendor is invalid.")
+            messagebox.showerror("Error", "Selected vendor is invalid.", parent=self)
             return
 
         notes_content = self.notes_text.get("1.0", tk.END).strip()
 
         try:
             if self.document_id is None: # Creating a new document (RFQ)
-                # Ensure a vendor is selected
-                if current_vendor_id is None or selected_vendor_name == NO_VENDOR_LABEL: # Double check, though validated above
-                    messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.")
+                if current_vendor_id is None or selected_vendor_name == NO_VENDOR_LABEL:
+                    messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.", parent=self)
                     return
 
                 new_doc = self.purchase_logic.create_rfq(
@@ -297,62 +303,67 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     notes=notes_content
                 )
                 if new_doc:
-                    self.document_id = new_doc.id # IMPORTANT: Update the popup's state
+                    self.document_id = new_doc.id
                     self.document_data = new_doc
-                    messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.")
-
-                    # Refresh the entire popup to reflect the new document's state
-                    # This will correctly set doc number, status, and enable item tab functionalities.
+                    messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.", parent=self)
                     self.load_document_and_items()
-
-                    # Update the title to "Edit Purchase Document" as it's no longer new
                     self.title(f"Edit Purchase Document - {new_doc.document_number}")
-
-                    # Switch to the items tab to encourage adding items
                     self.notebook.select(self.items_tab)
-
-                    # Notify the main tab to refresh its list
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                          self.parent_controller.load_documents()
                 else:
-                    messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.")
+                    messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.", parent=self)
             else: # Updating an existing document
-                # Only notes and potentially vendor (if status allows) are directly updatable here.
-                # Status changes have dedicated methods in logic.
-                if self.document_data.vendor_id != current_vendor_id:
-                    if self.document_data.status == PurchaseDocumentStatus.RFQ: # Allow vendor change for RFQ
-                        # Need a DB method to update vendor_id if this is allowed
-                        # self.db_handler.update_purchase_document_vendor(self.document_id, current_vendor_id)
-                        # For now, let's assume vendor is fixed after creation or handled by more complex logic
-                        messagebox.showwarning("Info", "Vendor change for existing documents not implemented here.")
-                    else:
-                        messagebox.showwarning("Warning", "Vendor cannot be changed for this document status.")
+                updated = False
+                # Check if notes changed
+                if self.document_data and self.document_data.notes != notes_content: # Check if document_data exists
+                    self.purchase_logic.update_document_notes(self.document_id, notes_content)
+                    updated = True
 
-                self.purchase_logic.update_document_notes(self.document_id, notes_content)
-                self.document_data = self.purchase_logic.get_purchase_document_details(self.document_id) # Re-fetch
-                messagebox.showinfo("Success", f"Document {self.document_data.document_number} updated.")
-                self.load_document_and_items() # Refresh display
+                # Check if vendor changed (only if status allows, e.g., RFQ)
+                if self.document_data and self.document_data.vendor_id != current_vendor_id:
+                    if self.document_data.status == PurchaseDocumentStatus.RFQ:
+                        # This would require a new method in PurchaseLogic and DatabaseHandler: update_document_vendor(doc_id, new_vendor_id)
+                        # For now, we prevent vendor change after creation to keep it simple.
+                        # If implemented, call: self.purchase_logic.update_document_vendor(self.document_id, current_vendor_id)
+                        # updated = True
+                        messagebox.showwarning("Info", "Changing the vendor for an existing document is not supported in this version. Notes were saved if changed.", parent=self)
+                    elif self.document_data.status: # Check if status exists before accessing value
+                        messagebox.showwarning("Warning", f"Vendor cannot be changed for a document with status '{self.document_data.status.value}'. Notes were saved if changed.", parent=self)
+                    else: # Fallback if status is None on existing doc_data (should not happen)
+                        messagebox.showwarning("Warning", "Vendor cannot be changed for this document. Notes were saved if changed.", parent=self)
 
-            # Notify the main tab to refresh its list (if master is the tab controller)
-            if hasattr(self.master, 'load_documents'): # Check if master has the method
-                 self.master.load_documents() # This assumes master is the PurchaseDocumentTab instance
+                if updated:
+                    self.document_data = self.purchase_logic.get_purchase_document_details(self.document_id) # Re-fetch
+                    messagebox.showinfo("Success", f"Document {self.document_data.document_number} updated.", parent=self)
+                    self.load_document_and_items() # Refresh display in popup
+
+                    if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
+                        self.parent_controller.load_documents() # Refresh main tab list
+                else:
+                    messagebox.showinfo("No Changes", "No changes were detected to save.", parent=self)
 
         except ValueError as ve:
-            messagebox.showerror("Validation Error", str(ve))
+            messagebox.showerror("Validation Error", str(ve), parent=self)
         except Exception as e:
-            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+            messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {e}", parent=self)
+            import traceback
+            traceback.print_exc() # For debugging
 
-        # Potentially close after save: self.destroy()
-        # Or keep open for item management if new.
-
-import datetime # Required for default created_date
+# import datetime # Required for default created_date - already imported at top
 
 if __name__ == '__main__':
     # Mocking for standalone testing
     class MockDBHandler:
         def get_all_accounts(self): return []
         def get_account_details(self, acc_id): return None
-        # ... other methods needed by PurchaseLogic
+        def get_all_products(self): return [] # Added for ProductLogic if it uses this
+        def get_product_details(self, prod_id): return None # Added for ProductLogic
+        def get_product_category_name_by_id(self, cat_id): return None # Added
+        def get_all_product_categories_from_table(self): return [] # Added
+        def get_all_product_units_of_measure_from_table(self): return [] # Added
+
+
         def add_purchase_document(self, **kwargs): return 1
         def get_purchase_document_by_id(self, doc_id):
             if doc_id == 1:
@@ -367,14 +378,22 @@ if __name__ == '__main__':
 
     class MockAccountLogic:
         def get_all_accounts(self):
-            # Simulate Account objects
             from shared.structs import Account, AccountType
             return [
                 Account(account_id=101, name="Vendor A", account_type=AccountType.VENDOR),
                 Account(account_id=102, name="Vendor B", account_type=AccountType.VENDOR),
                 Account(account_id=201, name="Customer X", account_type=AccountType.CUSTOMER)
             ]
-        def get_account_details(self, acc_id): return None
+        def get_account_details(self, acc_id):
+            if acc_id == 101: return Account(account_id=101, name="Vendor A", account_type=AccountType.VENDOR)
+            return None
+
+    class MockProductLogic: # For PurchaseDocumentItemPopup
+        def __init__(self, db_handler): self.db = db_handler
+        def get_all_products(self):
+            from shared.structs import Product
+            return [Product(product_id=1, name="Laptop"), Product(product_id=2, name="Mouse")]
+        def get_product_details(self,pid): return None
 
 
     class MockPurchaseLogic:
@@ -394,7 +413,12 @@ if __name__ == '__main__':
             return None
         def get_items_for_document(self, doc_id): return []
         def update_document_notes(self, doc_id, notes): pass
-        # ... other methods
+        def add_item_to_document(self, doc_id, product_id, quantity, product_description_override=None): # Added product_id
+            from shared.structs import PurchaseDocumentItem
+            print(f"Mock: Adding item (ProdID: {product_id}), qty {quantity} to doc {doc_id}")
+            return PurchaseDocumentItem(item_id=123, purchase_document_id=doc_id, product_id=product_id,
+                                        product_description=f"Mock Product {product_id}", quantity=quantity)
+
 
     root = tk.Tk()
     root.title("Popup Test")
@@ -402,17 +426,23 @@ if __name__ == '__main__':
     mock_db = MockDBHandler()
     mock_pl = MockPurchaseLogic(mock_db)
     mock_al = MockAccountLogic()
+    mock_prod_l = MockProductLogic(mock_db) # ProductLogic mock
+
+    # Mock parent controller for callback
+    class MockParentController:
+        def load_documents(self):
+            print("MockParentController: load_documents() called!")
+
+    mock_controller = MockParentController()
 
     def open_new():
-        popup = PurchaseDocumentPopup(root, mock_pl, mock_al)
+        popup = PurchaseDocumentPopup(root, mock_pl, mock_al, mock_prod_l, parent_controller=mock_controller)
         root.wait_window(popup)
 
     def open_edit():
-        # Create a dummy doc first to get an ID for editing
-        # This is simplified; real scenario would involve selecting from a list
         doc = mock_pl.create_rfq(vendor_id=101, notes="Initial for edit")
         if doc:
-            popup = PurchaseDocumentPopup(root, mock_pl, mock_al, document_id=doc.id)
+            popup = PurchaseDocumentPopup(root, mock_pl, mock_al, mock_prod_l, document_id=doc.id, parent_controller=mock_controller)
             root.wait_window(popup)
         else:
             print("Failed to create mock document for editing.")
@@ -422,3 +452,5 @@ if __name__ == '__main__':
     ttk.Button(root, text="Edit Document (ID 1)", command=open_edit).pack(pady=10)
 
     root.mainloop()
+
+[end of ui/purchase_documents/purchase_document_popup.py]

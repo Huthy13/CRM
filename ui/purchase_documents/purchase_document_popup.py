@@ -452,5 +452,3 @@ if __name__ == '__main__':
     ttk.Button(root, text="Edit Document (ID 1)", command=open_edit).pack(pady=10)
 
     root.mainloop()
-
-[end of ui/purchase_documents/purchase_document_popup.py]

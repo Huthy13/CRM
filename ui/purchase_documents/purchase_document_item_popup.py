@@ -31,10 +31,11 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         row = 0
         # Product Selection
         ttk.Label(frame, text="Product:").grid(row=row, column=0, padx=5, pady=(0,2), sticky=tk.W)
-        self.product_combobox = ttk.Combobox(frame, width=47, state="readonly") # Width might need adjustment
+        self.product_combobox = ttk.Combobox(frame, width=47, state="readonly")
         self.product_combobox.grid(row=row, column=1, padx=5, pady=(0,5), sticky=tk.EW)
         self.populate_products_dropdown()
-        self.product_combobox.focus_set() # Focus here first
+        self.product_combobox.bind("<<ComboboxSelected>>", self._on_product_selected) # Bind event
+        self.product_combobox.focus_set()
         row += 1
 
         # Description display (read-only, updates based on product selection or if manually set for non-catalog)
@@ -104,6 +105,41 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.quantity_var.trace_add("write", self._on_price_quantity_change)
         self.unit_price_var.trace_add("write", self._on_price_quantity_change)
 
+        # Adjustments for Edit Mode after all UI elements are defined and product list populated
+        if item_data:
+            # Set product in combobox
+            if item_data.get('product_id'):
+                product_id_to_select = item_data.get('product_id')
+                selected_product_name = None
+                for name, p_id in self.product_map.items():
+                    if p_id == product_id_to_select:
+                        selected_product_name = name
+                        break
+                if selected_product_name:
+                    self.product_combobox.set(selected_product_name)
+                else:
+                    # Product ID from item_data not found in current product list, maybe log warning
+                    self.product_combobox.set("<Select Product>") # Fallback
+
+            # Set quantity (already done before, but ensure it's correct)
+            self.quantity_var.set(str(item_data.get('quantity', '0')))
+
+            # Set unit price: Use saved item's unit price if available, otherwise load default from product
+            if item_data.get('unit_price') is not None:
+                self.unit_price_var.set(f"{item_data.get('unit_price'):.2f}")
+            else:
+                # No unit price in item_data, so trigger default price loading if a product is set
+                if self.product_combobox.get() != "<Select Product>":
+                    self._on_product_selected() # Load default price for the selected product
+                else: # No product selected in combobox either
+                    self.unit_price_var.set("0.00")
+
+            self._calculate_and_display_total_price() # Ensure total is calculated with final values
+        else: # New item (already handled mostly, but ensure _on_product_selected isn't called if not needed)
+            if self.product_combobox.get() == "<Select Product>": # If default "<Select Product>" is set
+                 self.unit_price_var.set("0.00") # Ensure unit price is also default
+            # Initial calculation for new item is already done after setting default qty/price
+
     def _on_price_quantity_change(self, *args):
         self._calculate_and_display_total_price()
 
@@ -138,6 +174,22 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.product_combobox['values'] = sorted(product_display_names)
         self.product_combobox.set("<Select Product>")
         # TODO: If editing an item, set the combobox to the item's current product.
+
+    def _on_product_selected(self, event=None):
+        """Handles product selection in the combobox to update the default unit price."""
+        selected_product_name = self.product_combobox.get()
+        product_id = self.product_map.get(selected_product_name)
+
+        if product_id:
+            product_details = self.product_logic.get_product_details(product_id)
+            if product_details and product_details.cost is not None:
+                self.unit_price_var.set(f"{product_details.cost:.2f}")
+            else:
+                self.unit_price_var.set("0.00") # Default if no cost or product not found
+        else:
+            self.unit_price_var.set("0.00") # Default if "<Select Product>" or error
+
+        # Total price will auto-update due to the trace on unit_price_var
 
     # def update_description_display(self, event=None): # TODO if using a separate description label
     #     selected_product_name = self.product_combobox.get()

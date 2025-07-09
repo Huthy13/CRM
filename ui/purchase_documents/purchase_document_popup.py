@@ -96,6 +96,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         items_scrollbar = ttk.Scrollbar(items_label_frame, orient="vertical", command=self.items_tree.yview)
         self.items_tree.configure(yscrollcommand=items_scrollbar.set)
         self.items_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.items_tree.bind("<<TreeviewSelect>>", self.on_item_tree_select)  # Ensure event is bound
         items_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         ttk.Label(self.content_frame, text="Notes:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.NW)

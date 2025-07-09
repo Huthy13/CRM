@@ -97,6 +97,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.items_tree.configure(yscrollcommand=items_scrollbar.set)
         self.items_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         self.items_tree.bind("<<TreeviewSelect>>", self.on_item_tree_select)  # Ensure event is bound
+        self.items_tree.bind("<Double-1>", self.on_item_double_click) # Bind double-click
         items_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         ttk.Label(self.content_frame, text="Notes:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.NW)
@@ -179,6 +180,15 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.edit_item_button.config(state=tk.NORMAL if can_edit_delete else tk.DISABLED)
         self.remove_item_button.config(state=tk.NORMAL if can_edit_delete else tk.DISABLED)
         # print(f"DEBUG: on_item_tree_select: Edit button state: {self.edit_item_button.cget('state')}, Remove button state: {self.remove_item_button.cget('state')}")
+
+    def on_item_double_click(self, event):
+        # event parameter is required by tkinter event binding, but not used in this handler
+        if self.items_tree.selection(): # Check if an item is selected
+            # More robust check: ensure the double click was on an actual item row
+            item_iid = self.items_tree.identify_row(event.y)
+            if item_iid and item_iid in self.items_tree.selection():
+                 if self.edit_item_button.cget('state') == tk.NORMAL: # Check if editing is allowed
+                    self.edit_item()
 
     def can_edit_items(self) -> bool:
         if not self.document_data or not self.document_data.status:

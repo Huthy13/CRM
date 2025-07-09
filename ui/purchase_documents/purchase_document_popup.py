@@ -75,11 +75,11 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.item_button_frame = ttk.Frame(items_label_frame)
         self.item_button_frame.pack(pady=5, fill=tk.X)
 
-        self.add_item_button = ttk.Button(self.item_button_frame, text="Add Item", command=self.add_item)
+        self.add_item_button = ttk.Button(self.item_button_frame, text="Add Line Item", command=self.add_item)
         self.add_item_button.pack(side=tk.LEFT, padx=5)
-        self.edit_item_button = ttk.Button(self.item_button_frame, text="Edit Item", command=self.edit_item, state=tk.DISABLED)
+        self.edit_item_button = ttk.Button(self.item_button_frame, text="Edit Line Item", command=self.edit_item, state=tk.DISABLED)
         self.edit_item_button.pack(side=tk.LEFT, padx=5)
-        self.remove_item_button = ttk.Button(self.item_button_frame, text="Remove Item", command=self.remove_item, state=tk.DISABLED)
+        self.remove_item_button = ttk.Button(self.item_button_frame, text="Remove Line Item", command=self.remove_item, state=tk.DISABLED)
         self.remove_item_button.pack(side=tk.LEFT, padx=5)
 
         item_columns = ("desc", "qty", "unit_price", "total_price")

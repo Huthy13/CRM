@@ -315,3 +315,39 @@ class Product:
             "category": self.category,
             "unit_of_measure": self.unit_of_measure
         }
+
+class SalesDocument:
+    def __init__(self, document_id=None, customer_id=None, document_date=None, status="", total_amount=0.0):
+        self.document_id = document_id
+        self.customer_id = customer_id
+        self.document_date = document_date
+        self.status = status
+        self.total_amount = total_amount
+
+    def to_dict(self):
+        return {
+            "document_id": self.document_id,
+            "customer_id": self.customer_id,
+            "document_date": self.document_date.isoformat() if self.document_date else None,
+            "status": self.status,
+            "total_amount": self.total_amount
+        }
+
+class SalesDocumentItem:
+    def __init__(self, item_id=None, document_id=None, product_id=None, quantity=0, unit_price=0.0, line_total=0.0):
+        self.item_id = item_id
+        self.document_id = document_id
+        self.product_id = product_id
+        self.quantity = quantity
+        self.unit_price = unit_price
+        self.line_total = line_total
+
+    def to_dict(self):
+        return {
+            "item_id": self.item_id,
+            "document_id": self.document_id,
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "line_total": self.line_total
+        }

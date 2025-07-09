@@ -151,6 +151,55 @@ class DatabaseHandler:
                 FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure (unit_id) ON DELETE SET NULL
             )
         """)
+
+        # Sales Documents Table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sales_documents (
+                document_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER,
+                document_date TEXT, -- ISO8601 string
+                status TEXT, -- e.g., Draft, Sent, Accepted
+                total_amount REAL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_id) REFERENCES accounts (id) ON DELETE SET NULL
+            )
+        """)
+
+        # Sales Document Items Table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sales_document_items (
+                item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id INTEGER NOT NULL,
+                product_id INTEGER NOT NULL,
+                quantity INTEGER NOT NULL,
+                unit_price REAL NOT NULL,
+                line_total REAL NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (document_id) REFERENCES sales_documents (document_id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES products (product_id) ON DELETE RESTRICT
+            )
+        """)
+        # Triggers for sales_documents updated_at
+        self.cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_sales_documents_updated_at
+            AFTER UPDATE ON sales_documents
+            FOR EACH ROW
+            BEGIN
+                UPDATE sales_documents SET updated_at = CURRENT_TIMESTAMP WHERE document_id = OLD.document_id;
+            END;
+        """)
+
+        # Triggers for sales_document_items updated_at
+        self.cursor.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_sales_document_items_updated_at
+            AFTER UPDATE ON sales_document_items
+            FOR EACH ROW
+            BEGIN
+                UPDATE sales_document_items SET updated_at = CURRENT_TIMESTAMP WHERE item_id = OLD.item_id;
+            END;
+        """)
         self.conn.commit()
 
 #address related methods
@@ -773,3 +822,120 @@ class DatabaseHandler:
             WHERE product_id = ?
         """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Parameter tuple, no SQL comment needed here
         self.conn.commit()
+
+# Sales Document related methods
+    def add_sales_document(self, customer_id: int, document_date: str, status: str, total_amount: float) -> int:
+        """Add a new sales document and return its ID."""
+        self.cursor.execute("""
+            INSERT INTO sales_documents (customer_id, document_date, status, total_amount)
+            VALUES (?, ?, ?, ?)
+        """, (customer_id, document_date, status, total_amount))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_sales_document(self, document_id: int) -> dict | None:
+        """Retrieve a single sales document by its ID."""
+        self.cursor.execute("""
+            SELECT sd.document_id, sd.customer_id, a.name as customer_name,
+                   sd.document_date, sd.status, sd.total_amount, sd.created_at, sd.updated_at
+            FROM sales_documents sd
+            LEFT JOIN accounts a ON sd.customer_id = a.id
+            WHERE sd.document_id = ?
+        """, (document_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_all_sales_documents(self, customer_id: int = None) -> list[dict]:
+        """Retrieve all sales documents, optionally filtered by customer_id."""
+        query = """
+            SELECT sd.document_id, sd.customer_id, a.name as customer_name,
+                   sd.document_date, sd.status, sd.total_amount, sd.created_at, sd.updated_at
+            FROM sales_documents sd
+            LEFT JOIN accounts a ON sd.customer_id = a.id
+        """
+        params = []
+        if customer_id:
+            query += " WHERE sd.customer_id = ?"
+            params.append(customer_id)
+        query += " ORDER BY sd.document_date DESC, sd.document_id DESC"
+
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_sales_document(self, document_id: int, customer_id: int, document_date: str, status: str, total_amount: float) -> None:
+        """Update an existing sales document."""
+        self.cursor.execute("""
+            UPDATE sales_documents
+            SET customer_id = ?, document_date = ?, status = ?, total_amount = ?
+            WHERE document_id = ?
+        """, (customer_id, document_date, status, total_amount, document_id))
+        self.conn.commit()
+
+    def delete_sales_document(self, document_id: int) -> None:
+        """Delete a sales document by ID. Associated items will be deleted by CASCADE constraint."""
+        self.cursor.execute("DELETE FROM sales_documents WHERE document_id = ?", (document_id,))
+        self.conn.commit()
+
+# Sales Document Item related methods
+    def add_sales_document_item(self, document_id: int, product_id: int, quantity: int, unit_price: float, line_total: float) -> int:
+        """Add a new item to a sales document and return its ID."""
+        self.cursor.execute("""
+            INSERT INTO sales_document_items (document_id, product_id, quantity, unit_price, line_total)
+            VALUES (?, ?, ?, ?, ?)
+        """, (document_id, product_id, quantity, unit_price, line_total))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_sales_document_item(self, item_id: int) -> dict | None:
+        """Retrieve a single sales document item by its ID."""
+        self.cursor.execute("""
+            SELECT sdi.item_id, sdi.document_id, sdi.product_id, p.name as product_name,
+                   sdi.quantity, sdi.unit_price, sdi.line_total, sdi.created_at, sdi.updated_at
+            FROM sales_document_items sdi
+            JOIN products p ON sdi.product_id = p.product_id
+            WHERE sdi.item_id = ?
+        """, (item_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_sales_document_items(self, document_id: int) -> list[dict]:
+        """Retrieve all items for a given sales document."""
+        self.cursor.execute("""
+            SELECT sdi.item_id, sdi.document_id, sdi.product_id, p.name as product_name,
+                   sdi.quantity, sdi.unit_price, sdi.line_total, sdi.created_at, sdi.updated_at
+            FROM sales_document_items sdi
+            JOIN products p ON sdi.product_id = p.product_id
+            WHERE sdi.document_id = ?
+            ORDER BY sdi.item_id ASC
+        """, (document_id,))
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_sales_document_item(self, item_id: int, product_id: int, quantity: int, unit_price: float, line_total: float) -> None:
+        """Update an existing sales document item."""
+        self.cursor.execute("""
+            UPDATE sales_document_items
+            SET product_id = ?, quantity = ?, unit_price = ?, line_total = ?
+            WHERE item_id = ?
+        """, (product_id, quantity, unit_price, line_total, item_id))
+        self.conn.commit()
+
+    def delete_sales_document_item(self, item_id: int) -> None:
+        """Delete a sales document item by ID."""
+        self.cursor.execute("DELETE FROM sales_document_items WHERE item_id = ?", (item_id,))
+        self.conn.commit()
+
+    def get_product_price_for_sales_document(self, product_id: int) -> float | None:
+        """Helper to get the current 'cost' of a product to be used as 'unit_price'."""
+        # In a more complex system, this might involve price lists, customer-specific pricing, etc.
+        # For now, we'll use the product's 'cost' as the default selling price.
+        self.cursor.execute("SELECT cost FROM products WHERE product_id = ?", (product_id,))
+        row = self.cursor.fetchone()
+        return row[0] if row else None

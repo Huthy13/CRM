@@ -101,6 +101,58 @@ def create_tables(db_conn=None):
         END;
         """)
 
+        # Sales Documents Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sales_documents (
+            document_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            document_date TEXT,
+            status TEXT,
+            total_amount REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES accounts (account_id)
+            -- Assuming 'accounts' table with 'account_id' exists from other modules
+            -- If not, this FK needs to be adjusted or removed.
+        )
+        """)
+
+        # Sales Document Items Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sales_document_items (
+            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL,
+            unit_price REAL NOT NULL,
+            line_total REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES sales_documents (document_id),
+            FOREIGN KEY (product_id) REFERENCES products (id) -- Corrected to products(id)
+        )
+        """)
+
+        # Triggers for sales_documents updated_at
+        cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS update_sales_documents_updated_at
+        AFTER UPDATE ON sales_documents
+        FOR EACH ROW
+        BEGIN
+            UPDATE sales_documents SET updated_at = CURRENT_TIMESTAMP WHERE document_id = OLD.document_id;
+        END;
+        """)
+
+        # Triggers for sales_document_items updated_at
+        cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS update_sales_document_items_updated_at
+        AFTER UPDATE ON sales_document_items
+        FOR EACH ROW
+        BEGIN
+            UPDATE sales_document_items SET updated_at = CURRENT_TIMESTAMP WHERE item_id = OLD.item_id;
+        END;
+        """)
+
         conn.commit() # Commit changes
         print("Database tables created successfully (if they didn't exist).")
 

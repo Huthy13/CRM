@@ -155,12 +155,21 @@ class SalesDocumentPopup(tk.Toplevel):
                 break
         if customer_name_to_select:
             self.customer_combobox.set(customer_name_to_select)
-        else:
+        elif customer_id: # If name not in map, but we have an ID
             acc_details = self.customer_logic.get_account_details(customer_id)
-            if acc_details:
-                 self.customer_combobox.set(acc_details.name)
-            else:
-                self.customer_combobox.set(f"ID: {customer_id}" if customer_id else "Unknown Customer")
+            if acc_details and acc_details.name: # If we can fetch the name
+                # Optionally, add this fetched customer to the combobox and map if desired,
+                # or just display it. For now, just display.
+                # This might make the combobox show a value not in its dropdown list if not added.
+                self.customer_combobox.set(acc_details.name)
+                # To make it selectable and parsable by save, ensure it's in customers_map
+                if acc_details.name not in self.customers_map:
+                    self.customers_map[acc_details.name] = customer_id
+                    # Consider adding to combobox['values'] and re-sorting if this is a common case.
+            else: # Cannot fetch name, fallback to ID display
+                self.customer_combobox.set(f"ID: {customer_id}")
+        else: # No customer_id for this document, or failed to find name
+            self.customer_combobox.set("") # Leave blank or set to a placeholder like "<Select Customer>"
 
         self.doc_date_entry.delete(0, tk.END)
         self.doc_date_entry.insert(0, self.document_data.document_date.isoformat() if self.document_data.document_date else "")
@@ -291,21 +300,34 @@ class SalesDocumentPopup(tk.Toplevel):
 
 
     def _save_document(self):
-        selected_customer_name = self.customer_combobox.get()
-        if not selected_customer_name or selected_customer_name not in self.customers_map:
-            customer_id_from_text = self.customer_combobox.get()
-            if customer_id_from_text.startswith("ID: "):
-                 try:
-                     customer_id = int(customer_id_from_text.replace("ID: ", ""))
-                 except ValueError:
-                     messagebox.showerror("Validation Error", "Invalid customer selection.", parent=self)
-                     return
-            else:
-                messagebox.showerror("Validation Error", "Please select a valid customer.", parent=self)
+        selected_customer_name = self.customer_combobox.get().strip()
+        customer_id = None
+
+        if not selected_customer_name:
+            messagebox.showerror("Validation Error", "Please select a customer.", parent=self)
+            return
+
+        if selected_customer_name in self.customers_map:
+            customer_id = self.customers_map[selected_customer_name]
+        elif selected_customer_name.startswith("ID: "):
+            try:
+                customer_id = int(selected_customer_name.replace("ID: ", ""))
+                # Optionally, verify this ID actually exists if it was manually entered or from an old record not in current map
+                # For now, assume if it's in "ID: X" format, it's a valid reference.
+            except ValueError:
+                messagebox.showerror("Validation Error", "Invalid customer ID format in selection.", parent=self)
                 return
         else:
-            customer_id = self.customers_map[selected_customer_name]
+            # This case means the combobox has a value not in map and not "ID: X"
+            # This could happen if _load_document_details sets a name that wasn't added to map,
+            # or if user somehow types a new name.
+            # The current _load_document_details tries to add to map.
+            messagebox.showerror("Validation Error", "Invalid or unrecognized customer selected. Please choose from the list.", parent=self)
+            return
 
+        if customer_id is None: # Should be caught by above, but as a safeguard
+            messagebox.showerror("Validation Error", "Customer ID could not be determined.", parent=self)
+            return
 
         doc_date_str = self.doc_date_entry.get().strip()
         try:

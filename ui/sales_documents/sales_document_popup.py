@@ -123,8 +123,10 @@ class SalesDocumentPopup(tk.Toplevel):
             accounts = self.customer_logic.get_all_accounts() # This currently returns list of tuples (id, name, ...)
             if accounts:
                 # Assuming tuple structure is (account_id, account_name, ...)
-                self.customers_map = {acc[1]: acc[0] for acc in accounts} # acc[1] is name, acc[0] is id
-                self.customer_combobox['values'] = sorted(list(self.customers_map.keys()))
+                # Ensure names are stripped and handle potential None names in tuples
+                valid_accounts = [acc for acc in accounts if acc and len(acc) > 1 and acc[1]]
+                self.customers_map = {acc[1].strip(): acc[0] for acc in valid_accounts} # name: id
+                self.customer_combobox['values'] = sorted([name for name in self.customers_map.keys()])
             else:
                 self.customer_combobox['values'] = []
                 self.customers_map = {} # Ensure map is also cleared
@@ -157,15 +159,16 @@ class SalesDocumentPopup(tk.Toplevel):
             self.customer_combobox.set(customer_name_to_select)
         elif customer_id: # If name not in map, but we have an ID
             acc_details = self.customer_logic.get_account_details(customer_id)
-            if acc_details and acc_details.name: # If we can fetch the name
-                # Optionally, add this fetched customer to the combobox and map if desired,
-                # or just display it. For now, just display.
-                # This might make the combobox show a value not in its dropdown list if not added.
-                self.customer_combobox.set(acc_details.name)
-                # To make it selectable and parsable by save, ensure it's in customers_map
-                if acc_details.name not in self.customers_map:
-                    self.customers_map[acc_details.name] = customer_id
-                    # Consider adding to combobox['values'] and re-sorting if this is a common case.
+            if acc_details and acc_details.name:
+                customer_name_fetched = acc_details.name.strip()
+                self.customer_combobox.set(customer_name_fetched)
+                if customer_name_fetched not in self.customers_map:
+                    self.customers_map[customer_name_fetched] = customer_id
+                    # Optionally update combobox values if this is a desired behavior
+                    # current_values = list(self.customer_combobox['values'])
+                    # if customer_name_fetched not in current_values:
+                    #    current_values.append(customer_name_fetched)
+                    #    self.customer_combobox['values'] = sorted(current_values)
             else: # Cannot fetch name, fallback to ID display
                 self.customer_combobox.set(f"ID: {customer_id}")
         else: # No customer_id for this document, or failed to find name

@@ -6,10 +6,11 @@ from ui.sales_documents.sales_document_popup import SalesDocumentPopup
 from shared.structs import SalesDocument # Assuming SalesDocument struct is available
 
 class SalesDocumentTab:
-    def __init__(self, master, sales_logic, customer_logic): # Added customer_logic
+    def __init__(self, master, sales_logic, customer_logic, product_logic): # Added product_logic
         self.frame = tk.Frame(master)
         self.sales_logic = sales_logic
-        self.customer_logic = customer_logic # To get customer names if needed
+        self.customer_logic = customer_logic
+        self.product_logic = product_logic # Store product_logic
         self.selected_document_id = None
 
         self.setup_ui()
@@ -177,7 +178,7 @@ class SalesDocumentTab:
     def add_new_document(self):
         # Pass self.frame.master (the main window or notebook) as parent for the popup
         # Pass self (the tab instance) as the calling_tab to allow refresh
-        popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, document_id=None)
+        popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, self.product_logic, document_id=None)
         self.frame.master.wait_window(popup.top) # Wait for the popup to close
         self.load_documents() # Refresh list
 
@@ -185,7 +186,7 @@ class SalesDocumentTab:
         if not self.selected_document_id:
             messagebox.showwarning("No Selection", "Please select a document to view/edit.")
             return
-        popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, document_id=self.selected_document_id)
+        popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, self.product_logic, document_id=self.selected_document_id)
         self.frame.master.wait_window(popup.top)
         self.load_documents()
 

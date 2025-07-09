@@ -53,6 +53,9 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         row += 1
 
         # Unit Price
+        self.unit_price_label = ttk.Label(frame, text="Unit Price:") # Definition
+        self.unit_price_var = tk.StringVar() # Definition
+        self.unit_price_entry = ttk.Entry(frame, width=15, textvariable=self.unit_price_var) # Definition
         self.unit_price_label.grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
         self.unit_price_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
         row += 1

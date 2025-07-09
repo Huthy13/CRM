@@ -179,7 +179,7 @@ class SalesDocumentTab:
         # Pass self.frame.master (the main window or notebook) as parent for the popup
         # Pass self (the tab instance) as the calling_tab to allow refresh
         popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, self.product_logic, document_id=None)
-        self.frame.master.wait_window(popup.top) # Wait for the popup to close
+        self.frame.master.wait_window(popup) # Wait for the popup to close
         self.load_documents() # Refresh list
 
     def edit_selected_document(self, event=None): # event=None for double-click
@@ -187,7 +187,7 @@ class SalesDocumentTab:
             messagebox.showwarning("No Selection", "Please select a document to view/edit.")
             return
         popup = SalesDocumentPopup(self.frame.master, self, self.sales_logic, self.customer_logic, self.product_logic, document_id=self.selected_document_id)
-        self.frame.master.wait_window(popup.top)
+        self.frame.master.wait_window(popup)
         self.load_documents()
 
     def delete_selected_document(self):

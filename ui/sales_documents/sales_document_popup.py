@@ -113,16 +113,24 @@ class SalesDocumentPopup(tk.Toplevel):
             self.available_products_for_item_popup = []
 
     def _populate_customer_combobox(self):
+        # TODO: Update this to filter for accounts specifically tagged as "customer"
+        #       once the account tagging feature is implemented and available in customer_logic.
+        #       For example, by calling something like:
+        #       accounts = self.customer_logic.get_accounts_by_tag("customer")
+        #       or if get_all_accounts can be filtered:
+        #       accounts = self.customer_logic.get_all_accounts(tag="customer")
         try:
-            accounts = self.customer_logic.get_all_accounts()
+            accounts = self.customer_logic.get_all_accounts() # This currently returns all accounts
             if accounts:
                 self.customers_map = {acc.name: acc.account_id for acc in accounts}
                 self.customer_combobox['values'] = sorted(list(self.customers_map.keys()))
             else:
                 self.customer_combobox['values'] = []
+                self.customers_map = {} # Ensure map is also cleared
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load customers: {e}", parent=self)
             self.customer_combobox['values'] = []
+            self.customers_map = {} # Ensure map is cleared on error too
 
     def _on_line_item_select(self, event=None):
         selected = self.items_tree.selection()

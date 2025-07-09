@@ -201,9 +201,9 @@ class PurchaseDocumentPopup(tk.Toplevel):
 
         self.add_item_button.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
 
-        selected_item = self.items_tree.selection()
-        self.edit_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
-        self.remove_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
+        # Let on_item_tree_select handle the edit/remove button states
+        # Call it to ensure consistency after status change
+        self.on_item_tree_select(None)
 
     def add_item(self):
         if not self.document_data or self.document_data.id is None:

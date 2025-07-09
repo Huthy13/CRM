@@ -142,6 +142,25 @@ class SalesLogic:
             print(f"Error updating sales document status: {e}")
             return False
 
+    def update_sales_document_header(self, document_id: int, customer_id: int, document_date: datetime.date, status: str, total_amount: float) -> bool:
+        """
+        Updates the header fields of a sales document.
+        The total_amount is typically calculated and updated when items change,
+        but it's included here if it needs to be set directly or if items are not changed.
+        """
+        try:
+            self.db.update_sales_document(
+                document_id=document_id,
+                customer_id=customer_id,
+                document_date=document_date.isoformat(), # DB expects ISO string
+                status=status,
+                total_amount=total_amount
+            )
+            return True
+        except Exception as e:
+            print(f"Error updating sales document header for doc ID {document_id}: {e}")
+            return False
+
     def delete_sales_document(self, document_id: int) -> bool:
         """Deletes a sales document and its items (via CASCADE in DB)."""
         try:

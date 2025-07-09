@@ -7,12 +7,12 @@ if __name__ == '__main__':
     # Initialize database and logic
     # The DatabaseHandler path for the DB file will be fixed in a later step.
     db_handler = DatabaseHandler()
-    logic = AddressBookLogic(db_handler)
+    # AddressBookView will instantiate its own logic controllers using the db_handler.
 
     # Setup main Tkinter window and application view
     root = tk.Tk()
-    # Pass logic to the main view, AddressBookView will need to be updated to accept it
-    app = AddressBookView(root, logic)
+    # Pass db_handler to the main view
+    app = AddressBookView(root, db_handler)
     root.mainloop()
 
     # Close database connection when the application exits

@@ -11,7 +11,7 @@ from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import Sale
 
 # Import necessary logic modules
 from core.logic.sales_logic import SalesLogic
-from core.logic.product_management import ProductLogic # Assuming product logic is here
+# Removed: from core.logic.product_management import ProductLogic
 
 
 class AddressBookView:
@@ -21,8 +21,8 @@ class AddressBookView:
         self.root.geometry("1000x750") # Adjusted for potentially more content, including new tab
 
         # Instantiate all necessary logic classes
-        self.address_book_logic = AddressBookLogic(db_handler) # Existing logic
-        self.product_logic = ProductLogic(db_handler) # Product Logic
+        self.address_book_logic = AddressBookLogic(db_handler) # Existing logic, also serves as product_logic for now
+        # Removed: self.product_logic = ProductLogic(db_handler)
         self.sales_logic = SalesLogic(db_handler) # New Sales Logic
         # TaskLogic and InteractionLogic are likely part of AddressBookLogic or instantiated within their tabs
         # For ProductTab, it takes 'logic' which is AddressBookLogic in current ProductTab.
@@ -62,7 +62,7 @@ class AddressBookView:
             self.notebook,
             sales_logic=self.sales_logic,
             customer_logic=self.address_book_logic, # AddressBookLogic for customer operations
-            product_logic=self.product_logic # ProductLogic for product operations
+            product_logic=self.address_book_logic # Using AddressBookLogic for product ops as well
         )
 
         # Add frames from tabs to Notebook

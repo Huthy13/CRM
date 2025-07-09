@@ -1,133 +1,127 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from typing import Optional, List # Added for type hints
-import datetime # Moved to top and ensured it's used generally
+from typing import Optional, List
+import datetime
 
 from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, AccountType
-# from core.purchase_logic import PurchaseLogic # Will be passed in
-# from core.address_book_logic import AddressBookLogic
-# from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, AccountType
 
 NO_VENDOR_LABEL = "<Select Vendor>"
 
 class PurchaseDocumentPopup(tk.Toplevel):
-    def __init__(self, master, purchase_logic, account_logic, product_logic, document_id=None, parent_controller=None): # Added product_logic
+    def __init__(self, master, purchase_logic, account_logic, product_logic, document_id=None, parent_controller=None):
         super().__init__(master)
         self.purchase_logic = purchase_logic
         self.account_logic = account_logic
-        self.product_logic = product_logic # Store product_logic
+        self.product_logic = product_logic
         self.document_id = document_id
         self.parent_controller = parent_controller
 
         self.title(f"{'Edit' if document_id else 'New'} Purchase Document")
-        self.geometry("700x500") # Adjusted size
+        self.geometry("700x550") # Increased height slightly for better spacing
 
         self.document_data: Optional[PurchaseDocument] = None
         self.items_data: List[PurchaseDocumentItem] = []
-        self.vendor_map = {} # For mapping vendor name to ID
+        self.vendor_map = {}
 
         self._setup_ui()
 
         if self.document_id:
             self.load_document_and_items()
         else:
-            # Initialize for a new RFQ
             self.doc_number_var.set("(Auto-generated)")
-            self.created_date_var.set(datetime.date.today().isoformat()) # Show today's date
+            self.created_date_var.set(datetime.date.today().isoformat())
             self.status_var.set(PurchaseDocumentStatus.RFQ.value)
-            self.populate_vendor_dropdown() # Populate vendors for selection
+            self.populate_vendor_dropdown()
             self.vendor_combobox.set(NO_VENDOR_LABEL)
-
+            self._update_document_subtotal() # Ensure subtotal is $0.00 initially
+            self.update_ui_states_based_on_status() # Set initial UI states
 
     def _setup_ui(self):
-        # Main notebook for tabs
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
-
-        # --- Document Details Tab ---
-        self.details_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.details_tab, text="Document Details")
-        self._setup_details_tab()
-
-        # --- Document Items Tab ---
-        self.items_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.items_tab, text="Document Items")
-        self._setup_items_tab()
-
-        # Save and Close Buttons (at the bottom of the popup)
-        button_frame = ttk.Frame(self)
-        button_frame.pack(pady=10, padx=10, fill=tk.X)
-
-        self.save_button = ttk.Button(button_frame, text="Save", command=self.save_document)
-        self.save_button.pack(side=tk.RIGHT, padx=5)
-
-        self.close_button = ttk.Button(button_frame, text="Close", command=self.destroy)
-        self.close_button.pack(side=tk.RIGHT, padx=5)
-
-
-    def _setup_details_tab(self):
-        frame = self.details_tab
+        # Main content frame
+        self.content_frame = ttk.Frame(self, padding="10")
+        self.content_frame.pack(expand=True, fill=tk.BOTH)
 
         # Variables for fields
         self.doc_number_var = tk.StringVar()
         self.created_date_var = tk.StringVar()
         self.status_var = tk.StringVar()
-        self.selected_vendor_id = tk.IntVar() # Or StringVar if storing name then mapping
-
-        row = 0
-        ttk.Label(frame, text="Document #:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
-        ttk.Entry(frame, textvariable=self.doc_number_var, state=tk.DISABLED, width=40).grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        row += 1
-
-        ttk.Label(frame, text="Vendor:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
-        self.vendor_combobox = ttk.Combobox(frame, state="readonly", width=37)
-        self.vendor_combobox.grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        row += 1
-
-        ttk.Label(frame, text="Created Date:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
-        ttk.Entry(frame, textvariable=self.created_date_var, state=tk.DISABLED, width=40).grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        row += 1
-
-        ttk.Label(frame, text="Status:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
-        self.status_label = ttk.Label(frame, textvariable=self.status_var, width=40)
-        self.status_label.grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        row += 1
-
-        ttk.Label(frame, text="Notes:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.NW)
-        self.notes_text = tk.Text(frame, height=5, width=50)
-        self.notes_text.grid(row=row, column=1, padx=5, pady=5, sticky=tk.EW)
-        row += 1
-
-        ttk.Label(frame, text="Document Subtotal:").grid(row=row, column=0, padx=5, pady=5, sticky=tk.W)
         self.subtotal_var = tk.StringVar(value="$0.00")
-        ttk.Label(frame, textvariable=self.subtotal_var, font=('TkDefaultFont', 10, 'bold')).grid(row=row, column=1, padx=5, pady=5, sticky=tk.E)
-        row += 1
 
-        frame.grid_columnconfigure(1, weight=1)
+        # Layout using grid
+        current_row = 0
 
-    def _setup_items_tab(self):
-        frame = self.items_tab
-        item_button_frame = ttk.Frame(frame)
-        item_button_frame.pack(pady=5, padx=5, fill=tk.X)
+        # Document Details Section
+        ttk.Label(self.content_frame, text="Document #:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        ttk.Entry(self.content_frame, textvariable=self.doc_number_var, state=tk.DISABLED, width=40).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
 
-        ttk.Button(item_button_frame, text="Add Item", command=self.add_item).pack(side=tk.LEFT, padx=5)
-        self.edit_item_button = ttk.Button(item_button_frame, text="Edit Item", command=self.edit_item, state=tk.DISABLED)
+        ttk.Label(self.content_frame, text="Vendor:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.vendor_combobox = ttk.Combobox(self.content_frame, state="readonly", width=37)
+        self.vendor_combobox.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        ttk.Label(self.content_frame, text="Created Date:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        ttk.Entry(self.content_frame, textvariable=self.created_date_var, state=tk.DISABLED, width=40).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        ttk.Label(self.content_frame, text="Status:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.status_label = ttk.Label(self.content_frame, textvariable=self.status_var, width=40)
+        self.status_label.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        # Document Items Section (within a LabelFrame)
+        items_label_frame = ttk.LabelFrame(self.content_frame, text="Document Items", padding="5")
+        items_label_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=(10,5), sticky=tk.NSEW)
+        self.content_frame.grid_rowconfigure(current_row, weight=1) # Allow items section to expand
+        current_row += 1
+
+        self.item_button_frame = ttk.Frame(items_label_frame)
+        self.item_button_frame.pack(pady=5, fill=tk.X)
+
+        self.add_item_button = ttk.Button(self.item_button_frame, text="Add Item", command=self.add_item)
+        self.add_item_button.pack(side=tk.LEFT, padx=5)
+        self.edit_item_button = ttk.Button(self.item_button_frame, text="Edit Item", command=self.edit_item, state=tk.DISABLED)
         self.edit_item_button.pack(side=tk.LEFT, padx=5)
-        self.remove_item_button = ttk.Button(item_button_frame, text="Remove Item", command=self.remove_item, state=tk.DISABLED)
+        self.remove_item_button = ttk.Button(self.item_button_frame, text="Remove Item", command=self.remove_item, state=tk.DISABLED)
         self.remove_item_button.pack(side=tk.LEFT, padx=5)
 
         item_columns = ("desc", "qty", "unit_price", "total_price")
-        self.items_tree = ttk.Treeview(frame, columns=item_columns, show="headings", selectmode="browse")
+        self.items_tree = ttk.Treeview(items_label_frame, columns=item_columns, show="headings", selectmode="browse", height=5)
         self.items_tree.heading("desc", text="Product/Service Description")
         self.items_tree.heading("qty", text="Quantity")
         self.items_tree.heading("unit_price", text="Unit Price")
         self.items_tree.heading("total_price", text="Total Price")
-        self.items_tree.column("desc", width=300)
-        self.items_tree.column("qty", width=80, anchor=tk.E)
-        self.items_tree.column("unit_price", width=100, anchor=tk.E)
-        self.items_tree.column("total_price", width=100, anchor=tk.E)
-        self.items_tree.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
-        self.items_tree.bind("<<TreeviewSelect>>", self.on_item_tree_select)
+        self.items_tree.column("desc", width=250)
+        self.items_tree.column("qty", width=70, anchor=tk.E)
+        self.items_tree.column("unit_price", width=90, anchor=tk.E)
+        self.items_tree.column("total_price", width=90, anchor=tk.E)
+
+        items_scrollbar = ttk.Scrollbar(items_label_frame, orient="vertical", command=self.items_tree.yview)
+        self.items_tree.configure(yscrollcommand=items_scrollbar.set)
+        self.items_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        items_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Notes Section
+        ttk.Label(self.content_frame, text="Notes:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.NW)
+        self.notes_text = tk.Text(self.content_frame, height=4, width=50)
+        self.notes_text.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        # Document Subtotal Section
+        ttk.Label(self.content_frame, text="Document Subtotal:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        ttk.Label(self.content_frame, textvariable=self.subtotal_var, font=('TkDefaultFont', 10, 'bold')).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.E)
+        current_row += 1
+
+        self.content_frame.grid_columnconfigure(1, weight=1)
+
+        bottom_button_frame = ttk.Frame(self)
+        bottom_button_frame.pack(pady=10, padx=10, fill=tk.X, side=tk.BOTTOM)
+
+        self.save_button = ttk.Button(bottom_button_frame, text="Save", command=self.save_document)
+        self.save_button.pack(side=tk.RIGHT, padx=5)
+
+        self.close_button = ttk.Button(bottom_button_frame, text="Close", command=self.destroy)
+        self.close_button.pack(side=tk.RIGHT, padx=5)
 
     def populate_vendor_dropdown(self):
         self.vendor_map.clear()
@@ -158,8 +152,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.notes_text.delete("1.0", tk.END)
         self.notes_text.insert("1.0", self.document_data.notes or "")
         self.populate_vendor_dropdown()
-        self.load_items_for_document()
-        self.update_ui_states_based_on_status()
+        self.load_items_for_document() # This will also call _update_document_subtotal and update_ui_states_based_on_status at the end
 
     def load_items_for_document(self):
         for i in self.items_tree.get_children():
@@ -173,8 +166,9 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     f"{item.unit_price:.2f}" if item.unit_price is not None else "",
                     f"{item.total_price:.2f}" if item.total_price is not None else ""
                 ), iid=str(item.id))
-        self.on_item_tree_select(None)
+        self.on_item_tree_select(None) # Update button states based on selection
         self._update_document_subtotal()
+        self.update_ui_states_based_on_status() # Ensure UI reflects current doc status and item editability
 
     def on_item_tree_select(self, event):
         selected = self.items_tree.selection()
@@ -189,16 +183,23 @@ class PurchaseDocumentPopup(tk.Toplevel):
 
     def update_ui_states_based_on_status(self):
         can_edit_items_flag = self.can_edit_items()
-        self.vendor_combobox.config(state="readonly")
-        self.notes_text.config(state=tk.NORMAL)
+
+        # Default states for editable fields
+        vendor_combo_state = "readonly"
+        notes_text_state = tk.NORMAL
+
         if self.document_data and self.document_data.status:
             current_status = self.document_data.status
             if current_status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
-                self.vendor_combobox.config(state=tk.DISABLED)
+                vendor_combo_state = tk.DISABLED
             if current_status in [PurchaseDocumentStatus.PO_ISSUED, PurchaseDocumentStatus.RECEIVED, PurchaseDocumentStatus.CLOSED]:
-                 self.notes_text.config(state=tk.DISABLED)
-        add_item_btn = self.items_tab.winfo_children()[0].winfo_children()[0]
-        add_item_btn.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
+                 notes_text_state = tk.DISABLED
+
+        self.vendor_combobox.config(state=vendor_combo_state)
+        self.notes_text.config(state=notes_text_state)
+
+        self.add_item_button.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
+
         selected_item = self.items_tree.selection()
         self.edit_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
         self.remove_item_button.config(state=tk.NORMAL if can_edit_items_flag and selected_item else tk.DISABLED)
@@ -300,7 +301,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.", parent=self)
                     self.load_document_and_items()
                     self.title(f"Edit Purchase Document - {new_doc.document_number}")
-                    self.notebook.select(self.items_tab)
+                    # self.notebook.select(self.items_tab) # No longer have notebook
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                          self.parent_controller.load_documents()
                 else:
@@ -400,7 +401,6 @@ if __name__ == '__main__':
                                         product_description=f"Mock Updated Product {product_id}", quantity=quantity, unit_price=unit_price)
         def delete_document_item(self, item_id): print(f"Mock: Deleting item {item_id}")
 
-
     root = tk.Tk()
     root.title("Popup Test")
 
@@ -420,6 +420,11 @@ if __name__ == '__main__':
         root.wait_window(popup)
 
     def open_edit():
+        # This needs to be adjusted for the current save_document logic in the popup
+        # For now, we'll assume a document with ID 1 exists for editing in this mock scenario
+        # In a real test, you'd create one first if needed, or pass a valid ID.
+        # For simplicity, let's assume doc_id=1 is our target for edit test.
+        # Or use the create_rfq from mock_pl for a more realistic test.
         doc = mock_pl.create_rfq(vendor_id=101, notes="Initial for edit")
         if doc:
             popup = PurchaseDocumentPopup(root, mock_pl, mock_al, mock_prod_l, document_id=doc.id, parent_controller=mock_controller)

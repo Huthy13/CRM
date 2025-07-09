@@ -17,7 +17,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.parent_controller = parent_controller
 
         self.title(f"{'Edit' if document_id else 'New'} Purchase Document")
-        self.geometry("700x550") # Increased height slightly for better spacing
+        self.geometry("700x550")
 
         self.document_data: Optional[PurchaseDocument] = None
         self.items_data: List[PurchaseDocumentItem] = []
@@ -30,27 +30,23 @@ class PurchaseDocumentPopup(tk.Toplevel):
         else:
             self.doc_number_var.set("(Auto-generated)")
             self.created_date_var.set(datetime.date.today().isoformat())
-            self.status_var.set(PurchaseDocumentStatus.RFQ.value)
+            self.status_var.set(PurchaseDocumentStatus.RFQ.value) # Set the StringVar for Combobox
             self.populate_vendor_dropdown()
             self.vendor_combobox.set(NO_VENDOR_LABEL)
-            self._update_document_subtotal() # Ensure subtotal is $0.00 initially
-            self.update_ui_states_based_on_status() # Set initial UI states
+            self._update_document_subtotal()
+            self.update_ui_states_based_on_status()
 
     def _setup_ui(self):
-        # Main content frame
         self.content_frame = ttk.Frame(self, padding="10")
         self.content_frame.pack(expand=True, fill=tk.BOTH)
 
-        # Variables for fields
         self.doc_number_var = tk.StringVar()
         self.created_date_var = tk.StringVar()
         self.status_var = tk.StringVar()
         self.subtotal_var = tk.StringVar(value="$0.00")
 
-        # Layout using grid
         current_row = 0
 
-        # Document Details Section
         ttk.Label(self.content_frame, text="Document #:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
         ttk.Entry(self.content_frame, textvariable=self.doc_number_var, state=tk.DISABLED, width=40).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
         current_row += 1
@@ -65,14 +61,15 @@ class PurchaseDocumentPopup(tk.Toplevel):
         current_row += 1
 
         ttk.Label(self.content_frame, text="Status:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
-        self.status_label = ttk.Label(self.content_frame, textvariable=self.status_var, width=40)
-        self.status_label.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        self.status_combobox = ttk.Combobox(self.content_frame, textvariable=self.status_var,
+                                            values=[s.value for s in PurchaseDocumentStatus],
+                                            state="readonly", width=37)
+        self.status_combobox.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
         current_row += 1
 
-        # Document Items Section (within a LabelFrame)
         items_label_frame = ttk.LabelFrame(self.content_frame, text="Document Items", padding="5")
         items_label_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=(10,5), sticky=tk.NSEW)
-        self.content_frame.grid_rowconfigure(current_row, weight=1) # Allow items section to expand
+        self.content_frame.grid_rowconfigure(current_row, weight=1)
         current_row += 1
 
         self.item_button_frame = ttk.Frame(items_label_frame)
@@ -101,13 +98,11 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.items_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         items_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Notes Section
         ttk.Label(self.content_frame, text="Notes:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.NW)
         self.notes_text = tk.Text(self.content_frame, height=4, width=50)
         self.notes_text.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
         current_row += 1
 
-        # Document Subtotal Section
         ttk.Label(self.content_frame, text="Document Subtotal:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
         ttk.Label(self.content_frame, textvariable=self.subtotal_var, font=('TkDefaultFont', 10, 'bold')).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.E)
         current_row += 1
@@ -148,11 +143,11 @@ class PurchaseDocumentPopup(tk.Toplevel):
             return
         self.doc_number_var.set(self.document_data.document_number)
         self.created_date_var.set(self.document_data.created_date.split("T")[0] if self.document_data.created_date else "")
-        self.status_var.set(self.document_data.status.value if self.document_data.status else "N/A")
+        self.status_var.set(self.document_data.status.value if self.document_data.status else "N/A") # For Combobox
         self.notes_text.delete("1.0", tk.END)
         self.notes_text.insert("1.0", self.document_data.notes or "")
         self.populate_vendor_dropdown()
-        self.load_items_for_document() # This will also call _update_document_subtotal and update_ui_states_based_on_status at the end
+        self.load_items_for_document()
 
     def load_items_for_document(self):
         for i in self.items_tree.get_children():
@@ -166,9 +161,9 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     f"{item.unit_price:.2f}" if item.unit_price is not None else "",
                     f"{item.total_price:.2f}" if item.total_price is not None else ""
                 ), iid=str(item.id))
-        self.on_item_tree_select(None) # Update button states based on selection
+        self.on_item_tree_select(None)
         self._update_document_subtotal()
-        self.update_ui_states_based_on_status() # Ensure UI reflects current doc status and item editability
+        self.update_ui_states_based_on_status()
 
     def on_item_tree_select(self, event):
         selected = self.items_tree.selection()
@@ -184,19 +179,25 @@ class PurchaseDocumentPopup(tk.Toplevel):
     def update_ui_states_based_on_status(self):
         can_edit_items_flag = self.can_edit_items()
 
-        # Default states for editable fields
         vendor_combo_state = "readonly"
         notes_text_state = tk.NORMAL
+        status_combo_state = "readonly"
 
         if self.document_data and self.document_data.status:
             current_status = self.document_data.status
             if current_status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
                 vendor_combo_state = tk.DISABLED
+            # Disable notes and status changes if PO is issued, received, or closed.
             if current_status in [PurchaseDocumentStatus.PO_ISSUED, PurchaseDocumentStatus.RECEIVED, PurchaseDocumentStatus.CLOSED]:
                  notes_text_state = tk.DISABLED
+                 status_combo_state = tk.DISABLED
+            # Specifically, if closed, ensure status is disabled (already covered but good to be explicit if needed)
+            # if current_status == PurchaseDocumentStatus.CLOSED:
+            #      status_combo_state = tk.DISABLED
 
         self.vendor_combobox.config(state=vendor_combo_state)
         self.notes_text.config(state=notes_text_state)
+        self.status_combobox.config(state=status_combo_state)
 
         self.add_item_button.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
 
@@ -285,12 +286,24 @@ class PurchaseDocumentPopup(tk.Toplevel):
         if current_vendor_id is None:
             messagebox.showerror("Error", "Selected vendor is invalid.", parent=self)
             return
+
         notes_content = self.notes_text.get("1.0", tk.END).strip()
+        selected_status_str = self.status_var.get() # Get from status_var tied to combobox
+
         try:
-            if self.document_id is None:
+            selected_status_enum = PurchaseDocumentStatus(selected_status_str) if selected_status_str else None
+        except ValueError:
+            messagebox.showerror("Validation Error", f"Invalid status selected: {selected_status_str}", parent=self)
+            return
+
+        try:
+            if self.document_id is None: # Creating new RFQ
                 if current_vendor_id is None or selected_vendor_name == NO_VENDOR_LABEL:
                     messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.", parent=self)
                     return
+                # New RFQs are always created with RFQ status by PurchaseLogic.create_rfq
+                # The status combobox for a new doc is primarily for display or future direct PO creation.
+                # For now, create_rfq handles setting initial status.
                 new_doc = self.purchase_logic.create_rfq(
                     vendor_id=current_vendor_id,
                     notes=notes_content
@@ -299,35 +312,49 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     self.document_id = new_doc.id
                     self.document_data = new_doc
                     messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.", parent=self)
-                    self.load_document_and_items()
+                    self.load_document_and_items() # This will set status_var from new_doc.status
                     self.title(f"Edit Purchase Document - {new_doc.document_number}")
                     # self.notebook.select(self.items_tab) # No longer have notebook
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                          self.parent_controller.load_documents()
                 else:
                     messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.", parent=self)
-            else:
+            else: # Updating an existing document
                 updated = False
+                # Check if notes changed
                 if self.document_data and self.document_data.notes != notes_content:
                     self.purchase_logic.update_document_notes(self.document_id, notes_content)
                     updated = True
+
+                # Check if status changed
+                if self.document_data and selected_status_enum and self.document_data.status != selected_status_enum:
+                    # Here, we'd ideally call specific transition methods in PurchaseLogic
+                    # e.g., self.purchase_logic.set_document_status(self.document_id, selected_status_enum)
+                    # For now, using the existing generic update_purchase_document_status from DB layer via logic
+                    # This might bypass business rule validation in PurchaseLogic if not careful.
+                    # The update_document_status in PurchaseLogic already exists.
+                    self.purchase_logic.update_document_status(self.document_id, selected_status_enum)
+                    updated = True
+
+                # Vendor change check (remains informational as before)
                 if self.document_data and self.document_data.vendor_id != current_vendor_id:
                     if self.document_data.status == PurchaseDocumentStatus.RFQ:
-                        messagebox.showwarning("Info", "Changing the vendor for an existing document is not supported in this version. Notes were saved if changed.", parent=self)
+                        messagebox.showwarning("Info", "Changing the vendor for an existing document is not supported via this save action. Other changes were saved if made.", parent=self)
                     elif self.document_data.status:
-                        messagebox.showwarning("Warning", f"Vendor cannot be changed for a document with status '{self.document_data.status.value}'. Notes were saved if changed.", parent=self)
+                        messagebox.showwarning("Warning", f"Vendor cannot be changed for a document with status '{self.document_data.status.value}'. Other changes were saved if made.", parent=self)
                     else:
-                        messagebox.showwarning("Warning", "Vendor cannot be changed for this document. Notes were saved if changed.", parent=self)
+                        messagebox.showwarning("Warning", "Vendor cannot be changed for this document. Other changes were saved if made.", parent=self)
+
                 if updated:
                     self.document_data = self.purchase_logic.get_purchase_document_details(self.document_id)
                     messagebox.showinfo("Success", f"Document {self.document_data.document_number} updated.", parent=self)
-                    self.load_document_and_items()
+                    self.load_document_and_items() # Refresh display in popup & UI states
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                         self.parent_controller.load_documents()
                 else:
                     messagebox.showinfo("No Changes", "No changes were detected to save.", parent=self)
-        except ValueError as ve:
-            messagebox.showerror("Validation Error", str(ve), parent=self)
+        except ValueError as ve: # Catch specific ValueErrors from logic (e.g., invalid status transition)
+            messagebox.showerror("Error", str(ve), parent=self)
         except Exception as e:
             messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {e}", parent=self)
             import traceback
@@ -352,6 +379,7 @@ if __name__ == '__main__':
         def get_items_for_document(self, doc_id): return []
         def add_purchase_document_item(self, **kwargs): return 10
         def update_purchase_document_notes(self, doc_id, notes): pass
+        def update_purchase_document_status(self, doc_id, status_val): pass # Mock this
 
     class MockAccountLogic:
         def get_all_accounts(self):
@@ -383,20 +411,35 @@ if __name__ == '__main__':
             data = self.db.get_purchase_document_by_id(doc_id)
             if data:
                  from shared.structs import PurchaseDocument, PurchaseDocumentStatus
+                 # Simulate status change if it was updated by mock_db
+                 if hasattr(self.db, '_mock_status_override') and self.db._mock_status_override.get(doc_id):
+                     data['status'] = self.db._mock_status_override[doc_id]
                  return PurchaseDocument(doc_id=data['id'], document_number=data['document_number'],
                                          vendor_id=data['vendor_id'], created_date=data['created_date'],
                                          status=PurchaseDocumentStatus(data['status']), notes=data['notes'])
             return None
         def get_items_for_document(self, doc_id): return []
-        def update_document_notes(self, doc_id, notes): pass
+        def update_document_notes(self, doc_id, notes): self.db.update_purchase_document_notes(doc_id, notes)
+        def update_document_status(self, doc_id, new_status_enum: PurchaseDocumentStatus): # Added to mock
+            print(f"MockPurchaseLogic: Updating status for doc {doc_id} to {new_status_enum.value}")
+            # Simulate DB update for re-fetch
+            if not hasattr(self.db, '_mock_status_override'): self.db._mock_status_override = {}
+            self.db._mock_status_override[doc_id] = new_status_enum.value
+            self.db.update_purchase_document_status(doc_id, new_status_enum.value)
+
         def add_item_to_document(self, doc_id, product_id, quantity, product_description_override=None, unit_price=None, total_price=None):
             from shared.structs import PurchaseDocumentItem
             print(f"Mock: Adding item (ProdID: {product_id}), qty {quantity} to doc {doc_id}")
             return PurchaseDocumentItem(item_id=123, purchase_document_id=doc_id, product_id=product_id,
                                         product_description=f"Mock Product {product_id}", quantity=quantity, unit_price=unit_price, total_price=total_price)
-        def update_document_item(self, item_id, product_id, quantity, unit_price, product_description_override=None): # Mocked
+        def update_document_item(self, item_id, product_id, quantity, unit_price, product_description_override=None):
              from shared.structs import PurchaseDocumentItem
              print(f"Mock: Updating item ID {item_id} (ProdID: {product_id}), qty {quantity}, price {unit_price}")
+             # Simulate status change to Quoted if unit_price is set and doc was RFQ
+             # This mock needs to be more sophisticated or rely on DB mock for status change
+             parent_doc = self.get_purchase_document_details(1) # Assuming item belongs to doc 1 for mock
+             if parent_doc and parent_doc.status == PurchaseDocumentStatus.RFQ and unit_price is not None:
+                 self.update_document_status(parent_doc.id, PurchaseDocumentStatus.QUOTED)
              return PurchaseDocumentItem(item_id=item_id, purchase_document_id=1, product_id=product_id,
                                         product_description=f"Mock Updated Product {product_id}", quantity=quantity, unit_price=unit_price)
         def delete_document_item(self, item_id): print(f"Mock: Deleting item {item_id}")
@@ -420,11 +463,6 @@ if __name__ == '__main__':
         root.wait_window(popup)
 
     def open_edit():
-        # This needs to be adjusted for the current save_document logic in the popup
-        # For now, we'll assume a document with ID 1 exists for editing in this mock scenario
-        # In a real test, you'd create one first if needed, or pass a valid ID.
-        # For simplicity, let's assume doc_id=1 is our target for edit test.
-        # Or use the create_rfq from mock_pl for a more realistic test.
         doc = mock_pl.create_rfq(vendor_id=101, notes="Initial for edit")
         if doc:
             popup = PurchaseDocumentPopup(root, mock_pl, mock_al, mock_prod_l, document_id=doc.id, parent_controller=mock_controller)

@@ -120,9 +120,10 @@ class SalesDocumentPopup(tk.Toplevel):
         #       or if get_all_accounts can be filtered:
         #       accounts = self.customer_logic.get_all_accounts(tag="customer")
         try:
-            accounts = self.customer_logic.get_all_accounts() # This currently returns all accounts
+            accounts = self.customer_logic.get_all_accounts() # This currently returns list of tuples (id, name, ...)
             if accounts:
-                self.customers_map = {acc.name: acc.account_id for acc in accounts}
+                # Assuming tuple structure is (account_id, account_name, ...)
+                self.customers_map = {acc[1]: acc[0] for acc in accounts} # acc[1] is name, acc[0] is id
                 self.customer_combobox['values'] = sorted(list(self.customers_map.keys()))
             else:
                 self.customer_combobox['values'] = []

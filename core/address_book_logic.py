@@ -1,4 +1,4 @@
-from shared.structs import Address, Account, Contact, Product # Import Product
+from shared.structs import Address, Account, Contact, Product, AccountType # Import Product and AccountType
 from typing import Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,26 +33,56 @@ class AddressBookLogic:
 #Account Methods
     def save_account(self, account: Account):
         """Add a new account, or update existing account if valid account ID is provided"""
+        account_type_value = account.account_type.value if account.account_type else None
         if account.account_id is None:
             # Call the specific add_account that takes an Account object
             self.db.add_account(account.name, account.phone, account.billing_address_id,
                                 account.shipping_address_id, account.is_billing_same_as_shipping(),
-                                account.website, account.description)
+                                account.website, account.description, account_type_value)
         else:
             # Call the specific update_account that takes an Account object
             self.db.update_account(account.account_id, account.name, account.phone, account.billing_address_id,
                                    account.shipping_address_id, account.is_billing_same_as_shipping(),
-                                   account.website, account.description)
+                                   account.website, account.description, account_type_value)
 
 
     def get_all_accounts(self): # This likely returns tuples, not Account objects
         """Retrieve all accounts. Consider returning list of Account objects if needed elsewhere."""
-        return self.db.get_all_accounts()
+        # Modified to return Account objects
+        accounts_data = self.db.get_all_accounts()
+        accounts_list = []
+        for row_data in accounts_data:
+            # Assuming row_data is a tuple: (id, name, phone, description, account_type_str)
+            account_type_str = row_data[4] if len(row_data) > 4 else None
+            account_type_enum = None
+            if account_type_str:
+                try:
+                    account_type_enum = AccountType(account_type_str)
+                except ValueError:
+                    # Handle invalid string, e.g., log a warning or default
+                    print(f"Warning: Invalid account type string '{account_type_str}' found in database for account ID {row_data[0]}.")
+            accounts_list.append(Account(
+                account_id=row_data[0],
+                name=row_data[1],
+                phone=row_data[2],
+                description=row_data[3],
+                account_type=account_type_enum
+                # Note: billing/shipping addresses are not fetched by db.get_all_accounts here
+            ))
+        return accounts_list
 
     def get_account_details(self, account_id) -> Account | None:
         """Retrieve full account details, including new fields."""
         data = self.db.get_account_details(account_id) # db returns a dict
         if data:
+            account_type_enum = None
+            account_type_str = data.get("account_type")
+            if account_type_str:
+                try:
+                    account_type_enum = AccountType(account_type_str)
+                except ValueError:
+                    print(f"Warning: Invalid account type string '{account_type_str}' in DB for account ID {data.get('id')}.")
+
             return Account(
                     account_id=data.get("id"), # Ensure key matches db output
                     name=data.get("name"),
@@ -61,7 +91,8 @@ class AddressBookLogic:
                     shipping_address_id=data.get("shipping_address_id"),
                     # same_as_billing is handled by is_billing_same_as_shipping()
                     website=data.get("website"),
-                    description=data.get("description")
+                    description=data.get("description"),
+                    account_type=account_type_enum
                 )
         return None
 

@@ -3,9 +3,9 @@ import os
 import datetime
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
-from shared.structs import Interaction, InteractionType, Account, Contact
+from shared.structs import Interaction, InteractionType, Account, Contact, AccountType # Import AccountType
 
-class TestInteractions(unittest.TestCase):
+class TestAccountInteractions(unittest.TestCase): # Renamed class for clarity
     @classmethod
     def setUpClass(cls):
         cls.test_db_name = "test_interactions_app.db"
@@ -17,7 +17,7 @@ class TestInteractions(unittest.TestCase):
         cls.logic = AddressBookLogic(cls.db_handler)
 
         # Setup a dummy account and contact for linking interactions
-        cls.account1_id = cls.db_handler.add_account("Test Account 1", "1234567890", None, None, False, "test.com", "Desc")
+        cls.account1_id = cls.db_handler.add_account("Test Account 1", "1234567890", None, None, False, "test.com", "Desc", None) # Added None for account_type
         cls.contact1_id = cls.db_handler.add_contact("Test Contact 1", "0987654321", "contact@test.com", "Tester", cls.account1_id)
         cls.default_user_id = cls.db_handler.get_user_id_by_username('system_user')
 
@@ -30,12 +30,162 @@ class TestInteractions(unittest.TestCase):
     def setUp(self):
         # Ensure each test starts with a clean slate for interactions
         self.db_handler.cursor.execute("DELETE FROM interactions")
+        # Clear accounts and contacts tables as well for account type tests
+        self.db_handler.cursor.execute("DELETE FROM contacts")
+        self.db_handler.cursor.execute("DELETE FROM accounts")
+        # Re-add default account and contact for interaction tests if needed by them
+        # For simplicity, we'll re-initialize them here. Consider more granular setup if tests become slow.
+        TestAccountInteractions.account1_id = self.db_handler.add_account("Test Account 1", "1234567890", None, None, False, "test.com", "Desc", None) # Add with None type initially
+        TestAccountInteractions.contact1_id = self.db_handler.add_contact("Test Contact 1", "0987654321", "contact@test.com", "Tester", TestAccountInteractions.account1_id)
+
+
         self.db_handler.conn.commit()
 
         self.past_datetime = datetime.datetime.now() - datetime.timedelta(days=1)
         self.future_datetime = datetime.datetime.now() + datetime.timedelta(days=1)
 
+    # Account Type Tests
+    def test_save_and_get_account_with_type_customer(self):
+        account = Account(
+            name="Customer Account",
+            phone="1112223333",
+            website="customer.com",
+            description="A test customer.",
+            account_type=AccountType.CUSTOMER
+        )
+        self.logic.save_account(account) # save_account will set the ID on the object if it's new
 
+        # Retrieve by name as ID is not directly returned by save_account in this setup
+        # A more robust way would be if save_account returned the ID or the full object
+        # For now, let's assume names are unique for this test or fetch all and filter.
+        # The db_handler.add_account returns lastrowid, but logic.save_account doesn't directly.
+        # Let's modify logic.save_account to set the ID on the passed object or return it.
+        # For now, we'll fetch all and find.
+
+        all_accounts = self.logic.get_all_accounts()
+        found_account = None
+        for acc in all_accounts:
+            if acc.name == "Customer Account":
+                found_account = acc
+                break
+
+        self.assertIsNotNone(found_account, "Failed to find the saved customer account.")
+        self.assertIsNotNone(found_account.account_id, "Account ID should be set after saving.")
+
+        retrieved_account = self.logic.get_account_details(found_account.account_id)
+        self.assertIsNotNone(retrieved_account)
+        self.assertEqual(retrieved_account.name, "Customer Account")
+        self.assertEqual(retrieved_account.account_type, AccountType.CUSTOMER)
+
+    def test_save_and_get_account_with_type_vendor(self):
+        account = Account(
+            name="Vendor Company",
+            phone="4445556666",
+            website="vendor.co",
+            description="A test vendor.",
+            account_type=AccountType.VENDOR
+        )
+        self.logic.save_account(account)
+
+        all_accounts = self.logic.get_all_accounts()
+        found_account = next((acc for acc in all_accounts if acc.name == "Vendor Company"), None)
+
+        self.assertIsNotNone(found_account, "Failed to find the saved vendor account.")
+        self.assertIsNotNone(found_account.account_id)
+
+        retrieved_account = self.logic.get_account_details(found_account.account_id)
+        self.assertIsNotNone(retrieved_account)
+        self.assertEqual(retrieved_account.account_type, AccountType.VENDOR)
+
+    def test_save_and_get_account_with_no_type(self):
+        account = Account(
+            name="Neutral Biz",
+            phone="7778889999",
+            description="No specific type."
+            # account_type is None by default
+        )
+        self.logic.save_account(account)
+
+        all_accounts = self.logic.get_all_accounts()
+        found_account = next((acc for acc in all_accounts if acc.name == "Neutral Biz"), None)
+
+        self.assertIsNotNone(found_account, "Failed to find the saved neutral account.")
+        self.assertIsNotNone(found_account.account_id)
+
+        retrieved_account = self.logic.get_account_details(found_account.account_id)
+        self.assertIsNotNone(retrieved_account)
+        self.assertIsNone(retrieved_account.account_type, "Account type should be None for neutral account.")
+
+    def test_update_account_add_type(self):
+        account = Account(name="Initially NoType Inc.", phone="123123")
+        self.logic.save_account(account)
+
+        all_accounts = self.logic.get_all_accounts()
+        saved_account = next((acc for acc in all_accounts if acc.name == "Initially NoType Inc."), None)
+        self.assertIsNotNone(saved_account)
+        self.assertIsNone(saved_account.account_type)
+
+        # Update with type
+        saved_account.account_type = AccountType.CONTACT
+        self.logic.save_account(saved_account) # save_account handles update if ID is present
+
+        updated_account = self.logic.get_account_details(saved_account.account_id)
+        self.assertIsNotNone(updated_account)
+        self.assertEqual(updated_account.account_type, AccountType.CONTACT)
+
+    def test_update_account_change_type(self):
+        account = Account(name="TypeChanger Ltd.", phone="456456", account_type=AccountType.CUSTOMER)
+        self.logic.save_account(account)
+
+        all_accounts = self.logic.get_all_accounts()
+        saved_account = next((acc for acc in all_accounts if acc.name == "TypeChanger Ltd."), None)
+        self.assertIsNotNone(saved_account)
+        self.assertEqual(saved_account.account_type, AccountType.CUSTOMER)
+
+        # Update to Vendor
+        saved_account.account_type = AccountType.VENDOR
+        self.logic.save_account(saved_account)
+
+        updated_account = self.logic.get_account_details(saved_account.account_id)
+        self.assertIsNotNone(updated_account)
+        self.assertEqual(updated_account.account_type, AccountType.VENDOR)
+
+    def test_update_account_remove_type(self):
+        account = Account(name="TypeRemover Co.", phone="789789", account_type=AccountType.VENDOR)
+        self.logic.save_account(account)
+
+        all_accounts = self.logic.get_all_accounts()
+        saved_account = next((acc for acc in all_accounts if acc.name == "TypeRemover Co."), None)
+        self.assertIsNotNone(saved_account)
+        self.assertEqual(saved_account.account_type, AccountType.VENDOR)
+
+        # Update to None
+        saved_account.account_type = None
+        self.logic.save_account(saved_account)
+
+        updated_account = self.logic.get_account_details(saved_account.account_id)
+        self.assertIsNotNone(updated_account)
+        self.assertIsNone(updated_account.account_type)
+
+    def test_get_all_accounts_includes_types(self):
+        self.logic.save_account(Account(name="Cust1", phone="001", account_type=AccountType.CUSTOMER))
+        self.logic.save_account(Account(name="Vend1", phone="002", account_type=AccountType.VENDOR))
+        self.logic.save_account(Account(name="Cont1", phone="003", account_type=AccountType.CONTACT))
+        self.logic.save_account(Account(name="NoType1", phone="004"))
+
+        all_accounts = self.logic.get_all_accounts() # This should now return list of Account objects
+        # Account for the default account created in setUp
+        self.assertEqual(len(all_accounts), 5, "Should include the 4 test accounts + 1 from setUp")
+
+        types_found = {acc.name: acc.account_type for acc in all_accounts}
+        self.assertEqual(types_found["Cust1"], AccountType.CUSTOMER)
+        self.assertEqual(types_found["Vend1"], AccountType.VENDOR)
+        self.assertEqual(types_found["Cont1"], AccountType.CONTACT)
+        self.assertIsNone(types_found["NoType1"])
+        self.assertIsNone(types_found.get("Test Account 1"), "Default account from setUp should have None type")
+
+
+    # Original Interaction Tests (ensure they still pass or adapt if necessary)
     def test_create_interaction_call_with_company(self):
         interaction = Interaction(
             company_id=self.account1_id,
@@ -199,7 +349,7 @@ class TestInteractions(unittest.TestCase):
 
     def test_get_interactions_by_company_id(self):
         # Account 2 for filtering
-        account2_id = self.db_handler.add_account("Filter Account", "111222333", None, None, False, "filter.com", "Desc")
+        account2_id = self.db_handler.add_account("Filter Account", "111222333", None, None, False, "filter.com", "Desc", None) # Added None for account_type
 
         self.logic.save_interaction(Interaction(company_id=self.account1_id, interaction_type=InteractionType.CALL, date_time=self.past_datetime, subject="Call A1", created_by_user_id=self.default_user_id))
         self.logic.save_interaction(Interaction(company_id=account2_id, interaction_type=InteractionType.MEETING, date_time=self.past_datetime, subject="Meeting A2", created_by_user_id=self.default_user_id))
@@ -221,7 +371,7 @@ class TestInteractions(unittest.TestCase):
 
     def test_delete_account_cascades_to_interactions(self):
         # Create a new account and an interaction linked to it
-        temp_account_id = self.db_handler.add_account("Temp Account", "555555", None, None, False, "temp.com", "Temp Desc")
+        temp_account_id = self.db_handler.add_account("Temp Account", "555555", None, None, False, "temp.com", "Temp Desc", None) # Added None for account_type
         interaction = Interaction(
             company_id=temp_account_id,
             interaction_type=InteractionType.CALL,

@@ -1,3 +1,11 @@
+from enum import Enum
+from typing import Optional # Import Optional
+
+class AccountType(Enum):
+    CUSTOMER = "Customer"
+    VENDOR = "Vendor"
+    CONTACT = "Contact"
+
 class Address:
     def __init__(self, address_id=None, street="", city="", state="", zip_code="", country=""):
         self.address_id = address_id
@@ -27,8 +35,8 @@ class Address:
         }
 
 class Account:
-    def __init__(self, account_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None, website="", description=""):
-        
+    def __init__(self, account_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None, website="", description="", account_type: AccountType = None):
+
         self.account_id = account_id
         self.name = name
         self.phone = phone
@@ -36,6 +44,7 @@ class Account:
         self.shipping_address_id = shipping_address_id
         self.website = website
         self.description = description
+        self.account_type = account_type
 
     def __str__(self):
         return (f"Data from the string method!!! Account ID: {self.account_id}\n"
@@ -44,7 +53,8 @@ class Account:
                 f"Billing Address ID: {self.billing_address_id}\n"
                 f"Shipping Address ID: {self.shipping_address_id}\n"
                 f"Website: {self.website}\n"
-                f"Description: {self.description}")
+                f"Description: {self.description}\n"
+                f"Account Type: {self.account_type.value if self.account_type else 'N/A'}")
 
     def to_dict(self):
         """Returns the account as a dictionary."""
@@ -56,9 +66,10 @@ class Account:
             "shipping_address_id": self.shipping_address_id,
             "same_as_billing": self.is_billing_same_as_shipping(),
             "website": self.website,
-            "description": self.description
+            "description": self.description,
+            "account_type": self.account_type.value if self.account_type else None
         }
-    
+
     def is_billing_same_as_shipping(self):
         """Checks if billing and shipping address IDs are the same."""
         if self.billing_address_id is None and self.shipping_address_id is None:
@@ -315,3 +326,69 @@ class Product:
             "category": self.category,
             "unit_of_measure": self.unit_of_measure
         }
+
+class PurchaseDocumentStatus(Enum):
+    RFQ = "RFQ"
+    QUOTED = "Quoted"
+    PO_ISSUED = "PO-Issued" # Matches spec
+    RECEIVED = "Received"
+    CLOSED = "Closed"
+
+class PurchaseDocument:
+    def __init__(self, doc_id=None, document_number: str = "", vendor_id: int = None,
+                 created_date: str = None, status: PurchaseDocumentStatus = None, notes: str = None):
+        self.id = doc_id # Using 'id' to match table column consistently
+        self.document_number = document_number
+        self.vendor_id = vendor_id
+        self.created_date = created_date # Should be ISO string
+        self.status = status
+        self.notes = notes
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "document_number": self.document_number,
+            "vendor_id": self.vendor_id,
+            "created_date": self.created_date,
+            "status": self.status.value if self.status else None,
+            "notes": self.notes
+        }
+
+    def __str__(self) -> str:
+        return (f"PurchaseDocument(ID: {self.id}, Number: {self.document_number}, VendorID: {self.vendor_id}, "
+                f"Status: {self.status.value if self.status else 'N/A'}, Created: {self.created_date})")
+
+class PurchaseDocumentItem:
+    def __init__(self, item_id=None, purchase_document_id: int = None, product_id: Optional[int] = None,
+                 product_description: str = "", quantity: float = 0.0,
+                 unit_price: float = None, total_price: float = None):
+        self.id = item_id # Using 'id'
+        self.purchase_document_id = purchase_document_id
+        self.product_id = product_id
+        self.product_description = product_description # Could be from product or overridden
+        self.quantity = quantity
+        self.unit_price = unit_price
+        self.total_price = total_price # Should be calculated quantity * unit_price if unit_price is known
+
+    def calculate_total_price(self):
+        """Calculates total price if quantity and unit_price are set."""
+        if self.quantity is not None and self.unit_price is not None:
+            self.total_price = self.quantity * self.unit_price
+        else:
+            self.total_price = None # Or 0.0, depending on desired behavior for null unit_price
+        return self.total_price
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "purchase_document_id": self.purchase_document_id,
+            "product_id": self.product_id,
+            "product_description": self.product_description,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "total_price": self.total_price
+        }
+
+    def __str__(self) -> str:
+        return (f"PurchaseDocumentItem(ID: {self.id}, DocID: {self.purchase_document_id}, "
+                f"Product: {self.product_description}, Qty: {self.quantity}, UnitPrice: {self.unit_price})")

@@ -1,17 +1,18 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import Product
-from core.address_book_logic import AddressBookLogic
-from ui.category_popup import CategoryListPopup # Import CategoryListPopup
+# from core.address_book_logic import AddressBookLogic # Not directly needed if ProductLogic handles all product aspects
+from core.logic.product_management import ProductLogic # Import ProductLogic
+from ui.category_popup import CategoryListPopup
 
 class ProductDetailsPopup(tk.Toplevel):
-    def __init__(self, master_window, product_tab_controller, logic: AddressBookLogic, product_id=None):
+    def __init__(self, master_window, product_tab_controller, product_logic: ProductLogic, product_id=None): # Changed logic to product_logic
         self.product_tab_controller = product_tab_controller
         super().__init__(master_window)
-        self.logic = logic
+        self.product_logic = product_logic # Store and use ProductLogic
         self.product_id = product_id
         self.title(f"{'Edit' if product_id else 'Add'} Product")
-        self.geometry("400x320")  # Adjusted geometry for new fields
+        self.geometry("400x320")
 
         self.product_data = None # To store loaded product data if editing
         self.is_active_var = tk.BooleanVar(value=True) # Variable for Checkbutton
@@ -68,7 +69,7 @@ class ProductDetailsPopup(tk.Toplevel):
         self.category_path_to_leaf_id_map = {}
         self.leaf_id_to_category_path_map = {}
         try:
-            flat_paths_data = self.logic.get_flat_category_paths() # list of (leaf_id, "Path\\To\\Leaf")
+            flat_paths_data = self.product_logic.get_flat_category_paths() # Use product_logic
             display_paths = []
             for leaf_id, path_str in flat_paths_data:
                 display_paths.append(path_str)
@@ -88,7 +89,7 @@ class ProductDetailsPopup(tk.Toplevel):
 
     def populate_unit_of_measure_combobox(self):
         try:
-            units = self.logic.get_all_product_units_of_measure()
+            units = self.product_logic.get_all_product_units_of_measure() # Use product_logic
             self.unit_of_measure_combobox['values'] = units
             if not self.product_id and units: # For new product
                 self.unit_of_measure_combobox.set("") # Or set to first: units[0]
@@ -103,7 +104,7 @@ class ProductDetailsPopup(tk.Toplevel):
         # Store current selection to try and re-select it later
         current_selected_path = self.category_combobox.get()
 
-        category_manager_popup = CategoryListPopup(self, self.logic)
+        category_manager_popup = CategoryListPopup(self, self.product_logic) # Use product_logic
         self.wait_window(category_manager_popup) # Wait for the category manager to close
 
         # Refresh the combobox contents
@@ -119,7 +120,7 @@ class ProductDetailsPopup(tk.Toplevel):
 
 
     def load_product_details(self):
-        product_details = self.logic.get_product_details(self.product_id) # Product.category is full path
+        product_details = self.product_logic.get_product_details(self.product_id) # Use product_logic
         if product_details:
             self.product_data = product_details
             self.name_entry.insert(0, product_details.name if product_details.name else "")
@@ -199,7 +200,7 @@ class ProductDetailsPopup(tk.Toplevel):
         )
 
         try:
-            self.logic.save_product(product_obj)
+            self.product_logic.save_product(product_obj) # Use product_logic
             messagebox.showinfo("Success", "Product saved successfully!")
             self.product_tab_controller.refresh_products_list()
             self.destroy()
@@ -208,15 +209,21 @@ class ProductDetailsPopup(tk.Toplevel):
 
 if __name__ == '__main__':
     # This is for testing purposes
-    class MockLogic:
+    # Note: The MockLogic below would need to be updated to MockProductLogic
+    # and have the methods expected by ProductDetailsPopup if running this file standalone.
+    class MockProductLogic: # Renamed for clarity
         def get_product_details(self, product_id):
-            print(f"Mock: get_product_details called for ID: {product_id}")
+            print(f"MockProductLogic: get_product_details called for ID: {product_id}")
             if product_id == 1:
-                return Product(product_id=1, name="Test Product", description="A product for testing", price=19.99)
+                return Product(product_id=1, name="Test Product", description="A product for testing", cost=19.99) # cost not price
             return None
 
         def save_product(self, product):
-            print(f"Mock: save_product called with: {product.name if product else 'None'}")
+            print(f"MockProductLogic: save_product called with: {product.name if product else 'None'}")
+
+        def get_flat_category_paths(self): return [ (1, "CatA\\Sub1"), (2, "CatB")]
+        def get_all_product_units_of_measure(self): return ["Each", "Box"]
+
 
     class MockMaster(tk.Tk):
         def __init__(self):

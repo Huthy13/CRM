@@ -55,18 +55,19 @@ class ContactDetailsPopup(tk.Toplevel):
         account_names_for_list = []
 
         if accounts_data: # Check if accounts_data is not None and not empty
-            for account_item in accounts_data:
-                if len(account_item) >= 2: # Ensure item has at least id and name
-                    acc_id = account_item[0]    # ID is the first element
-                    acc_name = account_item[1]  # Name is the second element
+            for account_obj in accounts_data: # Changed variable name for clarity
+                # Now account_obj is an Account object
+                acc_id = account_obj.account_id
+                acc_name = account_obj.name
+                if acc_id is not None and acc_name: # Ensure essential data is present
                     self.account_map[acc_name] = acc_id
                     account_names_for_list.append(acc_name)
                 else:
-                    # Handle unexpected item structure, e.g., log a warning
-                    print(f"Warning: Unexpected account item structure: {account_item}")
+                    # Handle unexpected item structure or missing data
+                    print(f"Warning: Account object with missing id or name: {account_obj}")
 
         # Sort account names alphabetically for consistent order in dropdown
-        sorted_account_names = sorted(account_names_for_list)
+        sorted_account_names = sorted(list(set(account_names_for_list))) # Use set to ensure unique names before sorting
 
         # Prepend the "No Account" option
         display_values = [NO_ACCOUNT_LABEL] + sorted_account_names

@@ -1,7 +1,224 @@
 import sqlite3
 from datetime import datetime
 
-DB_NAME = "product_management.db"
+# It's better if DatabaseHandler is used consistently.
+# For now, these functions manage their own connections or accept one.
+# DB_NAME = "product_management.db" # This might be from an older version or for standalone script use.
+# The DatabaseHandler in core.database should be the primary way to get connections.
+
+# def get_db_connection(): # This should be removed if DatabaseHandler is used.
+#     """Establishes a connection to the SQLite database."""
+#     conn = sqlite3.connect(DB_NAME)
+#     conn.row_factory = sqlite3.Row
+#     return conn
+
+class ProductLogic:
+    def __init__(self, db_handler): # db_handler should be an instance of DatabaseHandler
+        self.db = db_handler
+
+    # --- Product CRUD ---
+    def save_product(self, product_struct) -> int | None: # product_struct is shared.structs.Product
+        # This method will adapt the Product struct to the existing create_product/update_product functions
+        # or directly implement the logic using self.db.cursor and self.db.conn
+
+        # For now, let's assume it calls a modified version of the existing functions
+        # or new methods in DatabaseHandler.
+        # The existing create_product and update_product functions are standalone and manage their own connections.
+        # They would need to be refactored to use the passed db_handler's connection.
+
+        # Simplified example:
+        # This needs to map product_struct fields to the dictionary 'data' expected by create_product/update_product
+        # and handle category name to ID, unit name to ID lookups.
+
+        # This is a placeholder for the actual implementation which will be more involved.
+        # It needs to interact with self.db.add_product or self.db.update_product
+        # which were defined in database.py and take specific parameters.
+
+        # Let's assume the methods in database.py are the primary interface for DB operations.
+        if product_struct.product_id is None:
+            # Add new product - this will call self.db.add_product
+            # which needs category_name and unit_of_measure_name
+            return self.db.add_product(
+                name=product_struct.name,
+                description=product_struct.description,
+                cost=product_struct.cost,
+                is_active=product_struct.is_active,
+                category_name=product_struct.category, # Assuming Product struct's category is name
+                unit_of_measure_name=product_struct.unit_of_measure # Assuming UoM is name
+            )
+        else:
+            # Update existing product - this will call self.db.update_product
+            self.db.update_product(
+                product_id=product_struct.product_id,
+                name=product_struct.name,
+                description=product_struct.description,
+                cost=product_struct.cost,
+                is_active=product_struct.is_active,
+                category_name=product_struct.category,
+                unit_of_measure_name=product_struct.unit_of_measure
+            )
+            return product_struct.product_id # Return ID for consistency with add
+
+    def get_product_details(self, product_id: int): # Returns shared.structs.Product or None
+        # This should call self.db.get_product_details(product_id) which returns a dict.
+        # Then convert dict to Product struct.
+        product_data_dict = self.db.get_product_details(product_id)
+        if product_data_dict:
+            from shared.structs import Product # Local import for safety
+            # The db.get_product_details returns category_id, need to resolve to path
+            # For now, let's assume category in Product struct is just the name/id from db
+            # This needs to align with how Product struct is defined and used.
+            # The db method was updated to return category_id. Logic layer should build path.
+
+            category_path = ""
+            if product_data_dict.get('category_id'):
+                 # This requires _get_all_categories_map and _get_category_path_string from AddressBookLogic
+                 # Or similar helper methods here. For now, let's assume category_id is enough or use placeholder.
+                 # Placeholder:
+                 cat_name = self.db.get_product_category_name_by_id(product_data_dict['category_id'])
+                 category_path = cat_name if cat_name else str(product_data_dict['category_id'])
+
+
+            return Product(
+                product_id=product_data_dict.get("product_id"),
+                name=product_data_dict.get("name"),
+                description=product_data_dict.get("description"),
+                cost=product_data_dict.get("cost"),
+                is_active=product_data_dict.get("is_active", True),
+                category=category_path, # This should be path, but db returns id. Needs path construction.
+                unit_of_measure=product_data_dict.get("unit_of_measure_name") # db returns name
+            )
+        return None
+
+    def get_all_products(self): # Returns list[shared.structs.Product]
+        # Calls self.db.get_all_products() which returns list of dicts.
+        # Convert each dict to Product struct.
+        products_data_list = self.db.get_all_products()
+        products_list = []
+        from shared.structs import Product # Local import
+        for p_dict in products_data_list:
+            category_path = ""
+            if p_dict.get('category_id'):
+                 # Placeholder for path construction
+                 cat_name = self.db.get_product_category_name_by_id(p_dict['category_id'])
+                 category_path = cat_name if cat_name else str(p_dict['category_id'])
+
+            products_list.append(Product(
+                product_id=p_dict.get("product_id"),
+                name=p_dict.get("name"),
+                description=p_dict.get("description"),
+                cost=p_dict.get("cost"),
+                is_active=p_dict.get("is_active", True),
+                category=category_path, # Needs path construction
+                unit_of_measure=p_dict.get("unit_of_measure_name")
+            ))
+        return products_list
+
+    def delete_product(self, product_id: int):
+        return self.db.delete_product(product_id)
+
+    # --- Category Management ---
+    # These methods will wrap the standalone functions or call new DB handler methods
+    def get_flat_category_paths(self) -> list[tuple[int, str]]:
+        # This logic was in AddressBookLogic, needs to be here or in DB handler
+        # For now, mock or assume DB method.
+        # Placeholder:
+        all_categories_map = self._get_all_categories_map_internal()
+        leaf_paths = []
+        for cat_id, (name, parent_id) in all_categories_map.items():
+            path = self._get_category_path_string_internal(cat_id, all_categories_map)
+            leaf_paths.append((cat_id, path))
+        leaf_paths.sort(key=lambda x: x[1])
+        return leaf_paths
+
+    def _get_all_categories_map_internal(self) -> dict[int, tuple[str, int | None]]:
+        categories_data = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+        return {cat_id: (name, parent_id) for cat_id, name, parent_id in categories_data}
+
+    def _get_category_path_string_internal(self, category_id: int, all_categories_map: dict[int, tuple[str, int | None]]) -> str:
+        if category_id is None or category_id not in all_categories_map:
+            return ""
+        name, parent_id = all_categories_map[category_id]
+        if parent_id is None or parent_id not in all_categories_map:
+            return name
+        else:
+            parent_path = self._get_category_path_string_internal(parent_id, all_categories_map)
+            return f"{parent_path}\\\\{name}" # Double backslash for literal
+
+    def get_all_product_units_of_measure(self) -> list[str]:
+        units_tuples = self.db.get_all_product_units_of_measure_from_table()
+        return [name for unit_id, name in units_tuples]
+
+    def get_all_product_categories_from_table(self): # For CategoryListPopup
+        return self.db.get_all_product_categories_from_table()
+
+    def add_product_category(self, name: str, parent_id: int | None = None):
+        return self.db.add_product_category(name, parent_id)
+
+    def update_product_category_name(self, category_id: int, new_name: str):
+        return self.db.update_product_category_name(category_id, new_name)
+
+    def update_product_category_parent(self, category_id: int, new_parent_id: int | None):
+        # TODO: Add cycle detection here if not robustly in DB
+        if category_id == new_parent_id:
+            raise ValueError("A category cannot be its own parent.")
+        # More advanced cycle detection: Walk up from new_parent_id to see if category_id is an ancestor.
+        current_ancestor_id = new_parent_id
+        all_cats_map = self._get_all_categories_map_internal()
+        while current_ancestor_id is not None:
+            if current_ancestor_id == category_id:
+                raise ValueError("Cannot set parent to a descendant category (creates a cycle).")
+            _name, current_ancestor_id = all_cats_map.get(current_ancestor_id, (None, None))
+
+        return self.db.update_product_category_parent(category_id, new_parent_id)
+
+    def delete_product_category(self, category_id: int):
+        return self.db.delete_product_category(category_id)
+
+    def get_hierarchical_categories(self) -> list[dict]: # For Treeview
+        """
+        Retrieves all categories and processes them into a hierarchical structure
+        suitable for a Treeview (e.g., list of dicts with 'id', 'name', 'parent_id', 'children').
+        """
+        # Ensure this method exists in your DatabaseHandler or adjust accordingly
+        all_categories_raw = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+
+        categories_map = {cat_id: {'id': cat_id, 'name': name, 'parent_id': parent_id, 'children': []}
+                          for cat_id, name, parent_id in all_categories_raw}
+
+        hierarchical_list = []
+        for cat_id, data in categories_map.items():
+            if data['parent_id'] is None: # Root category
+                hierarchical_list.append(data)
+            elif data['parent_id'] in categories_map: # Child of an existing category in the map
+                categories_map[data['parent_id']]['children'].append(data)
+            else: # Orphaned category (parent_id points to a non-existent category)
+                  # This case should ideally be prevented by DB constraints or data validation.
+                  # For robustness, add it as a root or log a warning.
+                print(f"Warning: Category ID {cat_id} has parent_id {data['parent_id']} which was not found. Treating as root.")
+                hierarchical_list.append(data)
+
+        # Sort children for consistent display if needed (e.g., by name)
+        for cat_id_key in categories_map: # Iterate over keys of categories_map
+            if categories_map[cat_id_key]['children']: # Check if children list is not empty
+                categories_map[cat_id_key]['children'].sort(key=lambda x: x['name'])
+
+        hierarchical_list.sort(key=lambda x: x['name']) # Sort root categories
+
+        return hierarchical_list
+
+# --- Standalone functions (to be refactored or wrapped by ProductLogic class) ---
+# These functions currently manage their own DB connections or expect one to be passed.
+# For ProductLogic to use them, they'd ideally be refactored to take a cursor or use methods on self.db.
+
+# (Keep existing functions for now, ProductLogic will call DB handler methods instead of these directly)
+
+# ... (rest of the original file with standalone functions) ...
+
+# For example, the ProductLogic.save_product will NOT call the standalone create_product function below.
+# It will call self.db.add_product or self.db.update_product.
+
+# --- Product CRUD Functions ---
 
 def get_db_connection():
     """Establishes a connection to the SQLite database."""

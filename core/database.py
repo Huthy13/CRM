@@ -48,6 +48,7 @@ class DatabaseHandler:
                 same_as_billing BOOLEAN DEFAULT 0,
                 website TEXT,
                 description TEXT,
+                account_type TEXT,
                 FOREIGN KEY (billing_address_id) REFERENCES addresses (address_id),
                 FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id)
             )
@@ -151,6 +152,36 @@ class DatabaseHandler:
                 FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure (unit_id) ON DELETE SET NULL
             )
         """)
+
+        # Purchase Documents Table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS purchase_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_number TEXT UNIQUE NOT NULL,
+                vendor_id INTEGER NOT NULL,
+                created_date TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('RFQ','Quoted','PO-Issued','Received','Closed')),
+                notes TEXT,
+                FOREIGN KEY (vendor_id) REFERENCES accounts (id)
+            )
+        """)
+
+        # Purchase Document Items Table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS purchase_document_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                purchase_document_id INTEGER NOT NULL,
+                product_description TEXT NOT NULL,
+                product_id INTEGER, -- New column
+                quantity REAL NOT NULL CHECK(quantity > 0),
+                unit_price REAL CHECK(unit_price >= 0 OR unit_price IS NULL),
+                total_price REAL CHECK(total_price >= 0 OR total_price IS NULL),
+                FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents (id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES products (product_id) ON DELETE SET NULL -- New FK
+            )
+        """)
+        # Added ON DELETE CASCADE for items when a document is deleted for data integrity.
+
         self.conn.commit()
 
 #address related methods
@@ -257,19 +288,19 @@ class DatabaseHandler:
         self.conn.commit()
 
 #account related methods
-    def add_account(self, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description):
+    def add_account(self, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type):
         """Add a new account with billing and shipping address IDs."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description))
+            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type))
         self.conn.commit()
         return self.cursor.lastrowid
 
     def get_all_accounts(self):
         """Retrieve all accounts with details."""
         self.cursor.execute("""
-            SELECT accounts.id, accounts.name, accounts.phone, accounts.description
+            SELECT accounts.id, accounts.name, accounts.phone, accounts.description, accounts.account_type
             FROM accounts
         """)
         results = self.cursor.fetchall()
@@ -291,7 +322,7 @@ class DatabaseHandler:
     def get_account_details(self, account_id):
         """Retrieve full account details, including both billing and shipping addresses."""
         self.cursor.execute("""
-            SELECT a.id, a.name, a.phone, a.website, a.description,
+            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type,
                    a.billing_address_id, a.shipping_address_id, a.same_as_billing,
                    b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
                    b.zip AS billing_zip, b.country AS billing_country,
@@ -308,13 +339,13 @@ class DatabaseHandler:
             return dict(zip(columns, result))
         return None
 
-    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description):
+    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type):
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, same_as_billing = ?, website = ?, description = ?
+            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, same_as_billing = ?, website = ?, description = ?, account_type = ?
             WHERE id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_id))
+        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type, account_id))
         self.conn.commit()
 
 # Interaction related methods
@@ -773,3 +804,108 @@ class DatabaseHandler:
             WHERE product_id = ?
         """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Parameter tuple, no SQL comment needed here
         self.conn.commit()
+
+# Purchase Document related methods
+    def add_purchase_document(self, doc_number: str, vendor_id: int, created_date: str, status: str, notes: str = None) -> int:
+        """Adds a new purchase document and returns its ID."""
+        self.cursor.execute("""
+            INSERT INTO purchase_documents (document_number, vendor_id, created_date, status, notes)
+            VALUES (?, ?, ?, ?, ?)
+        """, (doc_number, vendor_id, created_date, status, notes))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_purchase_document_by_id(self, doc_id: int) -> dict | None:
+        """Retrieves a purchase document by its ID."""
+        self.cursor.execute("SELECT * FROM purchase_documents WHERE id = ?", (doc_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_purchase_document_by_number(self, doc_number: str) -> dict | None:
+        """Retrieves a purchase document by its document_number."""
+        self.cursor.execute("SELECT * FROM purchase_documents WHERE document_number = ?", (doc_number,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def get_all_purchase_documents(self, vendor_id: int = None, status: str = None) -> list[dict]:
+        """Retrieves purchase documents, optionally filtered by vendor_id and/or status."""
+        query = "SELECT * FROM purchase_documents WHERE 1=1"
+        params = []
+        if vendor_id is not None:
+            query += " AND vendor_id = ?"
+            params.append(vendor_id)
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_date DESC" # Default sort order
+
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_purchase_document_status(self, doc_id: int, new_status: str):
+        """Updates the status of a purchase document."""
+        self.cursor.execute("UPDATE purchase_documents SET status = ? WHERE id = ?", (new_status, doc_id))
+        self.conn.commit()
+
+    def update_purchase_document_notes(self, doc_id: int, notes: str):
+        """Updates the notes of a purchase document."""
+        self.cursor.execute("UPDATE purchase_documents SET notes = ? WHERE id = ?", (notes, doc_id))
+        self.conn.commit()
+
+    def delete_purchase_document(self, doc_id: int):
+        """Deletes a purchase document. Associated items are deleted by ON DELETE CASCADE."""
+        self.cursor.execute("DELETE FROM purchase_documents WHERE id = ?", (doc_id,))
+        self.conn.commit()
+
+# Purchase Document Item related methods
+    def add_purchase_document_item(self, doc_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None) -> int:
+        """Adds a new item to a purchase document and returns its ID."""
+        self.cursor.execute("""
+            INSERT INTO purchase_document_items (purchase_document_id, product_description, quantity, product_id, unit_price, total_price)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (doc_id, product_description, quantity, product_id, unit_price, total_price))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_items_for_document(self, doc_id: int) -> list[dict]:
+        """Retrieves all items for a given purchase document ID."""
+        self.cursor.execute("SELECT * FROM purchase_document_items WHERE purchase_document_id = ?", (doc_id,))
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_purchase_document_item(self, item_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None):
+        """Updates an existing purchase document item."""
+        self.cursor.execute("""
+            UPDATE purchase_document_items
+            SET product_description = ?, quantity = ?, product_id = ?, unit_price = ?, total_price = ?
+            WHERE id = ?
+        """, (product_description, quantity, product_id, unit_price, total_price, item_id))
+        self.conn.commit()
+
+    def delete_purchase_document_item(self, item_id: int):
+        """Deletes a specific purchase document item."""
+        self.cursor.execute("DELETE FROM purchase_document_items WHERE id = ?", (item_id,))
+        self.conn.commit()
+
+    def get_purchase_document_item_by_id(self, item_id: int) -> dict | None:
+        """Retrieves a specific purchase document item by its ID."""
+        self.cursor.execute("SELECT * FROM purchase_document_items WHERE id = ?", (item_id,))
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    # delete_items_for_document is not strictly needed if ON DELETE CASCADE is reliable,
+    # but can be implemented for explicit control if desired.
+    # def delete_items_for_document(self, doc_id: int):
+    #     """Deletes all items for a given purchase document ID."""
+    #     self.cursor.execute("DELETE FROM purchase_document_items WHERE purchase_document_id = ?", (doc_id,))
+    #     self.conn.commit()

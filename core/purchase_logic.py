@@ -183,6 +183,21 @@ class PurchaseLogic:
         self.db.update_purchase_document_notes(doc_id, notes)
         return self.get_purchase_document_details(doc_id)
 
+    def update_document_status(self, doc_id: int, new_status: PurchaseDocumentStatus) -> Optional[PurchaseDocument]:
+        """Updates the status of a purchase document."""
+        # Basic validation or transition logic can be added here if needed.
+        # For now, directly update using the DB handler.
+        doc = self.get_purchase_document_details(doc_id)
+        if not doc:
+            raise ValueError(f"Document with ID {doc_id} not found for status update.")
+
+        # Example: Prevent changing status from Closed (can be more elaborate)
+        if doc.status == PurchaseDocumentStatus.CLOSED and new_status != PurchaseDocumentStatus.CLOSED:
+            raise ValueError("Cannot change status of a closed document.")
+
+        self.db.update_purchase_document_status(doc_id, new_status.value)
+        return self.get_purchase_document_details(doc_id) # Return updated document
+
     def get_purchase_document_details(self, doc_id: int) -> Optional[PurchaseDocument]:
         doc_data = self.db.get_purchase_document_by_id(doc_id)
         if doc_data:

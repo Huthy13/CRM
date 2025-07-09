@@ -182,13 +182,21 @@ class PurchaseDocumentPopup(tk.Toplevel):
         # print(f"DEBUG: on_item_tree_select: Edit button state: {self.edit_item_button.cget('state')}, Remove button state: {self.remove_item_button.cget('state')}")
 
     def on_item_double_click(self, event):
-        # event parameter is required by tkinter event binding, but not used in this handler
-        if self.items_tree.selection(): # Check if an item is selected
-            # More robust check: ensure the double click was on an actual item row
-            item_iid = self.items_tree.identify_row(event.y)
-            if item_iid and item_iid in self.items_tree.selection():
-                 if self.edit_item_button.cget('state') == tk.NORMAL: # Check if editing is allowed
-                    self.edit_item()
+        item_iid = self.items_tree.identify_row(event.y)
+        if item_iid: # Check if a row was actually identified
+            # Check if editing is allowed (same condition as the edit button)
+            if self.edit_item_button.cget('state') == tk.NORMAL:
+                # Ensure the Treeview's selection is set to the double-clicked item
+                # This helps `edit_item()` which relies on `self.items_tree.selection()`
+                current_selection = self.items_tree.selection()
+
+                # If the double-clicked item is not already the sole selected item, update selection
+                if not (len(current_selection) == 1 and current_selection[0] == item_iid):
+                    self.items_tree.selection_set(item_iid)
+
+                self.items_tree.focus(item_iid) # Optional: ensure focus is on the item
+                self.edit_item()
+            # If edit button is not normal, do nothing, respecting the disabled state.
 
     def can_edit_items(self) -> bool:
         if not self.document_data or not self.document_data.status:

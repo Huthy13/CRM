@@ -31,19 +31,24 @@ class AddressBookLogic:
         return None # Or raise an error
 
 #Account Methods
-    def save_account(self, account: Account):
-        """Add a new account, or update existing account if valid account ID is provided"""
+    def save_account(self, account: Account) -> Account | None:
+        """Add a new account, or update existing account if valid account ID is provided. Returns the Account object."""
         account_type_value = account.account_type.value if account.account_type else None
         if account.account_id is None:
             # Call the specific add_account that takes an Account object
-            self.db.add_account(account.name, account.phone, account.billing_address_id,
-                                account.shipping_address_id, account.is_billing_same_as_shipping(),
-                                account.website, account.description, account_type_value)
+            new_id = self.db.add_account(account.name, account.phone, account.billing_address_id,
+                                         account.shipping_address_id, account.is_billing_same_as_shipping(),
+                                         account.website, account.description, account_type_value)
+            if new_id:
+                account.account_id = new_id
+                return account
+            return None # Failed to add
         else:
             # Call the specific update_account that takes an Account object
             self.db.update_account(account.account_id, account.name, account.phone, account.billing_address_id,
                                    account.shipping_address_id, account.is_billing_same_as_shipping(),
                                    account.website, account.description, account_type_value)
+            return account # Return the updated account object
 
 
     def get_all_accounts(self): # This likely returns tuples, not Account objects
@@ -119,8 +124,8 @@ class AddressBookLogic:
             )
         return None
 
-    def save_contact(self, contact: Contact) -> int | None :
-        """Add a new contact or update an existing one. Returns Contact ID."""
+    def save_contact(self, contact: Contact) -> Contact | None :
+        """Add a new contact or update an existing one. Returns the Contact object."""
         if contact.contact_id is None:
             # Call db.add_contact with all required arguments, including role
             new_contact_id = self.db.add_contact(
@@ -132,7 +137,8 @@ class AddressBookLogic:
             )
             if new_contact_id:
                 contact.contact_id = new_contact_id # Update object with new ID
-            return new_contact_id
+                return contact
+            return None # Failed to add
         else:
             # Call db.update_contact with all required arguments, including role
             self.db.update_contact(
@@ -143,7 +149,7 @@ class AddressBookLogic:
                 role=contact.role,  # Pass the role attribute
                 account_id=contact.account_id
             )
-            return contact.contact_id
+            return contact # Return updated contact object
 
     def get_contacts_by_account(self, account_id: int) -> list[Contact]:
         """Retrieve contacts associated with a specific account as Contact objects."""

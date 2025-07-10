@@ -55,7 +55,37 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             print(f"Error: Purchase document with ID {purchase_document_id} not found.")
             return
 
-        # 2. Fetch Vendor details
+        # 2. Fetch Company Information
+        company_info_dict = db_handler.get_company_information()
+        company_name_pdf = "Your Company Name" # Default
+        company_phone_pdf = ""
+        company_address_pdf_lines = ["Company address not found."]
+
+        if company_info_dict:
+            company_name_pdf = company_info_dict.get('name', company_name_pdf)
+            company_phone_pdf = company_info_dict.get('phone', "")
+            if company_info_dict.get('billing_address_id'):
+                # get_address returns a tuple: (street, city, state, zip, country)
+                company_billing_addr_tuple = db_handler.get_address(company_info_dict['billing_address_id'])
+                if company_billing_addr_tuple:
+                    company_address_pdf_lines = [
+                        company_billing_addr_tuple[0] or "", # Street
+                        f"{company_billing_addr_tuple[1] or ""}, {company_billing_addr_tuple[2] or ""} {company_billing_addr_tuple[3] or ""}", # City, State Zip
+                        company_billing_addr_tuple[4] or ""  # Country
+                    ]
+                    # Filter out empty lines
+                    company_address_pdf_lines = [line for line in company_address_pdf_lines if line.strip()]
+                    if not company_address_pdf_lines:
+                         company_address_pdf_lines = ["Company address details missing."]
+                else:
+                    company_address_pdf_lines = ["Company billing address not found."]
+            else:
+                company_address_pdf_lines = ["Company billing address ID not configured."]
+        else:
+            company_address_pdf_lines = ["Company information not found in database."]
+
+
+        # 3. Fetch Vendor details
         vendor: Account = None
         vendor_address: Address = None
         if doc.vendor_id:
@@ -67,11 +97,11 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             else:
                 print(f"Warning: Vendor with ID {doc.vendor_id} not found for document {doc.document_number}.")
 
-        # 3. Fetch Line Items
+        # 4. Fetch Line Items
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
-        # 4. Initialize PDF (pass document number for header)
-        pdf = PDF(po_document_number=doc.document_number)
+        # 5. Initialize PDF (pass document number and fetched company name for header)
+        pdf = PDF(po_document_number=doc.document_number, company_name=company_name_pdf)
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()
 
@@ -88,25 +118,69 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         pdf.cell(col_width_full / 2, line_height, f"Status: {doc.status.value if doc.status else 'N/A'}", 0, 1, "R")
         pdf.ln(line_height * 1.5)
 
-        # Vendor Information Section
+        # Company and Vendor Information Section (Two Columns)
+        col_width_half = col_width_full / 2 - 5  # Half width for each column, with a small gap
+
+        # --- Left Column: Our Company Information ---
+        current_x = pdf.get_x()
+        current_y = pdf.get_y()
+
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, line_height, "Vendor:", 0, 1, "L")
+        pdf.cell(col_width_half, line_height, "Our Company Information:", 0, 1, "L")
         pdf.set_font("Arial", "", 11)
+
+        pdf.cell(col_width_half, line_height, company_name_pdf, 0, 1, "L")
+
+        # Company Address
+        # Use a temporary X offset to ensure multi_cell respects the column width
+        temp_x_offset = pdf.get_x()
+        pdf.multi_cell(col_width_half, line_height, "\n".join(company_address_pdf_lines), 0, "L")
+        # Reset X to where it was before multi_cell, then move Y down by the height of the multi_cell content
+        # Note: multi_cell automatically moves Y. We need to track Y before and after.
+        y_after_company_address = pdf.get_y()
+        pdf.set_xy(temp_x_offset, y_after_company_address) # Reset X to the start of the line after multi_cell
+
+        if company_phone_pdf:
+            pdf.cell(col_width_half, line_height, f"Phone: {company_phone_pdf}", 0, 1, "L")
+
+        y_after_company_info = pdf.get_y()
+
+        # --- Right Column: Vendor Information ---
+        pdf.set_xy(current_x + col_width_half + 10, current_y) # Move to start of right column
+
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(col_width_half, line_height, "Vendor:", 0, 1, "L")
+        pdf.set_font("Arial", "", 11)
+
         if vendor:
-            pdf.cell(0, line_height, vendor.name, 0, 1, "L")
+            pdf.set_x(current_x + col_width_half + 10) # Ensure X is at start of right column
+            pdf.cell(col_width_half, line_height, vendor.name, 0, 1, "L")
+
             if vendor_address:
-                pdf.multi_cell(0, line_height,
+                temp_x_offset_vendor = pdf.get_x()
+                pdf.multi_cell(col_width_half, line_height,
                                f"{vendor_address.street or ''}\n"
                                f"{vendor_address.city or ''}, {vendor_address.state or ''} {vendor_address.zip_code or ''}\n"
                                f"{vendor_address.country or ''}",
                                0, "L")
+                y_after_vendor_address = pdf.get_y()
+                pdf.set_xy(temp_x_offset_vendor, y_after_vendor_address) # Reset X for the next element in this column
             else:
-                pdf.cell(0, line_height, "No address on file.", 0, 1, "L")
+                pdf.set_x(current_x + col_width_half + 10)
+                pdf.cell(col_width_half, line_height, "No address on file.", 0, 1, "L")
+
             if vendor.phone:
-                 pdf.cell(0, line_height, f"Phone: {vendor.phone}", 0, 1, "L")
+                pdf.set_x(current_x + col_width_half + 10)
+                pdf.cell(col_width_half, line_height, f"Phone: {vendor.phone}", 0, 1, "L")
         else:
-            pdf.cell(0, line_height, "Vendor details not available.", 0, 1, "L")
-        pdf.ln(line_height * 1.5)
+            pdf.set_x(current_x + col_width_half + 10)
+            pdf.cell(col_width_half, line_height, "Vendor details not available.", 0, 1, "L")
+
+        y_after_vendor_info = pdf.get_y()
+
+        # Ensure the cursor is below the taller of the two columns before proceeding
+        pdf.set_y(max(y_after_company_info, y_after_vendor_info))
+        pdf.ln(line_height * 1.5) # Add some space before the line items table
 
         # Line Items Table
         pdf.set_font("Arial", "B", 10)

@@ -252,17 +252,54 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.on_item_tree_select(None)
 
     def add_item(self):
+        if not self.document_id: # Document is new
+            if not self._ensure_document_exists():
+                # _ensure_document_exists will show its own appropriate message (e.g. select vendor, or save failed)
+                return
+
+        # At this point, self.document_id and self.document_data should be populated if _ensure_document_exists succeeded.
+        # Or, they were already populated for an existing document.
+
         if not self.document_data or self.document_data.id is None:
-            messagebox.showwarning("No Document", "Please save the main document before adding items.", parent=self)
+             # This case should ideally not be reached if _ensure_document_exists worked correctly for new docs,
+             # but as a safeguard:
+            messagebox.showwarning("No Document", "Document could not be prepared. Please save the document manually.", parent=self)
             return
+
         if not self.can_edit_items():
             messagebox.showwarning("Cannot Add Items", "Items cannot be added to a document with the current status.", parent=self)
             return
+
         from .purchase_document_item_popup import PurchaseDocumentItemPopup
         item_popup = PurchaseDocumentItemPopup(self, self.purchase_logic, self.product_logic, self.document_data.id)
         self.wait_window(item_popup)
         if hasattr(item_popup, 'item_saved') and item_popup.item_saved:
-            self.load_items_for_document()
+            self.load_items_for_document() # Refresh items and potentially document status/subtotal
+
+    def _ensure_document_exists(self) -> bool:
+        """
+        Ensures the document exists (i.e., has an ID) before proceeding.
+        If the document is new, it attempts to save it.
+        Returns True if the document exists (or was successfully created), False otherwise.
+        """
+        if self.document_id and self.document_data: # Already exists and loaded
+            return True
+
+        # Attempt to save the document implicitly
+        # The save_document method will handle vendor checks and actual creation.
+        # We pass a flag to indicate this is an autosave for creating a draft.
+        if self.save_document(is_autosave_for_draft=True):
+            # save_document should set self.document_id and self.document_data on success
+            if self.document_id and self.document_data:
+                return True
+            else:
+                # This case implies save_document returned True but didn't set the ID, which would be a bug in save_document
+                messagebox.showerror("Error", "Failed to retrieve document ID after save. Please try saving manually.", parent=self)
+                return False
+        else:
+            # save_document returned False, meaning it failed (e.g., vendor not selected, or other validation error within save_document)
+            # save_document itself should have shown an appropriate error message.
+            return False
 
     def edit_item(self):
         print("DEBUG: edit_item called.")
@@ -339,76 +376,113 @@ class PurchaseDocumentPopup(tk.Toplevel):
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete item: {e}", parent=self)
 
-    def save_document(self):
+    def save_document(self, is_autosave_for_draft=False) -> bool:
         selected_vendor_name = self.vendor_combobox.get()
+        # For autosave, we must have a vendor. For manual save, user is explicitly clicking.
         if not selected_vendor_name or selected_vendor_name == NO_VENDOR_LABEL:
-            messagebox.showerror("Validation Error", "Please select a vendor.", parent=self)
-            return
+            if is_autosave_for_draft:
+                messagebox.showwarning("Vendor Required", "Please select a vendor before adding items.", parent=self)
+            else: # Manual save
+                messagebox.showerror("Validation Error", "Please select a vendor.", parent=self)
+            return False
+
         current_vendor_id = self.vendor_map.get(selected_vendor_name)
-        if current_vendor_id is None:
+        if current_vendor_id is None: # Should not happen if NO_VENDOR_LABEL check passed, but good for safety
             messagebox.showerror("Error", "Selected vendor is invalid.", parent=self)
-            return
+            return False
 
         notes_content = self.notes_text.get("1.0", tk.END).strip()
         selected_status_str = self.status_var.get()
+        selected_status_enum = None
+        if selected_status_str:
+            try:
+                selected_status_enum = PurchaseDocumentStatus(selected_status_str)
+            except ValueError:
+                if not is_autosave_for_draft: # Only show error for manual save
+                    messagebox.showerror("Validation Error", f"Invalid status selected: {selected_status_str}", parent=self)
+                return False # Invalid status is a no-go for any save
 
         try:
-            selected_status_enum = PurchaseDocumentStatus(selected_status_str) if selected_status_str else None
-        except ValueError:
-            messagebox.showerror("Validation Error", f"Invalid status selected: {selected_status_str}", parent=self)
-            return
+            if self.document_id is None: # Creating a new document
+                if current_vendor_id is None: # Should be caught by earlier check, but defensive
+                    if not is_autosave_for_draft:
+                        messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.", parent=self)
+                    return False
 
-        try:
-            if self.document_id is None:
-                if current_vendor_id is None or selected_vendor_name == NO_VENDOR_LABEL:
-                    messagebox.showerror("Validation Error", "A vendor must be selected to create an RFQ.", parent=self)
-                    return
                 new_doc = self.purchase_logic.create_rfq(
                     vendor_id=current_vendor_id,
                     notes=notes_content
                 )
                 if new_doc:
                     self.document_id = new_doc.id
-                    self.document_data = new_doc
-                    messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.", parent=self)
-                    self.load_document_and_items()
+                    self.document_data = new_doc # Crucial: update self.document_data
+                    if not is_autosave_for_draft:
+                        messagebox.showinfo("Success", f"RFQ {new_doc.document_number} created successfully.", parent=self)
+
+                    # Common actions after new doc creation (for both auto and manual save)
+                    self.load_document_and_items() # This will refresh UI, including items if any were virtually added then saved
                     self.title(f"Edit Purchase Document - {new_doc.document_number}")
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                          self.parent_controller.load_documents()
+                    return True
                 else:
-                    messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.", parent=self)
-            else:
+                    if not is_autosave_for_draft:
+                        messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.", parent=self)
+                    return False
+            else: # Updating an existing document
                 updated = False
+                # Note: Vendor change is handled separately and not as part of a simple "updated" flag here.
+
+                # Update Notes if changed
                 if self.document_data and (self.document_data.notes or "") != notes_content:
                     self.purchase_logic.update_document_notes(self.document_id, notes_content)
                     updated = True
 
+                # Update Status if changed (and valid enum)
                 if self.document_data and selected_status_enum and self.document_data.status != selected_status_enum:
                     self.purchase_logic.update_document_status(self.document_id, selected_status_enum)
                     updated = True
 
+                # Vendor change attempt (show warning, does not prevent other updates)
                 if self.document_data and self.document_data.vendor_id != current_vendor_id:
-                    if self.document_data.status == PurchaseDocumentStatus.RFQ:
-                        messagebox.showwarning("Info", "Changing the vendor for an existing document is not supported via this save action. Other changes were saved if made.", parent=self)
-                    elif self.document_data.status:
-                        messagebox.showwarning("Warning", f"Vendor cannot be changed for a document with status '{self.document_data.status.value}'. Other changes were saved if made.", parent=self)
-                    else:
-                        messagebox.showwarning("Warning", "Vendor cannot be changed for this document. Other changes were saved if made.", parent=self)
+                    # This logic typically only allows vendor change for RFQ, or not at all if status is advanced.
+                    # For autosave, we probably wouldn't hit this if creating new, but for manual save on existing:
+                    if not is_autosave_for_draft:
+                        if self.document_data.status == PurchaseDocumentStatus.RFQ:
+                            # Potentially allow vendor change for RFQ here if desired, or just warn.
+                            # For now, sticking to warning that it's not part of this simple save.
+                            messagebox.showwarning("Info", "Changing the vendor for an existing document is not supported via this save action. Other changes were saved if made.", parent=self)
+                        elif self.document_data.status:
+                             messagebox.showwarning("Warning", f"Vendor cannot be changed for a document with status '{self.document_data.status.value}'. Other changes were saved if made.", parent=self)
+                        else: # Should not happen if status is always set
+                             messagebox.showwarning("Warning", "Vendor cannot be changed for this document. Other changes were saved if made.", parent=self)
+                    # `updated` flag is not set to true for vendor change attempt here, as it's not directly performed by this save action.
 
                 if updated:
+                    # Refresh document data from DB after updates
                     self.document_data = self.purchase_logic.get_purchase_document_details(self.document_id)
-                    messagebox.showinfo("Success", f"Document {self.document_data.document_number} updated.", parent=self)
-                    self.load_document_and_items()
+                    if not is_autosave_for_draft:
+                        messagebox.showinfo("Success", f"Document {self.document_data.document_number} updated.", parent=self)
+                    self.load_document_and_items() # Refresh UI
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                         self.parent_controller.load_documents()
+                    return True
                 else:
-                    messagebox.showinfo("No Changes", "No changes were detected to save.", parent=self)
+                    if not is_autosave_for_draft: # Only show "No Changes" for manual save
+                        messagebox.showinfo("No Changes", "No changes were detected to save.", parent=self)
+                    return True # Still counts as a successful "save" operation if no changes were needed
         except ValueError as ve:
-            messagebox.showerror("Error", str(ve), parent=self)
+            if not is_autosave_for_draft:
+                messagebox.showerror("Error", str(ve), parent=self)
+            return False
         except Exception as e:
-            messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {e}", parent=self)
-            import traceback
-            traceback.print_exc()
+            if not is_autosave_for_draft:
+                messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {e}", parent=self)
+                import traceback
+                traceback.print_exc()
+            return False
+
+        return False # Should not be reached if logic is correct, but as a fallback
 
 if __name__ == '__main__':
     class MockDBHandler:

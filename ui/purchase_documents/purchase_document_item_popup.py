@@ -76,7 +76,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=row, column=0, columnspan=2, pady=(10,0), sticky=tk.E)
 
-        self.save_button = ttk.Button(button_frame, text="Save Item", command=self.save_item)
+        self.save_button = ttk.Button(button_frame, text="Save Line Item", command=self.save_item)
         self.save_button.pack(side=tk.RIGHT, padx=5)
 
         self.cancel_button = ttk.Button(button_frame, text="Cancel", command=self.destroy)

@@ -167,21 +167,25 @@ class PurchaseDocumentTab:
 
 
     def delete_selected_document(self):
-        if not self.selected_document_id:
+        doc_id_to_delete = self.selected_document_id  # Store the ID locally
+
+        if not doc_id_to_delete:
             messagebox.showwarning("No Selection", "Please select a document to delete.")
             return
 
-        doc_to_delete = self.purchase_logic.get_purchase_document_details(self.selected_document_id)
+        # Use the local variable for fetching details
+        doc_to_delete = self.purchase_logic.get_purchase_document_details(doc_id_to_delete)
         if not doc_to_delete:
              messagebox.showerror("Error", "Document not found.")
-             self.load_documents()
+             self.load_documents() # This might clear selection, but doc_id_to_delete is preserved
              return
 
         confirm = messagebox.askyesno("Confirm Delete",
                                       f"Are you sure you want to delete document {doc_to_delete.document_number}?")
         if confirm:
             try:
-                self.purchase_logic.delete_purchase_document(self.selected_document_id)
+                # Use the local variable for the deletion call
+                self.purchase_logic.delete_purchase_document(doc_id_to_delete)
                 messagebox.showinfo("Success", f"Document {doc_to_delete.document_number} deleted successfully.")
                 self.load_documents()
             except Exception as e:

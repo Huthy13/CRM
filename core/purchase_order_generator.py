@@ -3,24 +3,20 @@ import os
 import sys
 from fpdf import FPDF
 
-# Adjust sys.path to allow imports from core and shared
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) # This is /app
-# PARENT_DIR = os.path.dirname(SCRIPT_DIR) # This would be /
-# sys.path.append(PARENT_DIR) # This was adding / to sys.path
+# Ensure the project root is in sys.path for absolute imports like 'from shared.structs'
+# This helps when the script is run directly or imported by other modules.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) # Points to /app/core
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR) # Points to /app
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-# We want /app (SCRIPT_DIR) to be in sys.path so 'core' and 'shared' can be found.
-# If SCRIPT_DIR is not already in sys.path, or to give it priority:
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
-
-
-from core.database import DatabaseHandler
-from core.purchase_logic import PurchaseLogic
-from core.address_book_logic import AddressBookLogic # Corrected import for vendor details
-from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus
+from .database import DatabaseHandler # Relative import for modules within the same package (core)
+from .purchase_logic import PurchaseLogic # Relative import
+from .address_book_logic import AddressBookLogic # Relative import
+from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
 
 class PDF(FPDF):
-    def __init__(self, po_document_number=None, company_name="Your Company Name"): # Added company_name
+    def __init__(self, po_document_number=None, company_name="Your Company Name"):
         super().__init__()
         self.po_document_number = po_document_number
         self.company_name = company_name # Store company name

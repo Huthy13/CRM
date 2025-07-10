@@ -147,25 +147,25 @@ class PurchaseDocumentPopup(tk.Toplevel):
             # This requires generate_po_pdf.py to be structured to allow importing its main function.
             # And that the main project structure allows this import from ui.purchase_documents
 
-            # Temporary path adjustment for direct script execution approach (if generate_po_pdf.py is in root)
-            import sys
-            import os
-            # Assuming this file (purchase_document_popup.py) is in ui/purchase_documents/
-            # Project root is two levels up from this file's directory
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
-
-            from generate_po_pdf import generate_po_pdf as call_generate_po_pdf # Renamed to avoid conflict
+            # PDF generation module is now part of the 'core' package
+            from core.purchase_order_generator import generate_po_pdf as call_generate_po_pdf
 
             output_filename = f"purchase_order_{self.doc_number_var.get().replace('/', '_')}.pdf"
             # Consider using filedialog.asksaveasfilename here for better UX
 
-            call_generate_po_pdf(self.document_id, output_path=output_filename) # Pass explicit output_path
+            # Ensure the output directory exists or handle potential errors if it doesn't
+            # For now, outputting to the current working directory of the main application
+
+            call_generate_po_pdf(self.document_id, output_path=output_filename)
             messagebox.showinfo("PDF Exported", f"Document exported to {output_filename}", parent=self)
 
-        except ImportError:
-            messagebox.showerror("Error", "Could not load PDF generation module. Ensure 'generate_po_pdf.py' is accessible.", parent=self)
+        except ImportError as ie:
+            # This error might still occur if the overall project structure isn't correctly recognized by Python
+            # when main.py is run, or if there are circular dependencies (less likely here).
+            messagebox.showerror("Import Error", f"Could not load PDF generation module from core: {ie}\n"
+                                 "Ensure the application is launched from the project root directory.", parent=self)
+            import traceback # For more detailed debugging if needed by user
+            traceback.print_exc()
         except Exception as e:
             messagebox.showerror("PDF Export Error", f"An error occurred during PDF export: {e}", parent=self)
             import traceback

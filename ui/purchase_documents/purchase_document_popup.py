@@ -190,10 +190,13 @@ class PurchaseDocumentPopup(tk.Toplevel):
             print("DEBUG: on_item_double_click: item_iid is None or empty. Doing nothing.")
             return
 
-        edit_button_state = self.edit_item_button.cget('state')
-        print(f"DEBUG: on_item_double_click: edit_item_button state: {edit_button_state}")
+        edit_button_state_raw = self.edit_item_button.cget('state')
+        print(f"DEBUG: on_item_double_click: repr(edit_button_state_raw) before strip: {repr(edit_button_state_raw)}")
+        edit_button_state = edit_button_state_raw.strip()
+        print(f"DEBUG: on_item_double_click: repr(edit_button_state) after strip: {repr(edit_button_state)}")
+        print(f"DEBUG: on_item_double_click: edit_item_button state (after strip): {edit_button_state}")
 
-        if edit_button_state == "normal": # Direct string comparison
+        if str(edit_button_state) == "normal": # Defensive comparison
             current_selection = self.items_tree.selection()
             print(f"DEBUG: on_item_double_click: current_selection before potential change: {current_selection}")
 

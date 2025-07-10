@@ -15,7 +15,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
 
         self.product_map = {} # To map product name to product_id
 
-        self.title(f"{'Edit' if self.item_id else 'Add'} Document Item")
+        self.title(f"{'Edit' if self.item_id else 'Add'} Line Item")
         self.geometry("400x200") # Initial size, can adjust
         self.resizable(False, False)
 
@@ -76,7 +76,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=row, column=0, columnspan=2, pady=(10,0), sticky=tk.E)
 
-        self.save_button = ttk.Button(button_frame, text="Save Item", command=self.save_item)
+        self.save_button = ttk.Button(button_frame, text="Save Line Item", command=self.save_item)
         self.save_button.pack(side=tk.RIGHT, padx=5)
 
         self.cancel_button = ttk.Button(button_frame, text="Cancel", command=self.destroy)

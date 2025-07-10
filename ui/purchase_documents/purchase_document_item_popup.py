@@ -15,7 +15,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
 
         self.product_map = {} # To map product name to product_id
 
-        self.title(f"{'Edit' if self.item_id else 'Add'} Document Item")
+        self.title(f"{'Edit' if self.item_id else 'Add'} Line Item")
         self.geometry("400x200") # Initial size, can adjust
         self.resizable(False, False)
 

@@ -35,6 +35,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
             self.vendor_combobox.set(NO_VENDOR_LABEL)
             self._update_document_subtotal()
             self.update_ui_states_based_on_status()
+            self.update_export_button_state() # Initial state
 
     def _setup_ui(self):
         self.content_frame = ttk.Frame(self, padding="10")
@@ -117,8 +118,59 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.save_button = ttk.Button(bottom_button_frame, text="Save", command=self.save_document)
         self.save_button.pack(side=tk.RIGHT, padx=5)
 
+        self.export_pdf_button = ttk.Button(bottom_button_frame, text="Export to PDF", command=self.export_to_pdf, state=tk.DISABLED)
+        self.export_pdf_button.pack(side=tk.RIGHT, padx=5) # Placed before Close for typical Save/Export/Close order
+
         self.close_button = ttk.Button(bottom_button_frame, text="Close", command=self.destroy)
         self.close_button.pack(side=tk.RIGHT, padx=5)
+
+
+    def update_export_button_state(self):
+        if self.document_id:
+            self.export_pdf_button.config(state=tk.NORMAL)
+        else:
+            self.export_pdf_button.config(state=tk.DISABLED)
+
+    def export_to_pdf(self):
+        if not self.document_id:
+            messagebox.showwarning("No Document", "Please save the document first to obtain a document ID before exporting.", parent=self)
+            return
+
+        # Potentially use filedialog to ask user where to save
+        # For now, it will save to the script's execution directory
+        try:
+            # Assuming generate_po_pdf.py is in the project root or accessible in PATH
+            # Need to ensure generate_po_pdf can be called correctly
+            # This might require adjusting how generate_po_pdf is invoked or making its function importable
+
+            # Option 1: Make generate_po_pdf.generate_po_pdf importable
+            # This requires generate_po_pdf.py to be structured to allow importing its main function.
+            # And that the main project structure allows this import from ui.purchase_documents
+
+            # Temporary path adjustment for direct script execution approach (if generate_po_pdf.py is in root)
+            import sys
+            import os
+            # Assuming this file (purchase_document_popup.py) is in ui/purchase_documents/
+            # Project root is two levels up from this file's directory
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+
+            from generate_po_pdf import generate_po_pdf as call_generate_po_pdf # Renamed to avoid conflict
+
+            output_filename = f"purchase_order_{self.doc_number_var.get().replace('/', '_')}.pdf"
+            # Consider using filedialog.asksaveasfilename here for better UX
+
+            call_generate_po_pdf(self.document_id, output_path=output_filename) # Pass explicit output_path
+            messagebox.showinfo("PDF Exported", f"Document exported to {output_filename}", parent=self)
+
+        except ImportError:
+            messagebox.showerror("Error", "Could not load PDF generation module. Ensure 'generate_po_pdf.py' is accessible.", parent=self)
+        except Exception as e:
+            messagebox.showerror("PDF Export Error", f"An error occurred during PDF export: {e}", parent=self)
+            import traceback
+            traceback.print_exc()
+
 
     def populate_vendor_dropdown(self):
         self.vendor_map.clear()
@@ -150,7 +202,8 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.notes_text.delete("1.0", tk.END)
         self.notes_text.insert("1.0", self.document_data.notes or "")
         self.populate_vendor_dropdown()
-        self.load_items_for_document()
+        self.load_items_for_document() # This calls update_ui_states_based_on_status and _update_document_subtotal
+        self.update_export_button_state() # Update after loading
 
     def load_items_for_document(self):
         # print("DEBUG: load_items_for_document called")
@@ -424,12 +477,16 @@ class PurchaseDocumentPopup(tk.Toplevel):
                     self.title(f"Edit Purchase Document - {new_doc.document_number}")
                     if self.parent_controller and hasattr(self.parent_controller, 'load_documents'):
                          self.parent_controller.load_documents()
+                    self.update_export_button_state() # Enable export after successful save
                     return True
                 else:
                     if not is_autosave_for_draft:
                         messagebox.showerror("Error", "Failed to create RFQ. Please check logs or input.", parent=self)
                     return False
             else: # Updating an existing document
+                # Document ID already exists, so export button should be appropriately set by load_document_and_items
+                # or initial setup. We can re-call it to be sure, though not strictly necessary if already enabled.
+                self.update_export_button_state()
                 updated = False
                 # Note: Vendor change is handled separately and not as part of a simple "updated" flag here.
 

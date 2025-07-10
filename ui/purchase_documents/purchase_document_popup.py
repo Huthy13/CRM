@@ -190,13 +190,17 @@ class PurchaseDocumentPopup(tk.Toplevel):
             print("DEBUG: on_item_double_click: item_iid is None or empty. Doing nothing.")
             return
 
-        edit_button_state_raw = self.edit_item_button.cget('state')
-        print(f"DEBUG: on_item_double_click: repr(edit_button_state_raw) before strip: {repr(edit_button_state_raw)}")
-        edit_button_state = edit_button_state_raw.strip()
-        print(f"DEBUG: on_item_double_click: repr(edit_button_state) after strip: {repr(edit_button_state)}")
-        print(f"DEBUG: on_item_double_click: edit_item_button state (after strip): {edit_button_state}")
+        raw_state = self.edit_item_button.cget('state')
+        print(f"DEBUG: on_item_double_click: repr(raw_state): {repr(raw_state)}")
 
-        if str(edit_button_state) == "normal": # Defensive comparison
+        state_as_str = str(raw_state) # Explicitly convert Tcl_Obj to Python string
+        print(f"DEBUG: on_item_double_click: repr(state_as_str): {repr(state_as_str)}")
+
+        cleaned_state = state_as_str.strip()
+        print(f"DEBUG: on_item_double_click: repr(cleaned_state) after strip: {repr(cleaned_state)}")
+        print(f"DEBUG: on_item_double_click: cleaned_state value: '{cleaned_state}'")
+
+        if cleaned_state == "normal":
             current_selection = self.items_tree.selection()
             print(f"DEBUG: on_item_double_click: current_selection before potential change: {current_selection}")
 

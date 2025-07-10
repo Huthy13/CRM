@@ -193,7 +193,7 @@ class PurchaseDocumentPopup(tk.Toplevel):
         edit_button_state = self.edit_item_button.cget('state')
         print(f"DEBUG: on_item_double_click: edit_item_button state: {edit_button_state}")
 
-        if edit_button_state == tk.NORMAL:
+        if edit_button_state == "normal": # Direct string comparison
             current_selection = self.items_tree.selection()
             print(f"DEBUG: on_item_double_click: current_selection before potential change: {current_selection}")
 

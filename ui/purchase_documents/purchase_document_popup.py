@@ -75,11 +75,11 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.item_button_frame = ttk.Frame(items_label_frame)
         self.item_button_frame.pack(pady=5, fill=tk.X)
 
-        self.add_item_button = ttk.Button(self.item_button_frame, text="Add Item", command=self.add_item)
+        self.add_item_button = ttk.Button(self.item_button_frame, text="Add Line Item", command=self.add_item)
         self.add_item_button.pack(side=tk.LEFT, padx=5)
-        self.edit_item_button = ttk.Button(self.item_button_frame, text="Edit Item", command=self.edit_item, state=tk.DISABLED)
+        self.edit_item_button = ttk.Button(self.item_button_frame, text="Edit Line Item", command=self.edit_item, state=tk.DISABLED)
         self.edit_item_button.pack(side=tk.LEFT, padx=5)
-        self.remove_item_button = ttk.Button(self.item_button_frame, text="Remove Item", command=self.remove_item, state=tk.DISABLED)
+        self.remove_item_button = ttk.Button(self.item_button_frame, text="Remove Line Item", command=self.remove_item, state=tk.DISABLED)
         self.remove_item_button.pack(side=tk.LEFT, padx=5)
 
         item_columns = ("desc", "qty", "unit_price", "total_price")
@@ -96,6 +96,8 @@ class PurchaseDocumentPopup(tk.Toplevel):
         items_scrollbar = ttk.Scrollbar(items_label_frame, orient="vertical", command=self.items_tree.yview)
         self.items_tree.configure(yscrollcommand=items_scrollbar.set)
         self.items_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.items_tree.bind("<<TreeviewSelect>>", self.on_item_tree_select)  # Ensure event is bound
+        self.items_tree.bind("<Double-1>", self.on_item_double_click) # Bind double-click
         items_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         ttk.Label(self.content_frame, text="Notes:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.NW)
@@ -179,6 +181,41 @@ class PurchaseDocumentPopup(tk.Toplevel):
         self.remove_item_button.config(state=tk.NORMAL if can_edit_delete else tk.DISABLED)
         # print(f"DEBUG: on_item_tree_select: Edit button state: {self.edit_item_button.cget('state')}, Remove button state: {self.remove_item_button.cget('state')}")
 
+    def on_item_double_click(self, event):
+        print(f"DEBUG: on_item_double_click triggered. Event (x,y): ({event.x}, {event.y})")
+        item_iid = self.items_tree.identify_row(event.y)
+        print(f"DEBUG: item_iid from identify_row: '{item_iid}'")
+
+        if not item_iid:
+            print("DEBUG: on_item_double_click: item_iid is None or empty. Doing nothing.")
+            return
+
+        raw_state = self.edit_item_button.cget('state')
+        print(f"DEBUG: on_item_double_click: repr(raw_state): {repr(raw_state)}")
+
+        state_as_str = str(raw_state) # Explicitly convert Tcl_Obj to Python string
+        print(f"DEBUG: on_item_double_click: repr(state_as_str): {repr(state_as_str)}")
+
+        cleaned_state = state_as_str.strip()
+        print(f"DEBUG: on_item_double_click: repr(cleaned_state) after strip: {repr(cleaned_state)}")
+        print(f"DEBUG: on_item_double_click: cleaned_state value: '{cleaned_state}'")
+
+        if cleaned_state == "normal":
+            current_selection = self.items_tree.selection()
+            print(f"DEBUG: on_item_double_click: current_selection before potential change: {current_selection}")
+
+            if not (len(current_selection) == 1 and current_selection[0] == item_iid):
+                print(f"DEBUG: on_item_double_click: Setting selection to '{item_iid}'")
+                self.items_tree.selection_set(item_iid)
+
+            print(f"DEBUG: on_item_double_click: Focusing item '{item_iid}'")
+            self.items_tree.focus(item_iid)
+
+            print("DEBUG: on_item_double_click: Attempting to call self.edit_item()")
+            self.edit_item()
+        else:
+            print("DEBUG: on_item_double_click: Edit button not normal. Doing nothing.")
+
     def can_edit_items(self) -> bool:
         if not self.document_data or not self.document_data.status:
             # print("DEBUG: can_edit_items: True (new or no status)")
@@ -228,24 +265,40 @@ class PurchaseDocumentPopup(tk.Toplevel):
             self.load_items_for_document()
 
     def edit_item(self):
+        print("DEBUG: edit_item called.")
         selected_tree_item = self.items_tree.selection()
+        print(f"DEBUG: edit_item: selected_tree_item from self.items_tree.selection(): {selected_tree_item}")
+
         if not selected_tree_item:
+            print("DEBUG: edit_item: No item selected. Showing warning and returning.")
             messagebox.showwarning("No Selection", "Please select an item to edit.", parent=self)
             return
+
         item_id_str = selected_tree_item[0]
+        print(f"DEBUG: edit_item: item_id_str: {item_id_str}")
+        item_id = -1 # Default to an invalid ID
+
         try:
             item_id = int(item_id_str)
+            print(f"DEBUG: edit_item: item_id (int): {item_id}")
         except ValueError:
+            print(f"DEBUG: edit_item: ValueError converting item_id_str '{item_id_str}' to int. Showing error and returning.")
             messagebox.showerror("Error", "Invalid item selection.", parent=self)
             return
+
         item_to_edit_obj = self.purchase_logic.get_purchase_document_item_details(item_id)
         if not item_to_edit_obj:
+            print(f"DEBUG: edit_item: Could not load details for item ID: {item_id}. Showing error and returning.")
             messagebox.showerror("Error", f"Could not load details for item ID: {item_id}.", parent=self)
             self.load_items_for_document()
             return
+
         if not self.can_edit_items():
+            print("DEBUG: edit_item: self.can_edit_items() is False. Showing warning and returning.")
             messagebox.showwarning("Cannot Edit", "Items cannot be edited for the current document status.", parent=self)
             return
+
+        print("DEBUG: edit_item: All checks passed, proceeding to open PurchaseDocumentItemPopup.")
         from .purchase_document_item_popup import PurchaseDocumentItemPopup
         item_data_dict = item_to_edit_obj.to_dict() if item_to_edit_obj else None
         edit_item_popup = PurchaseDocumentItemPopup(

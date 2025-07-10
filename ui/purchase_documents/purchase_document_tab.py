@@ -58,13 +58,25 @@ class PurchaseDocumentTab:
 
     def on_document_double_click(self, event):
         """Handles double-click event on the document treeview."""
-        # Check if the edit button would be enabled for the current selection
-        # self.selected_document_id is set by on_tree_select, which is triggered before double-click
-        if self.selected_document_id and self.edit_button.cget('state') == tk.NORMAL:
+        item_iid = self.tree.identify_row(event.y) # Get item directly from click position
+        if not item_iid:
+            return # Click was not on an item
+
+        # Ensure the selection is updated to this item before proceeding
+        # This helps if the double-click happened fast and on_tree_select might not have fully processed
+        # for the *exact* item if the selection was on a different item before the double click.
+        current_selection = self.tree.selection()
+        if not current_selection or current_selection[0] != item_iid:
+            self.tree.selection_set(item_iid)
+            # Forcing update of selected_document_id, normally handled by on_tree_select
+            try:
+                self.selected_document_id = int(item_iid)
+            except ValueError:
+                self.selected_document_id = None # Should not happen if iid is from tree
+
+        if self.selected_document_id: # Check if a valid document is now considered selected
             self.open_edit_document_popup()
-        # If no item is selected or edit is disabled, do nothing.
-        # The identify_row logic like in the other popup's double-click isn't strictly necessary here
-        # because on_tree_select would have already set selected_document_id if a valid row was clicked.
+        # No need to check edit_button state here, open_edit_document_popup has its own guard.
 
     def load_documents(self):
         # Clear existing items

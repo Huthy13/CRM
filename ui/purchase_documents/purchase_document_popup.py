@@ -182,21 +182,32 @@ class PurchaseDocumentPopup(tk.Toplevel):
         # print(f"DEBUG: on_item_tree_select: Edit button state: {self.edit_item_button.cget('state')}, Remove button state: {self.remove_item_button.cget('state')}")
 
     def on_item_double_click(self, event):
+        print(f"DEBUG: on_item_double_click triggered. Event (x,y): ({event.x}, {event.y})")
         item_iid = self.items_tree.identify_row(event.y)
-        if item_iid: # Check if a row was actually identified
-            # Check if editing is allowed (same condition as the edit button)
-            if self.edit_item_button.cget('state') == tk.NORMAL:
-                # Ensure the Treeview's selection is set to the double-clicked item
-                # This helps `edit_item()` which relies on `self.items_tree.selection()`
-                current_selection = self.items_tree.selection()
+        print(f"DEBUG: item_iid from identify_row: '{item_iid}'")
 
-                # If the double-clicked item is not already the sole selected item, update selection
-                if not (len(current_selection) == 1 and current_selection[0] == item_iid):
-                    self.items_tree.selection_set(item_iid)
+        if not item_iid:
+            print("DEBUG: on_item_double_click: item_iid is None or empty. Doing nothing.")
+            return
 
-                self.items_tree.focus(item_iid) # Optional: ensure focus is on the item
-                self.edit_item()
-            # If edit button is not normal, do nothing, respecting the disabled state.
+        edit_button_state = self.edit_item_button.cget('state')
+        print(f"DEBUG: on_item_double_click: edit_item_button state: {edit_button_state}")
+
+        if edit_button_state == tk.NORMAL:
+            current_selection = self.items_tree.selection()
+            print(f"DEBUG: on_item_double_click: current_selection before potential change: {current_selection}")
+
+            if not (len(current_selection) == 1 and current_selection[0] == item_iid):
+                print(f"DEBUG: on_item_double_click: Setting selection to '{item_iid}'")
+                self.items_tree.selection_set(item_iid)
+
+            print(f"DEBUG: on_item_double_click: Focusing item '{item_iid}'")
+            self.items_tree.focus(item_iid)
+
+            print("DEBUG: on_item_double_click: Attempting to call self.edit_item()")
+            self.edit_item()
+        else:
+            print("DEBUG: on_item_double_click: Edit button not normal. Doing nothing.")
 
     def can_edit_items(self) -> bool:
         if not self.document_data or not self.document_data.status:
@@ -247,24 +258,40 @@ class PurchaseDocumentPopup(tk.Toplevel):
             self.load_items_for_document()
 
     def edit_item(self):
+        print("DEBUG: edit_item called.")
         selected_tree_item = self.items_tree.selection()
+        print(f"DEBUG: edit_item: selected_tree_item from self.items_tree.selection(): {selected_tree_item}")
+
         if not selected_tree_item:
+            print("DEBUG: edit_item: No item selected. Showing warning and returning.")
             messagebox.showwarning("No Selection", "Please select an item to edit.", parent=self)
             return
+
         item_id_str = selected_tree_item[0]
+        print(f"DEBUG: edit_item: item_id_str: {item_id_str}")
+        item_id = -1 # Default to an invalid ID
+
         try:
             item_id = int(item_id_str)
+            print(f"DEBUG: edit_item: item_id (int): {item_id}")
         except ValueError:
+            print(f"DEBUG: edit_item: ValueError converting item_id_str '{item_id_str}' to int. Showing error and returning.")
             messagebox.showerror("Error", "Invalid item selection.", parent=self)
             return
+
         item_to_edit_obj = self.purchase_logic.get_purchase_document_item_details(item_id)
         if not item_to_edit_obj:
+            print(f"DEBUG: edit_item: Could not load details for item ID: {item_id}. Showing error and returning.")
             messagebox.showerror("Error", f"Could not load details for item ID: {item_id}.", parent=self)
             self.load_items_for_document()
             return
+
         if not self.can_edit_items():
+            print("DEBUG: edit_item: self.can_edit_items() is False. Showing warning and returning.")
             messagebox.showwarning("Cannot Edit", "Items cannot be edited for the current document status.", parent=self)
             return
+
+        print("DEBUG: edit_item: All checks passed, proceeding to open PurchaseDocumentItemPopup.")
         from .purchase_document_item_popup import PurchaseDocumentItemPopup
         item_data_dict = item_to_edit_obj.to_dict() if item_to_edit_obj else None
         edit_item_popup = PurchaseDocumentItemPopup(

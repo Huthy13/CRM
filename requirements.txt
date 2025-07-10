@@ -3,3 +3,5 @@
 # Example:
 # requests>=2.25.1
 # pandas==1.3.3
+
+fpdf>=1.7.2

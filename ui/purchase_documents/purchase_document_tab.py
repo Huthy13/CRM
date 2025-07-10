@@ -52,8 +52,19 @@ class PurchaseDocumentTab:
 
         self.tree.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        self.tree.bind("<Double-1>", self.on_document_double_click) # Bind double-click
 
         # TODO: Add scrollbar for treeview
+
+    def on_document_double_click(self, event):
+        """Handles double-click event on the document treeview."""
+        # Check if the edit button would be enabled for the current selection
+        # self.selected_document_id is set by on_tree_select, which is triggered before double-click
+        if self.selected_document_id and self.edit_button.cget('state') == tk.NORMAL:
+            self.open_edit_document_popup()
+        # If no item is selected or edit is disabled, do nothing.
+        # The identify_row logic like in the other popup's double-click isn't strictly necessary here
+        # because on_tree_select would have already set selected_document_id if a valid row was clicked.
 
     def load_documents(self):
         # Clear existing items

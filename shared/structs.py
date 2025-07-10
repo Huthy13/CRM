@@ -358,6 +358,32 @@ class PurchaseDocument:
         return (f"PurchaseDocument(ID: {self.id}, Number: {self.document_number}, VendorID: {self.vendor_id}, "
                 f"Status: {self.status.value if self.status else 'N/A'}, Created: {self.created_date})")
 
+
+class CompanyInformation:
+    def __init__(self, company_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None):
+        self.company_id = company_id
+        self.name = name
+        self.phone = phone
+        self.billing_address_id = billing_address_id
+        self.shipping_address_id = shipping_address_id
+
+    def to_dict(self):
+        return {
+            "company_id": self.company_id,
+            "name": self.name,
+            "phone": self.phone,
+            "billing_address_id": self.billing_address_id,
+            "shipping_address_id": self.shipping_address_id,
+        }
+
+    def __str__(self):
+        return (f"Company ID: {self.company_id}\n"
+                f"Name: {self.name}\n"
+                f"Phone: {self.phone}\n"
+                f"Billing Address ID: {self.billing_address_id}\n"
+                f"Shipping Address ID: {self.shipping_address_id}")
+
+
 class PurchaseDocumentItem:
     def __init__(self, item_id=None, purchase_document_id: int = None, product_id: Optional[int] = None,
                  product_description: str = "", quantity: float = 0.0,

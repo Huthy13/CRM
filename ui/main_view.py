@@ -10,6 +10,7 @@ from ui.products.product_tab import ProductTab
 from core.logic.product_management import ProductLogic # Import ProductLogic
 from core.purchase_logic import PurchaseLogic
 from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
+from ui.company_info_tab import CompanyInfoTab # Import the new tab
 
 
 class AddressBookView:
@@ -44,6 +45,7 @@ class AddressBookView:
         self.task_tab = TaskTab(self.notebook, self.address_book_logic)
         self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic) # Pass product_logic here too
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
+        self.company_info_tab = CompanyInfoTab(self.notebook, self.db_handler) # Add CompanyInfoTab
 
 
         # Add frames from tabs to Notebook
@@ -53,3 +55,4 @@ class AddressBookView:
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase Documents")
+        self.notebook.add(self.company_info_tab.frame, text="Company Information") # Add the new tab to the notebook

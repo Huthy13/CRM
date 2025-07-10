@@ -182,6 +182,28 @@ class DatabaseHandler:
         """)
         # Added ON DELETE CASCADE for items when a document is deleted for data integrity.
 
+        # Company Information table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS company_information (
+                company_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                phone TEXT,
+                billing_address_id INTEGER,
+                shipping_address_id INTEGER,
+                FOREIGN KEY (billing_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL,
+                FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL
+            )
+        """)
+        # Check if company information already exists, if not, add a default entry
+        self.cursor.execute("SELECT COUNT(*) FROM company_information")
+        if self.cursor.fetchone()[0] == 0:
+            # Add a placeholder row. Specific details should be updated via the UI.
+            self.cursor.execute("""
+                INSERT INTO company_information (name, phone, billing_address_id, shipping_address_id)
+                VALUES (?, ?, ?, ?)
+            """, ("My Company", "", None, None))
+
+
         self.conn.commit()
 
 #address related methods
@@ -909,3 +931,42 @@ class DatabaseHandler:
     #     """Deletes all items for a given purchase document ID."""
     #     self.cursor.execute("DELETE FROM purchase_document_items WHERE purchase_document_id = ?", (doc_id,))
     #     self.conn.commit()
+
+# Company Information related methods
+    def get_company_information(self) -> dict | None:
+        """Retrieve the company information. Assumes a single entry."""
+        self.cursor.execute("""
+            SELECT ci.company_id, ci.name, ci.phone,
+                   ci.billing_address_id, ci.shipping_address_id,
+                   b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
+                   b.zip AS billing_zip, b.country AS billing_country,
+                   s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
+                   s.zip AS shipping_zip, s.country AS shipping_country
+            FROM company_information AS ci
+            LEFT JOIN addresses AS b ON ci.billing_address_id = b.address_id
+            LEFT JOIN addresses AS s ON ci.shipping_address_id = s.address_id
+            LIMIT 1
+        """) # Ensure only one row is fetched, typically the first one if multiple exist.
+        row = self.cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in self.cursor.description]
+            return dict(zip(columns, row))
+        return None
+
+    def update_company_information(self, company_id: int, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None):
+        """Update the company information."""
+        self.cursor.execute("""
+            UPDATE company_information
+            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?
+            WHERE company_id = ?
+        """, (name, phone, billing_address_id, shipping_address_id, company_id))
+        self.conn.commit()
+
+    def add_company_information(self, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None) -> int:
+        """Add company information. Primarily for initial setup if needed, or if table could be empty."""
+        self.cursor.execute("""
+            INSERT INTO company_information (name, phone, billing_address_id, shipping_address_id)
+            VALUES (?, ?, ?, ?)
+        """, (name, phone, billing_address_id, shipping_address_id))
+        self.conn.commit()
+        return self.cursor.lastrowid

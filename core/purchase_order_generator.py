@@ -198,14 +198,12 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         line_height = 7
         col_width_full = pdf.w - 2 * pdf.l_margin # Full width for content
 
-        # Document Details Section (PO Number, Date, Status)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(col_width_full / 2, line_height, f"PO Number: {doc.document_number}", 0, 0, "L")
-        pdf.set_font("Arial", "", 11)
-        pdf.cell(col_width_full / 2, line_height, f"Date: {doc.created_date.split('T')[0] if doc.created_date else 'N/A'}", 0, 1, "R")
-        pdf.cell(col_width_full / 2, line_height, "", 0, 0, "L") # Empty cell for alignment
-        pdf.cell(col_width_full / 2, line_height, f"Status: {doc.status.value if doc.status else 'N/A'}", 0, 1, "R")
-        pdf.ln(line_height * 1.5)
+        # Document Details Section (Date only)
+        pdf.set_font("Arial", "", 11) # Font for the Date
+        date_str = f"Date: {doc.created_date.split('T')[0] if doc.created_date else 'N/A'}"
+        # Full width cell, right aligned, with line break after.
+        pdf.cell(0, line_height, date_str, 0, 1, "R")
+        pdf.ln(line_height * 1.5) # Keep the spacing after this section
 
         # Company Shipping and Vendor Information Section (Two Columns)
         col_width_half = col_width_full / 2 - 5  # Half width for each column, with a small gap

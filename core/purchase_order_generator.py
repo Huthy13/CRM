@@ -16,20 +16,132 @@ from .address_book_logic import AddressBookLogic # Relative import
 from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
 
 class PDF(FPDF):
-    def __init__(self, po_document_number=None, company_name="Your Company Name"):
+    def __init__(self, po_document_number=None, company_name="Your Company Name", company_billing_address_lines=None):
         super().__init__()
         self.po_document_number = po_document_number
-        self.company_name = company_name # Store company name
+        self.company_name = company_name
+        self.company_billing_address_lines = company_billing_address_lines if company_billing_address_lines else []
 
     def header(self):
+        header_line_height = 7 # Smaller line height for address details
+        title_line_height = 10
+
+        # Company Name (Top Left)
         self.set_font("Arial", "B", 16)
-        self.cell(0, 10, self.company_name, 0, 1, "L") # Company name on left
+        self.cell(0, title_line_height, self.company_name, 0, 1, "L")
+
+        # Company Billing Address (Below Company Name, Left)
+        if self.company_billing_address_lines:
+            self.set_font("Arial", "", 10) # Smaller font for address
+            for line in self.company_billing_address_lines:
+                if line.strip(): # Avoid printing empty lines if address has gaps
+                    self.cell(0, header_line_height, line, 0, 1, "L")
+
+        # Store Y position after company name and address to align PO title
+        y_after_company_block = self.get_y()
+
+        # Purchase Order Title (Centered)
+        # We want this to appear to the right of the company name block, or centered overall
+        # For simplicity, let's place it starting near the top, but ensure it's clear
+        # Reset Y to a point that makes sense relative to the company name, and X for centering
+        # This part might need adjustment for perfect vertical alignment with multi-line addresses
+
+        # Simplified: PO title starts below company block, centered.
+        # If we want it "beside" a potentially tall address block, it's more complex.
+        # The prompt "directly under the Company name" for address implies PO title might be best after.
+
+        # For now, let's try to keep PO title somewhat aligned with top, but this is tricky with dynamic address height.
+        # A common approach is to set a fixed area for left (company) and right (title),
+        # or determine max height of left block and center title next to it.
+
+        # Let's try a simpler approach first: Title is below the company block, then centered.
+        # This means the "Purchase Order - PO Number" will appear after the company name and its billing address.
+
+        # Reset to a specific Y if needed, or let it flow. For now, let it flow.
+        # The self.ln(10) later will provide spacing.
+
         self.set_font("Arial", "B", 14)
         title = "Purchase Order"
         if self.po_document_number:
             title += f" - {self.po_document_number}"
-        self.cell(0, 10, title, 0, 1, "C")
-        self.ln(10)
+
+        # To center it properly after the left-aligned block which used ln=1:
+        self.set_xy(0, y_after_company_block) # Reset X to left margin, Y after company block
+                                              # Or choose a fixed Y from top: e.g. self.set_xy(0, self.t_margin + title_line_height)
+                                              # If setting Y to a fixed top, ensure company block doesn't overwrite.
+
+        # A common pattern for header:
+        # 1. Company Name (left)
+        # 2. Company Address (left, below name)
+        # 3. PO Title (right of company name, or centered in remaining space, or centered on page)
+        # Let's try placing PO title at a fixed Y, but ensure X allows it to be centered on page.
+
+        # Store current Y before company name
+        initial_y = self.get_y()
+
+        # Company Name
+        self.set_font("Arial", "B", 16)
+        self.set_xy(self.l_margin, initial_y) # Start at left margin
+        self.cell(self.w / 2 - self.l_margin, title_line_height, self.company_name, 0, 1, "L") # Cell takes up half width
+
+        # Company Billing Address
+        if self.company_billing_address_lines:
+            self.set_font("Arial", "", 10)
+            for line in self.company_billing_address_lines:
+                if line.strip():
+                    self.set_x(self.l_margin) # Ensure address lines also start at left margin
+                    self.cell(self.w / 2 - self.l_margin, header_line_height, line, 0, 1, "L")
+
+        y_after_left_block = self.get_y()
+
+        # PO Title - Centered on the page, starting at the same initial Y as company name
+        self.set_y(initial_y) # Reset Y to align top of PO title with top of company name
+        self.set_font("Arial", "B", 14)
+        # Calculate width of title to center it.
+        # For self.cell(0, ... "C"), width 0 means full page width.
+        # The challenge is the company info on left.
+        # Alternative: PO title in the right half of the page.
+
+        # Let's use the original centering approach for the title, but ensure it's placed after the left block or at a fixed Y
+        # The original self.cell(0, 10, title, 0, 1, "C") centers it on the full page width.
+        # If the company address block is tall, this title might overlap if Y is not managed.
+
+        # New strategy:
+        # Company Name (top left)
+        # Company Billing Address (below name, left)
+        # PO Title (top right, or centered in the right half of the page)
+
+        # Reset font and Y for the title, place it on the right side.
+        title_block_width = self.w - self.l_margin - self.r_margin # Full drawable width
+
+        # Company Name
+        self.set_font("Arial", "B", 16)
+        self.set_xy(self.l_margin, self.t_margin + 5) # Start Y a bit below top margin
+        current_y = self.get_y()
+        self.multi_cell(title_block_width * 0.6, title_line_height, self.company_name, 0, "L") # Use multi_cell for name in case it wraps
+        y_after_name = self.get_y()
+
+        # Company Billing Address (below name)
+        if self.company_billing_address_lines:
+            self.set_font("Arial", "", 10)
+            self.set_x(self.l_margin) # Ensure X is at left margin
+            for line in self.company_billing_address_lines:
+                if line.strip():
+                     # self.set_x(self.l_margin) # Redundant if previous was full width cell with ln=1
+                    self.cell(title_block_width * 0.6, header_line_height, line, 0, 1, "L")
+        y_after_left_content = self.get_y()
+
+        # PO Title (aligned to top with company name, but on the right)
+        self.set_xy(self.l_margin + title_block_width * 0.6, self.t_margin + 5) # X starts after company block, Y same as company name start
+        self.set_font("Arial", "B", 14)
+        self.multi_cell(title_block_width * 0.4, title_line_height, title, 0, "C") # Centered in the remaining width
+        y_after_right_content = self.get_y()
+
+        # Set Y to be after the taller of the two blocks (left: name+address, right: PO title)
+        final_y_for_header = max(y_after_left_content, y_after_right_content)
+        self.set_y(final_y_for_header)
+
+        self.ln(10) # Space after header
 
     def footer(self):
         self.set_y(-15)
@@ -55,56 +167,74 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             print(f"Error: Purchase document with ID {purchase_document_id} not found.")
             return
 
-        # 2. Fetch Company Information (Focus on Shipping Address for PDF)
+        # 2. Fetch Company Information
         company_info_dict = db_handler.get_company_information()
         company_name_for_header = "Your Company Name" # For PDF Header
         company_phone_pdf = "" # For display under shipping address if available
         company_shipping_address_pdf_lines = ["Shipping address not found."]
+        company_billing_address_pdf_lines = ["Billing address not found."]
 
         if company_info_dict:
             company_name_for_header = company_info_dict.get('name', company_name_for_header)
-            company_phone_pdf = company_info_dict.get('phone', "") # Keep phone, might be relevant
+            company_phone_pdf = company_info_dict.get('phone', "")
 
+            # Fetch Shipping Address
             company_shipping_address_id = company_info_dict.get('shipping_address_id')
             if company_shipping_address_id:
-                # get_address returns a tuple: (street, city, state, zip, country)
                 addr_tuple = db_handler.get_address(company_shipping_address_id)
                 if addr_tuple:
                     company_shipping_address_pdf_lines = [
-                        addr_tuple[0] or "", # Street
-                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}", # City, State Zip
-                        addr_tuple[4] or ""  # Country
+                        addr_tuple[0] or "",
+                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                        addr_tuple[4] or ""
                     ]
-                    # Filter out empty lines
                     company_shipping_address_pdf_lines = [line for line in company_shipping_address_pdf_lines if line.strip()]
-                    if not company_shipping_address_pdf_lines: # If all parts of address were empty
+                    if not company_shipping_address_pdf_lines:
                          company_shipping_address_pdf_lines = ["Shipping address details missing."]
                 else:
                     company_shipping_address_pdf_lines = ["Shipping address not found in DB (ID existed)."]
             else:
-                # Fallback: if no shipping_address_id, try to use billing_address_id
-                company_billing_address_id = company_info_dict.get('billing_address_id')
-                if company_billing_address_id:
-                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"] # Indicate fallback
-                    addr_tuple = db_handler.get_address(company_billing_address_id)
+                # Fallback for Shipping Address to Billing Address if shipping_id is missing
+                temp_billing_id_for_shipping = company_info_dict.get('billing_address_id')
+                if temp_billing_id_for_shipping:
+                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"]
+                    addr_tuple = db_handler.get_address(temp_billing_id_for_shipping)
                     if addr_tuple:
-                        company_shipping_address_pdf_lines.extend([
+                        shipping_fallback_lines = [
                             addr_tuple[0] or "",
                             f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
                             addr_tuple[4] or ""
-                        ])
-                        # Filter out empty lines from address part
-                        actual_address_lines = [line for line in company_shipping_address_pdf_lines[1:] if line.strip()]
-                        if not actual_address_lines:
+                        ]
+                        shipping_fallback_lines = [line for line in shipping_fallback_lines if line.strip()]
+                        if not shipping_fallback_lines:
                             company_shipping_address_pdf_lines = ["Shipping address not set, billing address details missing."]
                         else:
-                            company_shipping_address_pdf_lines = [company_shipping_address_pdf_lines[0]] + actual_address_lines
+                            company_shipping_address_pdf_lines.extend(shipping_fallback_lines)
                     else:
                          company_shipping_address_pdf_lines = ["Shipping address not set, billing address not found."]
                 else:
                     company_shipping_address_pdf_lines = ["No shipping or billing address configured for company."]
+
+            # Fetch Billing Address (for Header)
+            company_billing_address_id = company_info_dict.get('billing_address_id')
+            if company_billing_address_id:
+                addr_tuple = db_handler.get_address(company_billing_address_id)
+                if addr_tuple:
+                    company_billing_address_pdf_lines = [
+                        addr_tuple[0] or "",
+                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                        addr_tuple[4] or ""
+                    ]
+                    company_billing_address_pdf_lines = [line for line in company_billing_address_pdf_lines if line.strip()]
+                    if not company_billing_address_pdf_lines:
+                        company_billing_address_pdf_lines = ["Billing address details missing."]
+                else:
+                    company_billing_address_pdf_lines = ["Billing address not found in DB (ID existed)."]
+            else:
+                company_billing_address_pdf_lines = ["Billing address ID not configured for company."]
         else:
             company_shipping_address_pdf_lines = ["Company information not found in database."]
+            company_billing_address_pdf_lines = ["Company information not found in database."]
 
 
         # 3. Fetch Vendor details
@@ -122,8 +252,12 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         # 4. Fetch Line Items
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
-        # 5. Initialize PDF (pass document number and fetched company name for header)
-        pdf = PDF(po_document_number=doc.document_number, company_name=company_name_for_header)
+        # 5. Initialize PDF (pass document number, company name, and billing address for header)
+        pdf = PDF(
+            po_document_number=doc.document_number,
+            company_name=company_name_for_header,
+            company_billing_address_lines=company_billing_address_pdf_lines
+        )
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()
 

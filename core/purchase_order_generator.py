@@ -149,34 +149,41 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         pdf.set_xy(current_x + col_width_half + 10, current_y) # Move to start of right column
 
         pdf.set_font("Arial", "B", 11)
+        # Vendor Title - still use ln=1 to move below, but X will be reset for next element.
         pdf.cell(col_width_half, line_height, "Vendor:", 0, 1, "L")
         pdf.set_font("Arial", "", 11)
 
+        right_column_x = current_x + col_width_half + 10
+
         if vendor:
-            pdf.set_x(current_x + col_width_half + 10) # Ensure X is at start of right column
-            pdf.cell(col_width_half, line_height, vendor.name, 0, 1, "L")
+            pdf.set_x(right_column_x)
+            pdf.cell(col_width_half, line_height, vendor.name or "N/A", 0, 1, "L") # ln=1, so next line starts at margin
 
             if vendor_address:
-                temp_x_offset_vendor = pdf.get_x()
+                pdf.set_x(right_column_x) # <<< CRITICAL: Set X before multi_cell
                 pdf.multi_cell(col_width_half, line_height,
                                f"{vendor_address.street or ''}\n"
                                f"{vendor_address.city or ''}, {vendor_address.state or ''} {vendor_address.zip_code or ''}\n"
-                               f"{vendor_address.country or ''}",
+                               f"{vendor_address.country or ''}".strip(), # Use strip to remove trailing newlines if country is empty
                                0, "L")
-                y_after_vendor_address = pdf.get_y()
-                pdf.set_xy(temp_x_offset_vendor, y_after_vendor_address) # Reset X for the next element in this column
+                # After multi_cell, Y is updated. X might be unpredictable or at left margin.
+                # We need to set X again if something follows in this column on a *new* line created by multi_cell.
+                # However, the phone number should appear directly after the address block, aligned to right_column_x.
+                # multi_cell moves Y. We just need to ensure X is correct for the *next* element.
             else:
-                pdf.set_x(current_x + col_width_half + 10)
+                pdf.set_x(right_column_x)
                 pdf.cell(col_width_half, line_height, "No address on file.", 0, 1, "L")
 
             if vendor.phone:
-                pdf.set_x(current_x + col_width_half + 10)
+                pdf.set_x(right_column_x) # Ensure X for phone
                 pdf.cell(col_width_half, line_height, f"Phone: {vendor.phone}", 0, 1, "L")
+            # y_after_vendor_info will be determined by the last element in this block.
+            # The set_y(max(...)) call later will handle overall alignment.
         else:
-            pdf.set_x(current_x + col_width_half + 10)
+            pdf.set_x(right_column_x)
             pdf.cell(col_width_half, line_height, "Vendor details not available.", 0, 1, "L")
 
-        y_after_vendor_info = pdf.get_y()
+        y_after_vendor_info = pdf.get_y() # Get Y after the vendor block is complete
 
         # Ensure the cursor is below the taller of the two columns before proceeding
         pdf.set_y(max(y_after_company_info, y_after_vendor_info))

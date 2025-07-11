@@ -55,34 +55,56 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             print(f"Error: Purchase document with ID {purchase_document_id} not found.")
             return
 
-        # 2. Fetch Company Information
+        # 2. Fetch Company Information (Focus on Shipping Address for PDF)
         company_info_dict = db_handler.get_company_information()
-        company_name_pdf = "Your Company Name" # Default
-        company_phone_pdf = ""
-        company_address_pdf_lines = ["Company address not found."]
+        company_name_for_header = "Your Company Name" # For PDF Header
+        company_phone_pdf = "" # For display under shipping address if available
+        company_shipping_address_pdf_lines = ["Shipping address not found."]
 
         if company_info_dict:
-            company_name_pdf = company_info_dict.get('name', company_name_pdf)
-            company_phone_pdf = company_info_dict.get('phone', "")
-            if company_info_dict.get('billing_address_id'):
+            company_name_for_header = company_info_dict.get('name', company_name_for_header)
+            company_phone_pdf = company_info_dict.get('phone', "") # Keep phone, might be relevant
+
+            company_shipping_address_id = company_info_dict.get('shipping_address_id')
+            if company_shipping_address_id:
                 # get_address returns a tuple: (street, city, state, zip, country)
-                company_billing_addr_tuple = db_handler.get_address(company_info_dict['billing_address_id'])
-                if company_billing_addr_tuple:
-                    company_address_pdf_lines = [
-                        company_billing_addr_tuple[0] or "", # Street
-                        f"{company_billing_addr_tuple[1] or ""}, {company_billing_addr_tuple[2] or ""} {company_billing_addr_tuple[3] or ""}", # City, State Zip
-                        company_billing_addr_tuple[4] or ""  # Country
+                addr_tuple = db_handler.get_address(company_shipping_address_id)
+                if addr_tuple:
+                    company_shipping_address_pdf_lines = [
+                        addr_tuple[0] or "", # Street
+                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}", # City, State Zip
+                        addr_tuple[4] or ""  # Country
                     ]
                     # Filter out empty lines
-                    company_address_pdf_lines = [line for line in company_address_pdf_lines if line.strip()]
-                    if not company_address_pdf_lines:
-                         company_address_pdf_lines = ["Company address details missing."]
+                    company_shipping_address_pdf_lines = [line for line in company_shipping_address_pdf_lines if line.strip()]
+                    if not company_shipping_address_pdf_lines: # If all parts of address were empty
+                         company_shipping_address_pdf_lines = ["Shipping address details missing."]
                 else:
-                    company_address_pdf_lines = ["Company billing address not found."]
+                    company_shipping_address_pdf_lines = ["Shipping address not found in DB (ID existed)."]
             else:
-                company_address_pdf_lines = ["Company billing address ID not configured."]
+                # Fallback: if no shipping_address_id, try to use billing_address_id
+                company_billing_address_id = company_info_dict.get('billing_address_id')
+                if company_billing_address_id:
+                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"] # Indicate fallback
+                    addr_tuple = db_handler.get_address(company_billing_address_id)
+                    if addr_tuple:
+                        company_shipping_address_pdf_lines.extend([
+                            addr_tuple[0] or "",
+                            f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                            addr_tuple[4] or ""
+                        ])
+                        # Filter out empty lines from address part
+                        actual_address_lines = [line for line in company_shipping_address_pdf_lines[1:] if line.strip()]
+                        if not actual_address_lines:
+                            company_shipping_address_pdf_lines = ["Shipping address not set, billing address details missing."]
+                        else:
+                            company_shipping_address_pdf_lines = [company_shipping_address_pdf_lines[0]] + actual_address_lines
+                    else:
+                         company_shipping_address_pdf_lines = ["Shipping address not set, billing address not found."]
+                else:
+                    company_shipping_address_pdf_lines = ["No shipping or billing address configured for company."]
         else:
-            company_address_pdf_lines = ["Company information not found in database."]
+            company_shipping_address_pdf_lines = ["Company information not found in database."]
 
 
         # 3. Fetch Vendor details
@@ -101,7 +123,7 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
         # 5. Initialize PDF (pass document number and fetched company name for header)
-        pdf = PDF(po_document_number=doc.document_number, company_name=company_name_pdf)
+        pdf = PDF(po_document_number=doc.document_number, company_name=company_name_for_header)
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()
 
@@ -118,29 +140,27 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         pdf.cell(col_width_full / 2, line_height, f"Status: {doc.status.value if doc.status else 'N/A'}", 0, 1, "R")
         pdf.ln(line_height * 1.5)
 
-        # Company and Vendor Information Section (Two Columns)
+        # Company Shipping and Vendor Information Section (Two Columns)
         col_width_half = col_width_full / 2 - 5  # Half width for each column, with a small gap
 
-        # --- Left Column: Our Company Information ---
+        # --- Left Column: Company Shipping Information ---
         current_x = pdf.get_x()
         current_y = pdf.get_y()
 
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(col_width_half, line_height, "Our Company Information:", 0, 1, "L")
+        pdf.cell(col_width_half, line_height, "Shipping Address:", 0, 1, "L") # Changed title
         pdf.set_font("Arial", "", 11)
 
-        pdf.cell(col_width_half, line_height, company_name_pdf, 0, 1, "L")
+        # Display Company Name above its shipping address
+        pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
 
-        # Company Address
-        # Use a temporary X offset to ensure multi_cell respects the column width
+        # Company Shipping Address
         temp_x_offset = pdf.get_x()
-        pdf.multi_cell(col_width_half, line_height, "\n".join(company_address_pdf_lines), 0, "L")
-        # Reset X to where it was before multi_cell, then move Y down by the height of the multi_cell content
-        # Note: multi_cell automatically moves Y. We need to track Y before and after.
+        pdf.multi_cell(col_width_half, line_height, "\n".join(company_shipping_address_pdf_lines), 0, "L")
         y_after_company_address = pdf.get_y()
-        pdf.set_xy(temp_x_offset, y_after_company_address) # Reset X to the start of the line after multi_cell
+        pdf.set_xy(temp_x_offset, y_after_company_address)
 
-        if company_phone_pdf:
+        if company_phone_pdf: # Display company phone if available
             pdf.cell(col_width_half, line_height, f"Phone: {company_phone_pdf}", 0, 1, "L")
 
         y_after_company_info = pdf.get_y()

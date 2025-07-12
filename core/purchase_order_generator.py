@@ -16,20 +16,65 @@ from .address_book_logic import AddressBookLogic # Relative import
 from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
 
 class PDF(FPDF):
-    def __init__(self, po_document_number=None, company_name="Your Company Name"):
+    def __init__(self, po_document_number=None, company_name="Your Company Name", company_billing_address_lines=None):
         super().__init__()
         self.po_document_number = po_document_number
-        self.company_name = company_name # Store company name
+        self.company_name = company_name
+        self.company_billing_address_lines = company_billing_address_lines if company_billing_address_lines else []
 
     def header(self):
+        # Get current Y position at the start of this header call (top of current page)
+        current_page_top_y = self.get_y()
+        top_padding = 5 # Small padding from the very top of the page margin
+
+        header_content_start_y = current_page_top_y + top_padding
+
+        address_line_height = 5 # Smaller line height for address details
+        company_name_line_height = 8
+        po_title_line_height = 8
+
+        # Define available width and column widths
+        drawable_width = self.w - self.l_margin - self.r_margin
+        left_column_width = drawable_width * 0.6
+        right_column_width = drawable_width * 0.4
+
+        # --- Left Block: Company Name & Billing Address ---
+        self.set_xy(self.l_margin, header_content_start_y)
+
+        # Company Name
         self.set_font("Arial", "B", 16)
-        self.cell(0, 10, self.company_name, 0, 1, "L") # Company name on left
+        self.multi_cell(left_column_width, company_name_line_height, self.company_name, 0, "L")
+        # multi_cell moves Y position. No ln(X) needed here if address immediately follows.
+
+        # Company Billing Address
+        if self.company_billing_address_lines:
+            self.set_font("Arial", "", 10)
+            self.set_x(self.l_margin) # Ensure X is reset after company name multi_cell
+            for line in self.company_billing_address_lines:
+                if line.strip():
+                    self.multi_cell(left_column_width, address_line_height, line, 0, "L")
+                    # self.ln(address_line_height) # multi_cell with ln=0 and then an explicit ln might be better
+                                               # Actually, multi_cell moves Y, so subsequent multi_cell should be fine.
+
+        y_after_left_block = self.get_y()
+
+        # --- Right Block: PO Title ---
+        self.set_xy(self.l_margin + left_column_width, header_content_start_y) # X for right column, Y aligns with top of company name
+
         self.set_font("Arial", "B", 14)
         title = "Purchase Order"
         if self.po_document_number:
             title += f" - {self.po_document_number}"
-        self.cell(0, 10, title, 0, 1, "C")
-        self.ln(10)
+        self.multi_cell(right_column_width, po_title_line_height, title, 0, "C") # Centered in the right column width
+
+        y_after_right_block = self.get_y()
+
+        # --- Finalize Header Vertical Position ---
+        # Set Y to be after the taller of the two blocks (left or right)
+        final_header_y = max(y_after_left_block, y_after_right_block)
+        self.set_y(final_header_y)
+
+        self.ln(10) # Space after the entire header block before main content
 
     def footer(self):
         self.set_y(-15)
@@ -55,7 +100,77 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             print(f"Error: Purchase document with ID {purchase_document_id} not found.")
             return
 
-        # 2. Fetch Vendor details
+        # 2. Fetch Company Information
+        company_info_dict = db_handler.get_company_information()
+        company_name_for_header = "Your Company Name" # For PDF Header
+        company_phone_pdf = "" # For display under shipping address if available
+        company_shipping_address_pdf_lines = ["Shipping address not found."]
+        company_billing_address_pdf_lines = ["Billing address not found."]
+
+        if company_info_dict:
+            company_name_for_header = company_info_dict.get('name', company_name_for_header)
+            company_phone_pdf = company_info_dict.get('phone', "")
+
+            # Fetch Shipping Address
+            company_shipping_address_id = company_info_dict.get('shipping_address_id')
+            if company_shipping_address_id:
+                addr_tuple = db_handler.get_address(company_shipping_address_id)
+                if addr_tuple:
+                    company_shipping_address_pdf_lines = [
+                        addr_tuple[0] or "",
+                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                        addr_tuple[4] or ""
+                    ]
+                    company_shipping_address_pdf_lines = [line for line in company_shipping_address_pdf_lines if line.strip()]
+                    if not company_shipping_address_pdf_lines:
+                         company_shipping_address_pdf_lines = ["Shipping address details missing."]
+                else:
+                    company_shipping_address_pdf_lines = ["Shipping address not found in DB (ID existed)."]
+            else:
+                # Fallback for Shipping Address to Billing Address if shipping_id is missing
+                temp_billing_id_for_shipping = company_info_dict.get('billing_address_id')
+                if temp_billing_id_for_shipping:
+                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"]
+                    addr_tuple = db_handler.get_address(temp_billing_id_for_shipping)
+                    if addr_tuple:
+                        shipping_fallback_lines = [
+                            addr_tuple[0] or "",
+                            f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                            addr_tuple[4] or ""
+                        ]
+                        shipping_fallback_lines = [line for line in shipping_fallback_lines if line.strip()]
+                        if not shipping_fallback_lines:
+                            company_shipping_address_pdf_lines = ["Shipping address not set, billing address details missing."]
+                        else:
+                            company_shipping_address_pdf_lines.extend(shipping_fallback_lines)
+                    else:
+                         company_shipping_address_pdf_lines = ["Shipping address not set, billing address not found."]
+                else:
+                    company_shipping_address_pdf_lines = ["No shipping or billing address configured for company."]
+
+            # Fetch Billing Address (for Header)
+            company_billing_address_id = company_info_dict.get('billing_address_id')
+            if company_billing_address_id:
+                addr_tuple = db_handler.get_address(company_billing_address_id)
+                if addr_tuple:
+                    company_billing_address_pdf_lines = [
+                        addr_tuple[0] or "",
+                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
+                        addr_tuple[4] or ""
+                    ]
+                    company_billing_address_pdf_lines = [line for line in company_billing_address_pdf_lines if line.strip()]
+                    if not company_billing_address_pdf_lines:
+                        company_billing_address_pdf_lines = ["Billing address details missing."]
+                else:
+                    company_billing_address_pdf_lines = ["Billing address not found in DB (ID existed)."]
+            else:
+                company_billing_address_pdf_lines = ["Billing address ID not configured for company."]
+        else:
+            company_shipping_address_pdf_lines = ["Company information not found in database."]
+            company_billing_address_pdf_lines = ["Company information not found in database."]
+
+
+        # 3. Fetch Vendor details
         vendor: Account = None
         vendor_address: Address = None
         if doc.vendor_id:
@@ -67,11 +182,15 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             else:
                 print(f"Warning: Vendor with ID {doc.vendor_id} not found for document {doc.document_number}.")
 
-        # 3. Fetch Line Items
+        # 4. Fetch Line Items
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
-        # 4. Initialize PDF (pass document number for header)
-        pdf = PDF(po_document_number=doc.document_number)
+        # 5. Initialize PDF (pass document number, company name, and billing address for header)
+        pdf = PDF(
+            po_document_number=doc.document_number,
+            company_name=company_name_for_header,
+            company_billing_address_lines=company_billing_address_pdf_lines
+        )
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()
 
@@ -79,34 +198,81 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         line_height = 7
         col_width_full = pdf.w - 2 * pdf.l_margin # Full width for content
 
-        # Document Details Section (PO Number, Date, Status)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(col_width_full / 2, line_height, f"PO Number: {doc.document_number}", 0, 0, "L")
-        pdf.set_font("Arial", "", 11)
-        pdf.cell(col_width_full / 2, line_height, f"Date: {doc.created_date.split('T')[0] if doc.created_date else 'N/A'}", 0, 1, "R")
-        pdf.cell(col_width_full / 2, line_height, "", 0, 0, "L") # Empty cell for alignment
-        pdf.cell(col_width_full / 2, line_height, f"Status: {doc.status.value if doc.status else 'N/A'}", 0, 1, "R")
-        pdf.ln(line_height * 1.5)
+        # Document Details Section (Date only)
+        pdf.set_font("Arial", "", 11) # Font for the Date
+        date_str = f"Date: {doc.created_date.split('T')[0] if doc.created_date else 'N/A'}"
+        # Full width cell, right aligned, with line break after.
+        pdf.cell(0, line_height, date_str, 0, 1, "R")
+        pdf.ln(line_height * 1.5) # Keep the spacing after this section
 
-        # Vendor Information Section
+        # Company Shipping and Vendor Information Section (Two Columns)
+        col_width_half = col_width_full / 2 - 5  # Half width for each column, with a small gap
+
+        # --- Left Column: Company Shipping Information ---
+        current_x = pdf.get_x()
+        current_y = pdf.get_y()
+
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(0, line_height, "Vendor:", 0, 1, "L")
+        pdf.cell(col_width_half, line_height, "Shipping Address:", 0, 1, "L") # Changed title
         pdf.set_font("Arial", "", 11)
+
+        # Display Company Name above its shipping address
+        pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
+
+        # Company Shipping Address
+        temp_x_offset = pdf.get_x()
+        pdf.multi_cell(col_width_half, line_height, "\n".join(company_shipping_address_pdf_lines), 0, "L")
+        y_after_company_address = pdf.get_y()
+        pdf.set_xy(temp_x_offset, y_after_company_address)
+
+        if company_phone_pdf: # Display company phone if available
+            pdf.cell(col_width_half, line_height, f"Phone: {company_phone_pdf}", 0, 1, "L")
+
+        y_after_company_info = pdf.get_y()
+
+        # --- Right Column: Vendor Information ---
+        pdf.set_xy(current_x + col_width_half + 10, current_y) # Move to start of right column
+
+        pdf.set_font("Arial", "B", 11)
+        # Vendor Title - still use ln=1 to move below, but X will be reset for next element.
+        pdf.cell(col_width_half, line_height, "Vendor:", 0, 1, "L")
+        pdf.set_font("Arial", "", 11)
+
+        right_column_x = current_x + col_width_half + 10
+
         if vendor:
-            pdf.cell(0, line_height, vendor.name, 0, 1, "L")
+            pdf.set_x(right_column_x)
+            pdf.cell(col_width_half, line_height, vendor.name or "N/A", 0, 1, "L") # ln=1, so next line starts at margin
+
             if vendor_address:
-                pdf.multi_cell(0, line_height,
+                pdf.set_x(right_column_x) # <<< CRITICAL: Set X before multi_cell
+                pdf.multi_cell(col_width_half, line_height,
                                f"{vendor_address.street or ''}\n"
                                f"{vendor_address.city or ''}, {vendor_address.state or ''} {vendor_address.zip_code or ''}\n"
-                               f"{vendor_address.country or ''}",
+                               f"{vendor_address.country or ''}".strip(), # Use strip to remove trailing newlines if country is empty
                                0, "L")
+                # After multi_cell, Y is updated. X might be unpredictable or at left margin.
+                # We need to set X again if something follows in this column on a *new* line created by multi_cell.
+                # However, the phone number should appear directly after the address block, aligned to right_column_x.
+                # multi_cell moves Y. We just need to ensure X is correct for the *next* element.
             else:
-                pdf.cell(0, line_height, "No address on file.", 0, 1, "L")
+                pdf.set_x(right_column_x)
+                pdf.cell(col_width_half, line_height, "No address on file.", 0, 1, "L")
+
             if vendor.phone:
-                 pdf.cell(0, line_height, f"Phone: {vendor.phone}", 0, 1, "L")
+                pdf.set_x(right_column_x) # Ensure X for phone
+                pdf.cell(col_width_half, line_height, f"Phone: {vendor.phone}", 0, 1, "L")
+            # y_after_vendor_info will be determined by the last element in this block.
+            # The set_y(max(...)) call later will handle overall alignment.
         else:
-            pdf.cell(0, line_height, "Vendor details not available.", 0, 1, "L")
-        pdf.ln(line_height * 1.5)
+            pdf.set_x(right_column_x)
+            pdf.cell(col_width_half, line_height, "Vendor details not available.", 0, 1, "L")
+
+        y_after_vendor_info = pdf.get_y() # Get Y after the vendor block is complete
+
+        # Ensure the cursor is below the taller of the two columns before proceeding
+        pdf.set_y(max(y_after_company_info, y_after_vendor_info))
+        pdf.ln(line_height * 1.5) # Add some space before the line items table
 
         # Line Items Table
         pdf.set_font("Arial", "B", 10)

@@ -317,7 +317,7 @@ class DatabaseHandler:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type))
         self.conn.commit()
-        return self.cursor.lastrowid
+        return self.cursor.lastrowid # This was already correct
 
     def get_all_accounts(self):
         """Retrieve all accounts with details."""

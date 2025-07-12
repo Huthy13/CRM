@@ -7,28 +7,40 @@ class PurchaseLogic:
     def __init__(self, db_handler: DatabaseHandler):
         self.db = db_handler
 
-    def _generate_document_number(self, prefix: str) -> str:
-        """Generates a unique document number, e.g., RFQ-YYYYMMDD-XXXX or PO-YYYYMMDD-XXXX."""
-        now = datetime.datetime.now()
-        date_str = now.strftime("%Y%m%d")
+    def _generate_document_number(self, prefix: str = None) -> str: # Prefix is now optional and ignored
+        """
+        Generates a unique 8-digit (or more) document number, starting from 10000000.
+        """
+        all_docs_raw = self.db.get_all_purchase_documents() # Returns list of dicts
 
-        all_docs_raw = self.db.get_all_purchase_documents()
+        max_existing_numeric_number = 0
+        found_any_numeric = False
 
-        current_max_seq = 0
-        search_prefix_full = f"{prefix}-{date_str}-"
+        if all_docs_raw:
+            for doc_dict in all_docs_raw:
+                doc_num_str = doc_dict.get("document_number")
+                if doc_num_str:
+                    try:
+                        # Try to convert the document number to an integer.
+                        # This assumes new numbers will be purely numeric.
+                        # It will skip old formats like RFQ-..., PO-... during max calculation.
+                        doc_num_int = int(doc_num_str)
+                        if doc_num_int > max_existing_numeric_number:
+                            max_existing_numeric_number = doc_num_int
+                        found_any_numeric = True
+                    except ValueError:
+                        # Non-numeric document number encountered, skip it for max calculation.
+                        # This handles old format numbers gracefully.
+                        print(f"Skipping non-numeric document number during max calculation: {doc_num_str}")
+                        pass
 
-        for doc_dict in all_docs_raw:
-            doc_num = doc_dict.get("document_number")
-            if doc_num and doc_num.startswith(search_prefix_full):
-                try:
-                    seq_part = int(doc_num.split('-')[-1])
-                    if seq_part > current_max_seq:
-                        current_max_seq = seq_part
-                except ValueError:
-                    pass
+        if not found_any_numeric or max_existing_numeric_number < 10000000:
+            # If no numeric documents found, or max is less than our starting point (e.g. only old format exists)
+            next_number = 10000000
+        else:
+            next_number = max_existing_numeric_number + 1
 
-        next_seq = current_max_seq + 1
-        return f"{search_prefix_full}{next_seq:04d}"
+        return str(next_number)
 
     # TODO: PurchaseLogic will need access to ProductLogic or direct product fetching methods from DB
     # For now, product_description will be passed through if product_id is also given.

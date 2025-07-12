@@ -229,4 +229,3 @@ if __name__ == '__main__':
     tab.frame.pack(expand=True, fill=tk.BOTH)
     root.geometry("900x600") # Adjusted width for more columns
     root.mainloop()
-Tool output for `create_file_with_block`:

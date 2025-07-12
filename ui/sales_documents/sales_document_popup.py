@@ -713,4 +713,3 @@ if __name__ == '__main__':
     ttk.Button(root, text="New Invoice", command=open_new_invoice).pack(pady=5)
     ttk.Button(root, text="Edit Quote (ID 1)", command=open_edit_quote).pack(pady=5)
     root.mainloop()
-Tool output for `create_file_with_block`:

@@ -241,21 +241,17 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.customer_map.clear()
         customer_names = [NO_CUSTOMER_LABEL]
         # Assuming account_logic.get_all_accounts() returns list of Account objects or dicts
-        all_accounts_raw = self.account_logic.get_all_accounts() # This might return tuples from DB
+        all_accounts_raw = self.account_logic.get_all_accounts()
 
-        for acc_tuple in all_accounts_raw:
-            # Adapt based on what get_all_accounts returns. Assuming it's a list of dicts or objects
-            # For now, assuming it's a list of Account objects from structs
-            # This part needs to align with the actual return type of get_all_accounts()
-            acc_id, acc_name, _, _, acc_type_val = acc_tuple[:5] # Basic unpacking if it's a tuple
-
+        for acc in all_accounts_raw:
             try:
-                acc_type = AccountType(acc_type_val)
-                if acc_type == AccountType.CUSTOMER:
-                    self.customer_map[acc_name] = acc_id
-                    customer_names.append(acc_name)
-            except ValueError: # Handle cases where acc_type_val might not be a valid AccountType
-                print(f"Warning: Account {acc_name} (ID: {acc_id}) has invalid type '{acc_type_val}'")
+                # Assuming acc is an Account object with attributes
+                if acc.account_type == AccountType.CUSTOMER:
+                    self.customer_map[acc.name] = acc.account_id
+                    customer_names.append(acc.name)
+            except (ValueError, AttributeError) as e:
+                # Catching AttributeError as well in case the object structure is not as expected
+                print(f"Warning: Skipping account due to error: {e}")
 
 
         self.customer_combobox['values'] = sorted(list(set(customer_names)))

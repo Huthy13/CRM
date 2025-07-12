@@ -26,6 +26,22 @@ Interactions: Creates, updates, and tracks document status changes (RFQ, PO).
 
 Conventions: Clearly structured document states (ENUM: RFQ, PO) and line items.
 
+Sales Logic (core/sales_logic.py)
+
+Purpose: Manages business logic related to sales documents, including Quotes and Invoices.
+
+Interactions: Creates, updates, converts (Quote to Invoice), and tracks document status changes (Quote Draft, Sent, Accepted; Invoice Draft, Sent, Paid, etc.). Handles item management with sale prices and discounts, and calculates document totals.
+
+Conventions: Uses `SalesDocument`, `SalesDocumentItem`, `SalesDocumentStatus`, and `SalesDocumentType` enums from `shared/structs.py`. Interacts with `AccountType.CUSTOMER`. Document numbering follows `QUO-YYYYMMDD-XXXX` for quotes and `INV-YYYYMMDD-XXXX` for invoices.
+
+PDF Generation (core/quote_generator.py, core/invoice_generator.py)
+
+Purpose: Responsible for generating PDF representations of quotes and invoices. (Currently placeholder implementations).
+
+Interactions: Called by the sales document UI to export documents. Fetches necessary data via `SalesLogic`.
+
+Conventions: Uses `reportlab` for PDF creation. Output filenames include document type and number.
+
 User Interface (UI) Modules
 
 Account Management (ui/accounts/)
@@ -80,6 +96,18 @@ purchase_document_item_popup.py: Management of line items within documents.
 
 purchase_document_tab.py: Summary of all documents and their statuses.
 
+Sales Documents (ui/sales_documents/)
+
+Purpose: Interface for managing Quotes and Invoices.
+
+Modules:
+
+sales_document_popup.py: Detailed view and management of Quotes and Invoices. Handles document type selection (Quote/Invoice) for new documents and displays relevant fields (e.g., Expiry Date for Quotes, Due Date for Invoices).
+
+sales_document_item_popup.py: Management of line items within sales documents, including discounts and sale prices.
+
+sales_document_tab.py: Summary of all sales documents (Quotes and Invoices) and their statuses, linking to customers.
+
 Task Management (ui/tasks/)
 
 Purpose: Manages tasks and reminders related to accounts and contacts.
@@ -95,6 +123,8 @@ Shared Resources
 Structs (shared/structs.py)
 
 Purpose: Defines data structures and schema representations used across the project.
+    - Includes `SalesDocument`, `SalesDocumentItem`, `SalesDocumentType`, `SalesDocumentStatus` for sales workflow.
+    - `Product` struct updated to include `sale_price`.
 
 Conventions: Data structure clarity and consistent schema usage throughout the project.
 

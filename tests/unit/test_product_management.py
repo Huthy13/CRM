@@ -235,103 +235,132 @@ class TestPricingEngine(BaseTestCase):
         self.product_id = pm.create_product({'sku': 'PRICEPROD', 'name': 'Pricing Product'}, db_conn=self.conn)
         self.assertIsNotNone(self.product_id)
 
-        self.price1_id = pm.add_or_update_product_price({
-            'product_id': self.product_id, 'price': 10.00, 'currency': 'USD', 'valid_from': '2023-01-01'
+        self.price1_id = pm.add_or_update_product_price({ # SALE price by default
+            'product_id': self.product_id, 'price': 10.00, 'currency': 'USD',
+            'valid_from': '2023-01-01', 'price_type': 'SALE'
         }, db_conn=self.conn)
-        self.price2_id = pm.add_or_update_product_price({
+        self.price2_id = pm.add_or_update_product_price({ # SALE price
             'product_id': self.product_id, 'price': 12.00, 'currency': 'USD',
-            'valid_from': '2023-06-01', 'valid_to': '2023-08-31'
+            'valid_from': '2023-06-01', 'valid_to': '2023-08-31', 'price_type': 'SALE'
         }, db_conn=self.conn)
-        self.price3_id = pm.add_or_update_product_price({
-            'product_id': self.product_id, 'price': 9.50, 'currency': 'EUR', 'valid_from': '2023-01-01'
+        self.price3_id = pm.add_or_update_product_price({ # EUR SALE price
+            'product_id': self.product_id, 'price': 9.50, 'currency': 'EUR',
+            'valid_from': '2023-01-01', 'price_type': 'SALE'
         }, db_conn=self.conn)
-        self.price4_id = pm.add_or_update_product_price({
+        self.price4_id = pm.add_or_update_product_price({ # Shorter valid SALE price
             'product_id': self.product_id, 'price': 11.00, 'currency': 'USD',
-            'valid_from': '2023-07-01', 'valid_to': '2023-07-31'
+            'valid_from': '2023-07-01', 'valid_to': '2023-07-31', 'price_type': 'SALE'
         }, db_conn=self.conn)
+        self.cost_price_id = pm.add_or_update_product_price({ # COST price
+            'product_id': self.product_id, 'price': 7.00, 'currency': 'USD',
+            'valid_from': '2023-01-01', 'price_type': 'COST'
+        }, db_conn=self.conn)
+
 
     def test_add_product_price(self):
         self.assertIsNotNone(self.price1_id)
-        prices = pm.get_product_prices(self.product_id, 'USD', db_conn=self.conn)
-        self.assertTrue(any(p['id'] == self.price1_id for p in prices))
+        # Test fetching specific price type
+        prices = pm.get_product_prices(self.product_id, 'USD', price_type='SALE', db_conn=self.conn)
+        self.assertTrue(any(p['id'] == self.price1_id and p['price_type'] == 'SALE' for p in prices))
+
+        cost_prices = pm.get_product_prices(self.product_id, 'USD', price_type='COST', db_conn=self.conn)
+        self.assertTrue(any(p['id'] == self.cost_price_id and p['price_type'] == 'COST' for p in cost_prices))
+
 
     def test_update_price_by_id(self):
         pm.add_or_update_product_price({
             'id': self.price1_id, 'product_id': self.product_id,
-            'price': 9.99, 'currency': 'USD', 'valid_from': '2023-01-01'
+            'price': 9.99, 'currency': 'USD', 'valid_from': '2023-01-01', 'price_type': 'SALE' # Ensure price_type
         }, db_conn=self.conn)
-        prices = pm.get_product_prices(self.product_id, 'USD', db_conn=self.conn)
+        prices = pm.get_product_prices(self.product_id, 'USD', price_type='SALE', db_conn=self.conn)
         updated_price = next(p for p in prices if p['id'] == self.price1_id)
         self.assertEqual(updated_price['price'], 9.99)
 
     def test_update_price_by_fields_match(self):
+        # This test updates based on product_id, currency, valid_from, and now price_type
         pm.add_or_update_product_price({
-             'product_id': self.product_id, 'price': 9.75, 'currency': 'USD', 'valid_from': '2023-01-01'
+             'product_id': self.product_id, 'price': 9.75, 'currency': 'USD',
+             'valid_from': '2023-01-01', 'price_type': 'SALE' # Specify price_type for update
         }, db_conn=self.conn)
-        prices = pm.get_product_prices(self.product_id, 'USD', db_conn=self.conn)
+        prices = pm.get_product_prices(self.product_id, 'USD', price_type='SALE', db_conn=self.conn)
+        # Find the specific price record (price1_id was for SALE type)
         updated_price = next(p for p in prices if p['id'] == self.price1_id)
         self.assertEqual(updated_price['price'], 9.75)
 
     def test_get_effective_price(self):
-        self.assertIsNone(pm.get_effective_price(self.product_id, '2022-12-31', 'USD', db_conn=self.conn))
-        eff_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', db_conn=self.conn)
+        # Test for SALE prices (default price_type for get_effective_price)
+        self.assertIsNone(pm.get_effective_price(self.product_id, '2022-12-31', 'USD', price_type='SALE', db_conn=self.conn))
+        eff_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price1_id)
-        eff_price = pm.get_effective_price(self.product_id, '2023-06-15', 'USD', db_conn=self.conn)
+        eff_price = pm.get_effective_price(self.product_id, '2023-06-15', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price2_id)
-        eff_price = pm.get_effective_price(self.product_id, '2023-07-15', 'USD', db_conn=self.conn)
+        eff_price = pm.get_effective_price(self.product_id, '2023-07-15', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price4_id)
-        eff_price = pm.get_effective_price(self.product_id, '2023-08-15', 'USD', db_conn=self.conn)
+        eff_price = pm.get_effective_price(self.product_id, '2023-08-15', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price2_id)
-        eff_price = pm.get_effective_price(self.product_id, '2023-09-01', 'USD', db_conn=self.conn)
+        eff_price = pm.get_effective_price(self.product_id, '2023-09-01', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price1_id)
-        eff_price_eur = pm.get_effective_price(self.product_id, '2023-03-01', 'EUR', db_conn=self.conn)
+        eff_price_eur = pm.get_effective_price(self.product_id, '2023-03-01', 'EUR', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price_eur['id'], self.price3_id)
+
+        # Test for COST price
+        eff_cost_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', price_type='COST', db_conn=self.conn)
+        self.assertIsNotNone(eff_cost_price)
+        self.assertEqual(eff_cost_price['id'], self.cost_price_id)
+        self.assertEqual(eff_cost_price['price'], 7.00)
+
 
     def test_delete_product_price(self):
         temp_price_id = pm.add_or_update_product_price({
-            'product_id': self.product_id, 'price': 5.00, 'currency': 'CAD', 'valid_from': '2023-01-01'
+            'product_id': self.product_id, 'price': 5.00, 'currency': 'CAD',
+            'valid_from': '2023-01-01', 'price_type': 'SALE'
         }, db_conn=self.conn)
         self.assertTrue(pm.delete_product_price(temp_price_id, db_conn=self.conn))
-        self.assertIsNone(pm.get_effective_price(self.product_id, '2023-01-01', 'CAD', db_conn=self.conn))
+        self.assertIsNone(pm.get_effective_price(self.product_id, '2023-01-01', 'CAD', price_type='SALE', db_conn=self.conn))
 
     def test_get_effective_price_no_prices_for_product(self):
         new_prod_id = pm.create_product({'sku': 'NOPRICE', 'name': 'No Price Product'}, db_conn=self.conn)
         self.assertIsNotNone(new_prod_id)
-        price = pm.get_effective_price(new_prod_id, '2023-01-01', 'USD', db_conn=self.conn)
+        price = pm.get_effective_price(new_prod_id, '2023-01-01', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertIsNone(price)
 
     def test_get_effective_price_no_price_for_currency(self):
-        # Prices exist in USD and EUR (from setUp)
-        price = pm.get_effective_price(self.product_id, '2023-03-01', 'CAD', db_conn=self.conn) # Request CAD
+        price = pm.get_effective_price(self.product_id, '2023-03-01', 'CAD', price_type='SALE', db_conn=self.conn)
         self.assertIsNone(price)
 
-    def test_add_or_update_product_price_exact_duplicate_period(self):
-        # Price1: product_id, 10.00, USD, 2023-01-01, NULL
-        # Add another price for the exact same period, should update price1
-        new_price_val = 10.50
-        updated_id = pm.add_or_update_product_price({
-            'product_id': self.product_id, 'price': new_price_val, 'currency': 'USD', 'valid_from': '2023-01-01'
-        }, db_conn=self.conn)
-        self.assertEqual(updated_id, self.price1_id, "Should update existing record for exact period match")
+    def test_get_effective_price_no_price_for_type(self):
+        # Prices exist for SALE and COST in USD. Request MSRP.
+        price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', price_type='MSRP', db_conn=self.conn)
+        self.assertIsNone(price)
 
-        eff_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', db_conn=self.conn)
+
+    def test_add_or_update_product_price_exact_duplicate_period(self):
+        new_price_val = 10.50
+        # This will update self.price1_id because product_id, price_type ('SALE'), and valid_from match
+        updated_id = pm.add_or_update_product_price({
+            'product_id': self.product_id, 'price': new_price_val, 'currency': 'USD',
+            'valid_from': '2023-01-01', 'price_type': 'SALE'
+        }, db_conn=self.conn)
+        self.assertEqual(updated_id, self.price1_id, "Should update existing record for exact period and type match")
+
+        eff_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['price'], new_price_val)
         self.assertEqual(eff_price['id'], self.price1_id)
 
     def test_price_validity_same_day_from_to(self):
         price_id = pm.add_or_update_product_price({
             'product_id': self.product_id, 'price': 25.00, 'currency': 'USD',
-            'valid_from': '2023-10-10', 'valid_to': '2023-10-10'
+            'valid_from': '2023-10-10', 'valid_to': '2023-10-10', 'price_type': 'SALE'
         }, db_conn=self.conn)
         self.assertIsNotNone(price_id)
 
-        # Check effective on that day
-        eff_price = pm.get_effective_price(self.product_id, '2023-10-10', 'USD', db_conn=self.conn)
+        eff_price = pm.get_effective_price(self.product_id, '2023-10-10', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertIsNotNone(eff_price)
         self.assertEqual(eff_price['id'], price_id)
 
-        # Check not effective day after
-        eff_price_after = pm.get_effective_price(self.product_id, '2023-10-11', 'USD', db_conn=self.conn)
+        eff_price_after = pm.get_effective_price(self.product_id, '2023-10-11', 'USD', price_type='SALE', db_conn=self.conn)
+        # After 'valid_to', this specific price should not be effective.
+        # The effective price might fall back to price1_id.
         self.assertNotEqual(eff_price_after['id'] if eff_price_after else None, price_id)
 
 

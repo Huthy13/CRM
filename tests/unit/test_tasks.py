@@ -2,34 +2,46 @@ import unittest
 import datetime
 from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler
-from shared.structs import Task, TaskStatus, TaskPriority, Account # Import Account for creating associated company
+from shared.structs import Task, TaskStatus, TaskPriority, Account, AccountType # Import Account for creating associated company
 
 class TestTaskLogic(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """Set up an in-memory SQLite database and logic handler for all tests in this class."""
+        cls.db_handler = DatabaseHandler(db_name=':memory:')
+        cls.logic = AddressBookLogic(cls.db_handler)
+
+        # Ensure users table has entries, as tasks require created_by_user_id
+        # This might be redundant if initialize_database called by DatabaseHandler handles it,
+        # but good for explicit test setup.
+        try:
+            cls.db_handler.cursor.execute("INSERT OR IGNORE INTO users (username) VALUES (?)", ('test_user',))
+            cls.db_handler.cursor.execute("INSERT OR IGNORE INTO users (username) VALUES (?)", ('system_user',))
+            cls.db_handler.cursor.execute("INSERT OR IGNORE INTO users (username) VALUES (?)", ('another_test_user',))
+            cls.db_handler.conn.commit()
+        except Exception as e:
+            print(f"Error setting up users in TestTaskLogic.setUpClass: {e}")
+
+
+        cls.test_user_id = cls.db_handler.get_user_id_by_username('test_user')
+        cls.system_user_id = cls.db_handler.get_user_id_by_username('system_user')
+        cls.another_user_id = cls.db_handler.get_user_id_by_username('another_test_user')
+
+        if not cls.test_user_id: # Fallback if 'test_user' wasn't created by some chance
+            cls.test_user_id = cls.system_user_id if cls.system_user_id else 1 # Default to 1 if all else fails
+
+    @classmethod
+    def tearDownClass(cls):
+        """Close the database connection after all tests."""
+        cls.db_handler.close()
 
     def setUp(self):
-        """Set up an in-memory SQLite database and logic handler for each test."""
-        # Using db_name=':memory:' ensures a fresh DB for each test method if DatabaseHandler creates a new conn.
-        # If it reuses a class-level conn, then manual reset or careful test design is needed.
-        # Based on current DatabaseHandler, ':memory:' gives a distinct in-memory DB.
-        self.db_handler = DatabaseHandler(db_name=':memory:')
-        self.logic = AddressBookLogic(self.db_handler)
-
-        # Create a default user if one doesn't exist, as tasks require created_by_user_id
-        # The main db handler already does this, but for tests, good to ensure.
-        try:
-            self.db_handler.cursor.execute("INSERT INTO users (username) VALUES (?)", ('test_user',))
-            self.db_handler.conn.commit()
-        except self.db_handler.conn.IntegrityError:
-            pass # User 'test_user' or 'system_user' likely already exists
-
-        self.test_user_id = self.db_handler.get_user_id_by_username('test_user')
-        if not self.test_user_id:
-             self.test_user_id = self.db_handler.get_user_id_by_username('system_user')
-
-
-    def tearDown(self):
-        """Close the database connection after each test."""
-        self.db_handler.close()
+        """Clear relevant tables before each test."""
+        with self.db_handler.conn:
+            self.db_handler.cursor.execute("DELETE FROM tasks")
+            self.db_handler.cursor.execute("DELETE FROM contacts") # If tasks are linked
+            self.db_handler.cursor.execute("DELETE FROM accounts") # If tasks are linked
+            # Do not delete users here as they are set up in setUpClass
 
     def _create_dummy_task_obj(self, title="Test Task", days_offset=1, company_id=None, contact_id=None, status=TaskStatus.OPEN, priority=TaskPriority.MEDIUM, assigned_to_user_id=None) -> Task:
         due_date = datetime.date.today() + datetime.timedelta(days=days_offset)
@@ -181,7 +193,12 @@ class TestTaskLogic(unittest.TestCase):
         """Confirm filtering by status, user, priority, and sorting by due date."""
         # Create a company to associate tasks with
         billing_addr_id = self.logic.add_address("123 Billing St", "Test City", "TS", "12345", "TC")
-        company = Account(name="Test Company For Tasks", phone="111-222-3333", billing_address_id=billing_addr_id)
+        company = Account(
+            name="Test Company For Tasks",
+            phone="111-222-3333",
+            billing_address_id=billing_addr_id,
+            account_type=AccountType.CUSTOMER # Provide account_type
+        )
         self.logic.save_account(company) # save_account in logic should handle db interaction
         # Retrieve the company to get its ID
         # This assumes get_accounts() returns (id, name) and it's the latest one.

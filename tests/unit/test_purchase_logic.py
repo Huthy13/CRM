@@ -25,10 +25,8 @@ class TestPurchaseLogic(unittest.TestCase):
 
     def test_generate_document_number_first_of_day(self):
         # Mock datetime to control date string
-        with patch('core.purchase_logic.datetime') as mock_datetime:
-            mock_now = MagicMock()
-            mock_now.strftime.return_value = "20230101" # YYYYMMDD
-            mock_datetime.datetime.now.return_value = mock_now
+        with patch('core.purchase_logic.datetime.date') as mock_date:
+            mock_date.today.return_value.strftime.return_value = "20230101"
 
             # Simulate no existing documents for this prefix and date
             self.mock_db_handler.get_all_purchase_documents.return_value = []
@@ -37,34 +35,46 @@ class TestPurchaseLogic(unittest.TestCase):
             self.assertEqual(doc_number, "RFQ-20230101-0001")
 
     def test_generate_document_number_subsequent_of_day(self):
-        with patch('core.purchase_logic.datetime') as mock_datetime:
-            mock_now = MagicMock()
-            mock_now.strftime.return_value = "20230101"
-            mock_datetime.datetime.now.return_value = mock_now
+        with patch('core.purchase_logic.datetime.date') as mock_date:
+            mock_date.today.return_value.strftime.return_value = "20230101"
 
-            # Simulate one existing document
-            existing_doc_num = "RFQ-20230101-0001"
+            existing_doc_num = "RFQ-20230101-0005"
             self.mock_db_handler.get_all_purchase_documents.return_value = [{"document_number": existing_doc_num}]
 
             doc_number = self.purchase_logic._generate_document_number("RFQ")
-            self.assertEqual(doc_number, "RFQ-20230101-0002")
+            self.assertEqual(doc_number, "RFQ-20230101-0006")
+
+    def test_generate_document_number_with_old_formats_present(self):
+        with patch('core.purchase_logic.datetime.date') as mock_date:
+            mock_date.today.return_value.strftime.return_value = "20230101"
+            self.mock_db_handler.get_all_purchase_documents.return_value = [
+                {"document_number": "RFQ-OLD-001"},
+                {"document_number": "RFQ-20230101-0002"},
+                {"document_number": "PO-OLD-002"}
+            ]
+            doc_number = self.purchase_logic._generate_document_number("RFQ")
+            self.assertEqual(doc_number, "RFQ-20230101-0003")
+
 
     def test_create_rfq_success(self):
         self.mock_db_handler.add_purchase_document.return_value = 123 # New document ID
 
+        generated_numeric_doc_number = "10000000" # Expected from _generate_document_number
+
         # Mock get_purchase_document_by_id to return a dict that PurchaseLogic.get_purchase_document_details will convert
         mock_created_doc_dict = {
-            "id": 123, "document_number": "RFQ-20230101-0001", "vendor_id": 1,
+            "id": 123, "document_number": generated_numeric_doc_number, "vendor_id": 1,
             "created_date": "dummy_iso_date", "status": "RFQ", "notes": "Test notes"
         }
         self.mock_db_handler.get_purchase_document_by_id.return_value = mock_created_doc_dict
 
-        with patch.object(self.purchase_logic, '_generate_document_number', return_value="RFQ-20230101-0001"):
+        # Patch _generate_document_number to ensure it returns the expected numeric format
+        with patch.object(self.purchase_logic, '_generate_document_number', return_value=generated_numeric_doc_number):
             rfq = self.purchase_logic.create_rfq(vendor_id=1, notes="Test notes")
 
         self.assertIsNotNone(rfq)
         self.assertEqual(rfq.id, 123)
-        self.assertEqual(rfq.document_number, "RFQ-20230101-0001")
+        self.assertEqual(rfq.document_number, generated_numeric_doc_number) # Check new format
         self.assertEqual(rfq.vendor_id, 1)
         self.assertEqual(rfq.status, PurchaseDocumentStatus.RFQ)
         self.assertEqual(rfq.notes, "Test notes")
@@ -163,11 +173,15 @@ class TestPurchaseLogic(unittest.TestCase):
         # Second call (at the end of convert_rfq_to_po) should get updated state.
         self.mock_db_handler.get_purchase_document_by_id.side_effect = [initial_doc_state, updated_doc_state]
 
-        updated_doc = self.purchase_logic.convert_rfq_to_po(doc_id)
+        with patch.object(self.purchase_logic, '_generate_document_number', return_value="PO-20230101-0001") as mock_gen_num:
+            updated_doc = self.purchase_logic.convert_rfq_to_po(doc_id)
 
-        self.assertIsNotNone(updated_doc)
-        self.assertEqual(updated_doc.status, PurchaseDocumentStatus.PO_ISSUED)
-        self.mock_db_handler.update_purchase_document_status.assert_called_with(doc_id, PurchaseDocumentStatus.PO_ISSUED.value)
+            self.assertIsNotNone(updated_doc)
+            self.assertEqual(updated_doc.status, PurchaseDocumentStatus.PO_ISSUED)
+            self.mock_db_handler.update_purchase_document.assert_called_once_with(doc_id, {
+                "status": PurchaseDocumentStatus.PO_ISSUED.value,
+                "document_number": "PO-20230101-0001"
+            })
 
     def test_convert_rfq_to_po_wrong_status(self):
         doc_id = 1

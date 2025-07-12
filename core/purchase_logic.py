@@ -7,40 +7,32 @@ class PurchaseLogic:
     def __init__(self, db_handler: DatabaseHandler):
         self.db = db_handler
 
-    def _generate_document_number(self, prefix: str = None) -> str: # Prefix is now optional and ignored
+    def _generate_document_number(self, prefix: str) -> str:
         """
-        Generates a unique 8-digit (or more) document number, starting from 10000000.
+        Generates a unique document number for RFQs (RFQ-YYYYMMDD-XXXX)
+        and POs (PO-YYYYMMDD-XXXX).
+        XXXX is a 4-digit incrementing number for that day and type.
         """
-        all_docs_raw = self.db.get_all_purchase_documents() # Returns list of dicts
+        if not prefix:
+            raise ValueError("Prefix is required for generating a document number.")
 
-        max_existing_numeric_number = 0
-        found_any_numeric = False
+        today_str = datetime.date.today().strftime("%Y%m%d")
+        full_prefix = f"{prefix}-{today_str}-"
 
-        if all_docs_raw:
-            for doc_dict in all_docs_raw:
-                doc_num_str = doc_dict.get("document_number")
-                if doc_num_str:
-                    try:
-                        # Try to convert the document number to an integer.
-                        # This assumes new numbers will be purely numeric.
-                        # It will skip old formats like RFQ-..., PO-... during max calculation.
-                        doc_num_int = int(doc_num_str)
-                        if doc_num_int > max_existing_numeric_number:
-                            max_existing_numeric_number = doc_num_int
-                        found_any_numeric = True
-                    except ValueError:
-                        # Non-numeric document number encountered, skip it for max calculation.
-                        # This handles old format numbers gracefully.
-                        print(f"Skipping non-numeric document number during max calculation: {doc_num_str}")
-                        pass
+        all_docs_raw = self.db.get_all_purchase_documents()
+        max_seq_today = 0
+        for doc_dict in all_docs_raw:
+            doc_num_str = doc_dict.get("document_number")
+            if doc_num_str and doc_num_str.startswith(full_prefix):
+                try:
+                    seq_part = int(doc_num_str.split('-')[-1])
+                    if seq_part > max_seq_today:
+                        max_seq_today = seq_part
+                except (ValueError, IndexError):
+                    pass # Ignore malformed numbers
 
-        if not found_any_numeric or max_existing_numeric_number < 10000000:
-            # If no numeric documents found, or max is less than our starting point (e.g. only old format exists)
-            next_number = 10000000
-        else:
-            next_number = max_existing_numeric_number + 1
-
-        return str(next_number)
+        next_seq = max_seq_today + 1
+        return f"{full_prefix}{next_seq:04d}"
 
     # TODO: PurchaseLogic will need access to ProductLogic or direct product fetching methods from DB
     # For now, product_description will be passed through if product_id is also given.
@@ -163,7 +155,13 @@ class PurchaseLogic:
         if doc.status != PurchaseDocumentStatus.QUOTED:
             raise ValueError(f"Only RFQs with status 'Quoted' can be converted to PO. Current status: {doc.status.value}")
 
-        self.db.update_purchase_document_status(doc_id, PurchaseDocumentStatus.PO_ISSUED.value)
+        # When converting, we can either update the status and keep the number,
+        # or generate a new PO number. Generating a new PO number is often cleaner.
+        new_po_number = self._generate_document_number("PO")
+        self.db.update_purchase_document(doc_id, {
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "document_number": new_po_number
+        })
         return self.get_purchase_document_details(doc_id)
 
     def mark_document_received(self, doc_id: int) -> Optional[PurchaseDocument]:
@@ -293,9 +291,15 @@ class PurchaseLogic:
         self.db.delete_purchase_document_item(item_id)
 
     def delete_purchase_document(self, doc_id: int):
+        """Deletes a purchase document and all of its items."""
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found.")
+
+        # Manually delete items first since ON DELETE CASCADE is not used
+        items = self.get_items_for_document(doc_id)
+        for item in items:
+            self.db.delete_purchase_document_item(item.id)
 
         self.db.delete_purchase_document(doc_id)
 

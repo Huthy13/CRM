@@ -47,7 +47,6 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
             phone="123-456-7890",
             billing_address_id=None,
             shipping_address_id=None,
-            same_as_billing=False,
             website="vendor.com",
             description="Main vendor for testing",
             account_type=AccountType.VENDOR.value # Use the string value for DB
@@ -57,7 +56,6 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
             phone="987-654-3210",
             billing_address_id=None,
             shipping_address_id=None,
-            same_as_billing=False,
             website="vendor2.com",
             description="Second vendor",
             account_type=AccountType.VENDOR.value
@@ -134,8 +132,9 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         po_doc = self.purchase_logic.convert_rfq_to_po(rfq_doc.id)
         self.assertIsNotNone(po_doc)
         self.assertEqual(po_doc.status, PurchaseDocumentStatus.PO_ISSUED)
-        # Document number might change or stay same based on logic - current logic keeps it same.
-        self.assertEqual(po_doc.document_number, rfq_doc.document_number)
+        # Document number should now be a new PO number
+        self.assertTrue(po_doc.document_number.startswith("PO-"))
+        self.assertNotEqual(po_doc.document_number, rfq_doc.document_number)
 
         # 5. Mark PO as Received
         received_doc = self.purchase_logic.mark_document_received(po_doc.id)

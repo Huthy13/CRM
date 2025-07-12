@@ -10,6 +10,8 @@ from ui.products.product_tab import ProductTab
 from core.logic.product_management import ProductLogic # Import ProductLogic
 from core.purchase_logic import PurchaseLogic
 from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
+from core.sales_logic import SalesLogic # Import SalesLogic
+from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import SalesDocumentTab
 from ui.company_info_tab import CompanyInfoTab # Import the new tab
 
 
@@ -17,7 +19,7 @@ class AddressBookView:
     def __init__(self, root, logic: AddressBookLogic): # logic is AddressBookLogic
         self.root = root
         self.root.title("Ace's CRM")
-        self.root.geometry("950x750")
+        self.root.geometry("1000x800") # Adjusted size for new tab
 
         self.address_book_logic = logic
 
@@ -25,6 +27,7 @@ class AddressBookView:
         self.db_handler = self.address_book_logic.db # Get the shared DB handler
         self.product_logic = ProductLogic(self.db_handler) # Initialize ProductLogic
         self.purchase_logic = PurchaseLogic(self.db_handler) # Initialize PurchaseLogic
+        self.sales_logic = SalesLogic(self.db_handler) # Initialize SalesLogic
 
 
         # Track the currently selected contact's ID and account's ID
@@ -45,6 +48,7 @@ class AddressBookView:
         self.task_tab = TaskTab(self.notebook, self.address_book_logic)
         self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic) # Pass product_logic here too
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
+        self.sales_document_tab = SalesDocumentTab(self.notebook, self.sales_logic, self.address_book_logic, self.product_logic) # Add SalesDocumentTab
         self.company_info_tab = CompanyInfoTab(self.notebook, self.db_handler) # Add CompanyInfoTab
 
 
@@ -55,4 +59,5 @@ class AddressBookView:
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase Documents")
+        self.notebook.add(self.sales_document_tab.frame, text="Sales Documents") # Add Sales Documents tab
         self.notebook.add(self.company_info_tab.frame, text="Company Information") # Add the new tab to the notebook

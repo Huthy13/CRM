@@ -1,210 +1,102 @@
 import sqlite3
-import os # Make sure os is imported
+import os
+import datetime # Import datetime
+from .database_setup import DB_NAME, initialize_database # Import from database_setup
+
+# --- Custom Adapters and Converters for datetime ---
+def adapt_datetime_iso(val):
+    """Adapt datetime.datetime to ISO 8601 string."""
+    return val.isoformat()
+
+def adapt_date_iso(val):
+    """Adapt datetime.date to ISO 8601 string."""
+    return val.isoformat()
+
+def convert_timestamp_iso(val_bytes):
+    """Convert ISO 8601 string to datetime.datetime object. Handles 'Z' and milliseconds."""
+    val_str = val_bytes.decode('utf-8')
+    if val_str.endswith('Z'):
+        val_str = val_str[:-1] + '+00:00'
+    # Handle up to nanoseconds, then truncate to microseconds for fromisoformat
+    if '.' in val_str and len(val_str.split('.')[1].split('+')[0].split('-')[0]) > 6:
+        parts = val_str.split('.')
+        time_part_before_frac = parts[0]
+        frac_second_and_rest = parts[1]
+        frac_second = frac_second_and_rest[:6] # Keep only microseconds
+        rest_of_string = frac_second_and_rest[len(frac_second_and_rest.split('+')[0].split('-')[0]):] # Get timezone if present
+        val_str = f"{time_part_before_frac}.{frac_second}{rest_of_string}"
+
+    try:
+        return datetime.datetime.fromisoformat(val_str)
+    except ValueError: # Fallback if not full datetime (e.g. just date)
+        try:
+            return datetime.datetime.combine(datetime.date.fromisoformat(val_str), datetime.time.min)
+        except ValueError:
+            return None # Or raise a more specific error / log
+
+def convert_date_iso(val_bytes):
+    """Convert ISO 8601 date string to datetime.date object."""
+    try:
+        return datetime.date.fromisoformat(val_bytes.decode('utf-8'))
+    except ValueError:
+        return None # Or raise
+
 
 class DatabaseHandler:
-    def __init__(self, db_name=None): # db_name is now optional
+    def __init__(self, db_name=None): # db_name is now optional, primarily for testing
         if db_name is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(base_dir, "address_book.db")
+            # Determine the path to the database file relative to this script's location
+            # core/database.py
+            # core/product_management.db (target)
+            base_dir = os.path.dirname(os.path.abspath(__file__)) # core/
+            # To place DB_NAME in the same directory as this file (core/),
+            # or one level up (project root) depending on desired location.
+            # The DB_NAME from database_setup is just the filename.
+            # Let's assume DB_NAME is intended to be in the `core` directory.
+            # If it's meant for project root, adjust base_dir.
+            # For now, assume 'core/product_management.db'
+            db_path = os.path.join(base_dir, DB_NAME)
         else:
-            # This else branch allows using a different DB path if explicitly provided,
-            # which can be useful for testing or other configurations.
-            # However, for the main app, src/main.py will call DatabaseHandler()
-            # without args, using the new default path.
             db_path = db_name
 
-        self.conn = sqlite3.connect(db_path)
-        self.conn.execute("PRAGMA foreign_keys = ON;") # Enable foreign key support
+        # Ensure the directory for the database exists, if db_path includes directories
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir) # Create directory if it doesn't exist
+
+        # Register adapters and converters BEFORE connecting if PARSE_DECLTYPES is used,
+        # or after for PARSE_COLNAMES if they are not default.
+        # For safety, register them globally here.
+        sqlite3.register_adapter(datetime.datetime, adapt_datetime_iso)
+        sqlite3.register_adapter(datetime.date, adapt_date_iso)
+        sqlite3.register_converter("timestamp", convert_timestamp_iso)
+        sqlite3.register_converter("datetime", convert_timestamp_iso)
+        sqlite3.register_converter("date", convert_date_iso)
+
+        self.conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        self.conn.row_factory = sqlite3.Row # Access columns by name, good practice
+
+        # Enable foreign key support. Must be done for each connection if not compiled in.
+        try:
+            self.conn.execute("PRAGMA foreign_keys = ON;")
+        except sqlite3.Error as e:
+            print(f"Error enabling PRAGMA foreign_keys: {e}")
+            # Depending on SQLite version/compilation, this might not be strictly necessary
+            # or might even error if the connection is already in a transaction from :memory:?cache=shared
+            # For now, let's keep it but be aware.
+
         self.cursor = self.conn.cursor()
-        self.create_tables()
+
+        # Initialize tables using the centralized setup script
+        # Pass the connection to avoid re-opening or issues with in-memory DBs during tests
+        initialize_database(db_conn=self.conn)
 
     def close(self):
         """Close the database connection."""
         self.conn.close()
 
-    def create_tables(self):
-        """Create the necessary tables if they don't exist."""
-
-        # Addresses table for storing individual addresses
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS addresses (
-                address_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                street TEXT NOT NULL,
-                city TEXT NOT NULL,
-                state TEXT NOT NULL,
-                zip TEXT NOT NULL,
-                country TEXT NOT NULL
-            )
-        """)
-
-        # Accounts table with references to billing and shipping addresses
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS accounts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                phone TEXT NOT NULL,
-                billing_address_id INTEGER,
-                shipping_address_id INTEGER,
-                same_as_billing BOOLEAN DEFAULT 0,
-                website TEXT,
-                description TEXT,
-                account_type TEXT,
-                FOREIGN KEY (billing_address_id) REFERENCES addresses (address_id),
-                FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id)
-            )
-        """)
-
-        self.cursor.execute(
-            """CREATE TABLE IF NOT EXISTS contacts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                email TEXT,
-                role TEXT,
-                account_id INTEGER,
-                FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE SET NULL
-            )"""
-        )
-
-        # Users table (simplified for now)
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL
-            )
-        """)
-        # Pre-populate a default user if the table is empty (for created_by_user_id)
-        self.cursor.execute("SELECT COUNT(*) FROM users")
-        if self.cursor.fetchone()[0] == 0:
-            self.cursor.execute("INSERT INTO users (username) VALUES (?)", ('system_user',))
-
-
-        # Interactions table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS interactions (
-                interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                company_id INTEGER,
-                contact_id INTEGER,
-                interaction_type TEXT CHECK(interaction_type IN ('Call', 'Email', 'Meeting', 'Visit', 'Other')) NOT NULL,
-                date_time TEXT NOT NULL, -- Storing as ISO8601 string
-                subject TEXT(150) NOT NULL,
-                description TEXT,
-                created_by_user_id INTEGER,
-                attachment_path TEXT,
-                FOREIGN KEY (company_id) REFERENCES accounts (id) ON DELETE SET NULL,
-                FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE SET NULL,
-                FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE SET NULL
-            )
-        """)
-
-        # Tasks table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                company_id INTEGER,
-                contact_id INTEGER,
-                title VARCHAR(150) NOT NULL,
-                description TEXT,
-                due_date TEXT NOT NULL, -- Storing as ISO8601 string (DATE or DATETIME)
-                status TEXT NOT NULL, -- Enum: Open, In Progress, Completed, Overdue
-                priority TEXT, -- Enum: Low, Medium, High
-                assigned_to_user_id INTEGER,
-                created_by_user_id INTEGER NOT NULL,
-                created_at TEXT NOT NULL, -- Storing as ISO8601 string
-                updated_at TEXT NOT NULL, -- Storing as ISO8601 string
-                is_deleted INTEGER DEFAULT 0, -- For soft delete
-                FOREIGN KEY (company_id) REFERENCES accounts (id) ON DELETE SET NULL,
-                FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE SET NULL,
-                FOREIGN KEY (assigned_to_user_id) REFERENCES users (user_id) ON DELETE SET NULL,
-                FOREIGN KEY (created_by_user_id) REFERENCES users (user_id) ON DELETE CASCADE -- Or SET NULL if preferred
-            )
-        """)
-
-        # Product Categories table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS product_categories (
-                category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                parent_category_id INTEGER,
-                FOREIGN KEY (parent_category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL
-            )
-        """)
-
-        # Product Units of Measure table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS product_units_of_measure (
-                unit_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
-            )
-        """)
-
-        # Products table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                cost REAL NOT NULL, /* Renamed from price */
-                is_active BOOLEAN DEFAULT 1,
-                category_id INTEGER,
-                unit_of_measure_id INTEGER,
-                FOREIGN KEY (category_id) REFERENCES product_categories (category_id) ON DELETE SET NULL, -- Ensures if a category is deleted, product's category_id becomes NULL
-                FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure (unit_id) ON DELETE SET NULL
-            )
-        """)
-
-        # Purchase Documents Table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS purchase_documents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_number TEXT UNIQUE NOT NULL,
-                vendor_id INTEGER NOT NULL,
-                created_date TEXT NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('RFQ','Quoted','PO-Issued','Received','Closed')),
-                notes TEXT,
-                FOREIGN KEY (vendor_id) REFERENCES accounts (id)
-            )
-        """)
-
-        # Purchase Document Items Table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS purchase_document_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                purchase_document_id INTEGER NOT NULL,
-                product_description TEXT NOT NULL,
-                product_id INTEGER, -- New column
-                quantity REAL NOT NULL CHECK(quantity > 0),
-                unit_price REAL CHECK(unit_price >= 0 OR unit_price IS NULL),
-                total_price REAL CHECK(total_price >= 0 OR total_price IS NULL),
-                FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents (id) ON DELETE CASCADE,
-                FOREIGN KEY (product_id) REFERENCES products (product_id) ON DELETE SET NULL -- New FK
-            )
-        """)
-        # Added ON DELETE CASCADE for items when a document is deleted for data integrity.
-
-        # Company Information table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS company_information (
-                company_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                phone TEXT,
-                billing_address_id INTEGER,
-                shipping_address_id INTEGER,
-                FOREIGN KEY (billing_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL,
-                FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL
-            )
-        """)
-        # Check if company information already exists, if not, add a default entry
-        self.cursor.execute("SELECT COUNT(*) FROM company_information")
-        if self.cursor.fetchone()[0] == 0:
-            # Add a placeholder row. Specific details should be updated via the UI.
-            self.cursor.execute("""
-                INSERT INTO company_information (name, phone, billing_address_id, shipping_address_id)
-                VALUES (?, ?, ?, ?)
-            """, ("My Company", "", None, None))
-
-
-        self.conn.commit()
+    # The create_tables method is now removed from here, as table creation
+    # is handled by initialize_database() from database_setup.py
 
 #address related methods
     def add_address(self, street, city, state, zip, country):
@@ -249,6 +141,10 @@ class DatabaseHandler:
 #Contact related methods
     def get_contact_details(self, contact_id):
         """Retrieve a single contact's details by their ID."""
+        print(f"DEBUG DB.get_contact_details: received contact_id type: {type(contact_id)}, value: {contact_id}")
+        if not isinstance(contact_id, int):
+            print(f"ERROR DB.get_contact_details: contact_id is NOT an int!")
+            # raise TypeError("contact_id must be an integer") # Or handle appropriately
         self.cursor.execute("""
             SELECT id, name, phone, email, role, account_id
             FROM contacts
@@ -306,18 +202,22 @@ class DatabaseHandler:
 
     def delete_contact(self, contact_id):
         """Delete a specific contact."""
+        print(f"DEBUG DB.delete_contact: received contact_id type: {type(contact_id)}, value: {contact_id}")
+        if not isinstance(contact_id, int):
+            print(f"ERROR DB.delete_contact: contact_id is NOT an int!")
+            # raise TypeError("contact_id must be an integer")
         self.cursor.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
         self.conn.commit()
 
 #account related methods
-    def add_account(self, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type):
+    def add_account(self, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
         """Add a new account with billing and shipping address IDs."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type))
+            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, website, description, account_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type)) # Removed same_as_billing
         self.conn.commit()
-        return self.cursor.lastrowid # This was already correct
+        return self.cursor.lastrowid
 
     def get_all_accounts(self):
         """Retrieve all accounts with details."""
@@ -345,7 +245,7 @@ class DatabaseHandler:
         """Retrieve full account details, including both billing and shipping addresses."""
         self.cursor.execute("""
             SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type,
-                   a.billing_address_id, a.shipping_address_id, a.same_as_billing,
+                   a.billing_address_id, a.shipping_address_id,
                    b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
                    b.zip AS billing_zip, b.country AS billing_country,
                    s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
@@ -361,13 +261,13 @@ class DatabaseHandler:
             return dict(zip(columns, result))
         return None
 
-    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type):
+    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, same_as_billing = ?, website = ?, description = ?, account_type = ?
+            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, website = ?, description = ?, account_type = ?
             WHERE id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, same_as_billing, website, description, account_type, account_id))
+        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type, account_id)) # Removed same_as_billing
         self.conn.commit()
 
 # Interaction related methods
@@ -576,128 +476,399 @@ class DatabaseHandler:
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
 # Product related methods
-    def add_product(self, name, description, price, is_active, category, unit_of_measure):
-        """Add a new product and return its ID."""
+
+    def _manage_product_price(self, product_id: int, price_type: str, price_value: float, currency: str = 'USD', valid_from: str = None):
+        """Adds or updates a specific price type for a product.
+        If valid_from is None, it defaults to today."""
+        from datetime import date # Local import
+        if valid_from is None:
+            valid_from = date.today().isoformat()
+
+        # Check if a price of this type for this valid_from date already exists
         self.cursor.execute("""
-            INSERT INTO products (name, description, price, is_active, category, unit_of_measure)
+            SELECT id FROM product_prices
+            WHERE product_id = ? AND price_type = ? AND valid_from = ?
+        """, (product_id, price_type, valid_from))
+        existing_price = self.cursor.fetchone()
+
+        if existing_price:
+            # Update existing price record
+            self.cursor.execute("""
+                UPDATE product_prices
+                SET price = ?, currency = ?
+                WHERE id = ?
+            """, (price_value, currency, existing_price['id']))
+        else:
+            # Insert new price record
+            # Consider if old prices of the same type should be invalidated (valid_to = today)
+            # For simplicity, this is not handled here yet.
+            self.cursor.execute("""
+                INSERT INTO product_prices (product_id, price_type, price, currency, valid_from)
+                VALUES (?, ?, ?, ?, ?)
+            """, (product_id, price_type, price_value, currency, valid_from))
+        self.conn.commit()
+
+    def add_product(self, sku: str, name: str, description: str, cost: float, sale_price: float, # This 'cost' is for product_prices
+                    is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
+                    currency: str = 'USD', price_valid_from: str = None):
+        """Add a new product and its cost and sale price."""
+        # Diagnostic print moved after this line in previous step, should be fine.
+        # print(f"DEBUG DB.add_product entered. SKU: {sku}, Name: {name}")
+
+        # --- PRAGMA Diagnostic ---
+        # print("\n--- DB.add_product: Products table schema BEFORE insert ---")
+        # pragma_cursor = self.conn.cursor()
+        # try:
+        #     pragma_cursor.execute("PRAGMA table_info(products);")
+        #     columns = pragma_cursor.fetchall()
+        #     if columns:
+        #         for col_row in columns:
+        #             print(f"Col: {col_row[1]} ({col_row[2]})")
+        #     else:
+        #         print("PRAGMA table_info(products) returned no data.")
+        # except Exception as e_pragma:
+        #     print(f"Error executing PRAGMA in add_product: {e_pragma}")
+        # print("--- End Products table schema in DB.add_product ---\n")
+        # --- End PRAGMA ---
+
+        category_id = self.add_product_category(category_name) if category_name else None
+        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
+
+        # SQL for inserting into the 'products' table. This must not include 'cost' or 'sale_price' columns.
+        sql_insert_product = """
+            INSERT INTO products (sku, name, description, category_id, unit_of_measure_id, is_active)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, description, price, is_active, category, unit_of_measure))
+        """
+        params_insert_product = (sku, name, description, category_id, unit_of_measure_id, is_active)
+
+        try:
+            self.cursor.execute(sql_insert_product, params_insert_product)
+        except sqlite3.OperationalError as e:
+            # This is where the "no column named cost" error would be caught IF the SQL was wrong.
+            print(f"FATAL ERROR during INSERT INTO products: {e}")
+            print(f"SQL attempted: {sql_insert_product}")
+            print(f"Parameters: {params_insert_product}")
+            # Also print current schema from inside this error to be absolutely sure
+            print("\n--- DB.add_product: Products table schema ON ERROR ---")
+            error_pragma_cursor = self.conn.cursor()
+            try:
+                error_pragma_cursor.execute("PRAGMA table_info(products);")
+                error_columns = error_pragma_cursor.fetchall()
+                if error_columns:
+                    for ecol in error_columns: print(f"ErrCol: {ecol[1]} ({ecol[2]})")
+                else: print("PRAGMA on error returned no data.")
+            except Exception as ep_pragma: print(f"Error executing PRAGMA on error: {ep_pragma}")
+            print("--- End Products table schema ON ERROR ---\n")
+            raise
+
+        inserted_product_id = self.cursor.lastrowid
+        self.conn.commit()
+
+        if inserted_product_id:
+            if cost is not None: # The 'cost' parameter passed to this method
+                self._manage_product_price(inserted_product_id, 'COST', cost, currency, price_valid_from)
+            if sale_price is not None:  # The 'sale_price' parameter passed to this method
+                self._manage_product_price(inserted_product_id, 'SALE', sale_price, currency, price_valid_from)
+        return inserted_product_id
+
+    def get_product_details(self, product_db_id: int) -> dict | None:
+        """Retrieve a product's details, including its current cost and sale price, by its DB ID."""
+        self.cursor.execute("""
+            SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
+                   p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.is_active, cat.name as category_name
+            FROM products p
+            LEFT JOIN product_categories cat ON p.category_id = cat.id
+            LEFT JOIN product_units_of_measure uom ON p.unit_of_measure_id = uom.id
+            WHERE p.id = ?
+        """, (product_db_id,))
+        row = self.cursor.fetchone()
+        if not row:
+            return None
+
+        product_dict = dict(row)
+
+        # Fetch current COST price
+        self.cursor.execute("""
+            SELECT price FROM product_prices
+            WHERE product_id = ? AND price_type = 'COST'
+            ORDER BY valid_from DESC LIMIT 1
+        """, (product_dict['product_id'],)) # Use the id from products table
+        cost_row = self.cursor.fetchone()
+        product_dict['cost'] = cost_row['price'] if cost_row else None
+
+        # Fetch current SALE price
+        self.cursor.execute("""
+            SELECT price FROM product_prices
+            WHERE product_id = ? AND price_type = 'SALE'
+            ORDER BY valid_from DESC LIMIT 1
+        """, (product_dict['product_id'],)) # Use the id from products table
+        sale_row = self.cursor.fetchone()
+        product_dict['sale_price'] = sale_row['price'] if sale_row else None
+
+        return product_dict
+
+    def get_all_products(self) -> list[dict]:
+        """Retrieve all products with their current cost and sale price."""
+        self.cursor.execute("""
+            SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
+                   p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.is_active, cat.name as category_name
+            FROM products p
+            LEFT JOIN product_categories cat ON p.category_id = cat.id
+            LEFT JOIN product_units_of_measure uom ON p.unit_of_measure_id = uom.id
+            ORDER BY p.name
+        """)
+        products = [dict(row) for row in self.cursor.fetchall()]
+
+        for prod in products:
+            # Fetch current COST price
+            self.cursor.execute("""
+                SELECT price FROM product_prices
+                WHERE product_id = ? AND price_type = 'COST'
+                ORDER BY valid_from DESC LIMIT 1
+            """, (prod['product_id'],)) # Correctly uses the product's actual id
+            cost_row = self.cursor.fetchone()
+            prod['cost'] = cost_row['price'] if cost_row else None
+
+            # Fetch current SALE price
+            self.cursor.execute("""
+                SELECT price FROM product_prices
+                WHERE product_id = ? AND price_type = 'SALE'
+                ORDER BY valid_from DESC LIMIT 1
+            """, (prod['product_id'],)) # Correctly uses the product's actual id
+            sale_row = self.cursor.fetchone()
+            prod['sale_price'] = sale_row['price'] if sale_row else None
+        return products
+
+    def update_product(self, product_db_id: int, sku: str, name: str, description: str, cost: float, sale_price: float,
+                       is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
+                       currency: str = 'USD', price_valid_from: str = None): # Renamed parameter
+        """Update product details and its cost and sale price, by its DB ID."""
+        print(f"DEBUG DB.update_product entered. ID: {product_db_id}, SKU: {sku}")
+        # --- Add PRAGMA here ---
+        print("\n--- DB.update_product: Products table schema BEFORE update ---")
+        pragma_cursor = self.conn.cursor()
+        try:
+            pragma_cursor.execute("PRAGMA table_info(products);")
+            columns = pragma_cursor.fetchall()
+            if columns:
+                for col_row in columns:
+                    print(f"Col: {col_row[1]} ({col_row[2]})") # name, type
+            else:
+                print("PRAGMA table_info(products) returned no data.")
+        except Exception as e_pragma:
+            print(f"Error executing PRAGMA in update_product: {e_pragma}")
+        print("--- End Products table schema in DB.update_product ---\n")
+        # --- End PRAGMA ---
+
+        category_id = self.add_product_category(category_name) if category_name else None
+        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
+
+        sql_update_product = """
+            UPDATE products
+            SET sku = ?, name = ?, description = ?, category_id = ?, unit_of_measure_id = ?, is_active = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """
+        params_update_product = (sku, name, description, category_id, unit_of_measure_id, is_active, product_db_id)
+
+        try:
+            self.cursor.execute(sql_update_product, params_update_product)
+        except sqlite3.OperationalError as e:
+            print(f"Error during UPDATE products: {e}")
+            print(f"SQL: {sql_update_product}")
+            print(f"Params: {params_update_product}")
+            raise
+
+        self.conn.commit() # Commit product update
+
+        if cost is not None:
+            self._manage_product_price(product_db_id, 'COST', cost, currency, price_valid_from) # Use product_db_id
+        if sale_price is not None:
+            self._manage_product_price(product_db_id, 'SALE', sale_price, currency, price_valid_from) # Use product_db_id
+
+
+    def delete_product(self, product_db_id: int): # Renamed parameter
+        """Delete a specific product by its DB ID."""
+        # Also need to delete associated prices from product_prices, or use ON DELETE CASCADE
+        # Assuming ON DELETE CASCADE is NOT set on product_prices.product_id FK
+        self.cursor.execute("DELETE FROM product_prices WHERE product_id = ?", (product_db_id,))
+        self.cursor.execute("DELETE FROM products WHERE id = ?", (product_db_id,)) # Use product_db_id
+        self.conn.commit()
+
+# --- Sales Document CRUD Methods ---
+    def add_sales_document(self, doc_number: str, customer_id: int, document_type: str,
+                           created_date: str, status: str, expiry_date: str = None, due_date: str = None,
+                           notes: str = None, subtotal: float = 0.0, taxes: float = 0.0, total_amount: float = 0.0,
+                           related_quote_id: int = None) -> int:
+        """Adds a new sales document and returns its ID."""
+        self.cursor.execute("""
+            INSERT INTO sales_documents (document_number, customer_id, document_type, created_date, status,
+                                         expiry_date, due_date, notes, subtotal, taxes, total_amount, related_quote_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (doc_number, customer_id, document_type, created_date, status, expiry_date, due_date,
+              notes, subtotal, taxes, total_amount, related_quote_id))
         self.conn.commit()
         return self.cursor.lastrowid
 
-    def get_product_details(self, product_id):
-        """Retrieve a single product's details by its ID."""
-        self.cursor.execute("""
-            SELECT product_id, name, description, price, is_active, category, unit_of_measure
-            FROM products
-            WHERE product_id = ?
-        """, (product_id,))
+    def get_sales_document_by_id(self, doc_id: int) -> dict | None:
+        """Retrieves a sales document by its ID."""
+        self.cursor.execute("SELECT * FROM sales_documents WHERE id = ?", (doc_id,))
         row = self.cursor.fetchone()
-        if row:
-            columns = [desc[0] for desc in self.cursor.description]
-            return dict(zip(columns, row))
-        return None
+        return dict(row) if row else None
 
-    def get_all_products(self):
-        """Retrieve all products with full details."""
-        self.cursor.execute("""
-            SELECT product_id, name, description, price, is_active, category, unit_of_measure
-            FROM products
-        """)
-        columns = [desc[0] for desc in self.cursor.description]
-        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+    def get_all_sales_documents(self, customer_id: int = None, document_type: str = None, status: str = None) -> list[dict]:
+        """Retrieves sales documents, optionally filtered."""
+        query = "SELECT * FROM sales_documents WHERE 1=1"
+        params = []
+        if customer_id is not None:
+            query += " AND customer_id = ?"
+            params.append(customer_id)
+        if document_type is not None:
+            query += " AND document_type = ?"
+            params.append(document_type)
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_date DESC, id DESC"
 
-    def update_product(self, product_id, name, description, price, is_active, category, unit_of_measure):
-        """Update product details in the database."""
-        self.cursor.execute("""
-            UPDATE products
-            SET name = ?, description = ?, price = ?, is_active = ?, category = ?, unit_of_measure = ?
-            WHERE product_id = ?
-        """, (name, description, price, is_active, category, unit_of_measure, product_id))
+        self.cursor.execute(query, params)
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    def update_sales_document(self, doc_id: int, updates: dict):
+        """Updates a sales document. 'updates' is a dict of column:value."""
+        if not updates:
+            return
+        # updated_at is handled by a database trigger, no need to set it here.
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+        values = list(updates.values())
+        values.append(doc_id)
+
+        self.cursor.execute(f"UPDATE sales_documents SET {set_clause} WHERE id = ?", values)
         self.conn.commit()
 
-    def delete_product(self, product_id):
-        """Delete a specific product."""
-        self.cursor.execute("DELETE FROM products WHERE product_id = ?", (product_id,))
+    def delete_sales_document(self, doc_id: int):
+        """Deletes a sales document. Associated items should be handled by ON DELETE CASCADE if set up."""
+        # Assuming ON DELETE CASCADE is set for sales_document_items.sales_document_id
+        self.cursor.execute("DELETE FROM sales_documents WHERE id = ?", (doc_id,))
+        self.conn.commit()
+
+# --- Sales Document Item CRUD Methods ---
+    def add_sales_document_item(self, sales_doc_id: int, product_id: int, product_description: str,
+                                quantity: float, unit_price: float, discount_percentage: float = 0.0,
+                                line_total: float = None) -> int:
+        """Adds a new item to a sales document."""
+        # Calculate line_total if not provided
+        if line_total is None:
+            discount_factor = 1.0 - (discount_percentage / 100.0 if discount_percentage is not None else 0.0)
+            line_total = quantity * unit_price * discount_factor
+
+        self.cursor.execute("""
+            INSERT INTO sales_document_items (sales_document_id, product_id, product_description,
+                                              quantity, unit_price, discount_percentage, line_total)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (sales_doc_id, product_id, product_description, quantity, unit_price, discount_percentage, line_total))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_items_for_sales_document(self, sales_doc_id: int) -> list[dict]:
+        """Retrieves all items for a given sales document ID."""
+        self.cursor.execute("SELECT * FROM sales_document_items WHERE sales_document_id = ?", (sales_doc_id,))
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    def get_sales_document_item_by_id(self, item_id: int) -> dict | None:
+        """Retrieves a specific sales document item by its ID."""
+        self.cursor.execute("SELECT * FROM sales_document_items WHERE id = ?", (item_id,))
+        row = self.cursor.fetchone()
+        return dict(row) if row else None
+
+    def update_sales_document_item(self, item_id: int, updates: dict):
+        """Updates a sales document item."""
+        if not updates:
+            return
+        # updated_at is handled by a database trigger, no need to set it here.
+
+        set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+        values = list(updates.values())
+        values.append(item_id)
+
+        self.cursor.execute(f"UPDATE sales_document_items SET {set_clause} WHERE id = ?", values)
+        self.conn.commit()
+
+    def delete_sales_document_item(self, item_id: int):
+        """Deletes a specific sales document item."""
+        self.cursor.execute("DELETE FROM sales_document_items WHERE id = ?", (item_id,))
         self.conn.commit()
 
 # Category specific methods
     def add_product_category(self, name: str, parent_id: int | None = None) -> int:
         """Adds a new category to product_categories if it doesn't exist, returns the category ID."""
         if not name:
-            return None
+            return None # Or raise ValueError
         try:
             self.cursor.execute(
-                "INSERT INTO product_categories (name, parent_category_id) VALUES (?, ?)",
+                "INSERT INTO product_categories (name, parent_id) VALUES (?, ?)",
                 (name, parent_id)
             )
             self.conn.commit()
             return self.cursor.lastrowid
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError: # Handles UNIQUE constraint on name
             self.conn.rollback()
-            # This assumes a category with this name shouldn't exist even if parent_id is different.
-            # If name + parent_id should be unique, the unique constraint in DB needs to be on (name, parent_category_id)
-            # For now, name is globally unique.
-            return self.get_product_category_id_by_name(name)
+            return self.get_product_category_id_by_name(name) # Return existing ID
 
-    def update_product_category_name(self, category_id: int, new_name: str):
+    def update_product_category_name(self, category_db_id: int, new_name: str): # Renamed category_id to category_db_id
         """Updates a category's name."""
-        if not new_name: # Prevent setting empty name
+        if not new_name:
             raise ValueError("New category name cannot be empty.")
         try:
-            self.cursor.execute("UPDATE product_categories SET name = ? WHERE category_id = ?", (new_name, category_id))
+            self.cursor.execute("UPDATE product_categories SET name = ? WHERE id = ?", (new_name, category_db_id)) # Use id
             self.conn.commit()
         except sqlite3.IntegrityError:
             self.conn.rollback()
             raise ValueError(f"Category name '{new_name}' already exists.")
 
-    def update_product_category_parent(self, category_id: int, new_parent_id: int | None):
+    def update_product_category_parent(self, category_db_id: int, new_parent_id: int | None): # Renamed
         """Updates a category's parent_id."""
-        # Add check to prevent a category from being its own parent, or child of its descendant (more complex)
-        if category_id == new_parent_id:
+        if category_db_id == new_parent_id:
             raise ValueError("A category cannot be its own parent.")
-        # More complex cycle detection is ideally done in logic layer before calling DB.
-        self.cursor.execute("UPDATE product_categories SET parent_category_id = ? WHERE category_id = ?", (new_parent_id, category_id))
+        # Cycle detection should be in logic layer if more complex than self-parenting
+        self.cursor.execute("UPDATE product_categories SET parent_id = ? WHERE id = ?", (new_parent_id, category_db_id)) # Use id
         self.conn.commit()
 
-    def delete_product_category(self, category_id: int):
-        """Deletes a category. Products using it will have category_id set to NULL due to ON DELETE SET NULL.
-           Child categories will have parent_category_id set to NULL."""
-        # First, check if any other categories list this one as a parent.
-        # If ON DELETE SET NULL is on parent_category_id, this is handled by DB.
-        # If ON DELETE CASCADE was used for parent_category_id, children would be deleted.
-        # If ON DELETE RESTRICT, this delete would fail if children exist.
-        # With ON DELETE SET NULL for parent_category_id, children become top-level.
-
-        # Products referencing this category will have their category_id set to NULL by the DB
-        # due to the FOREIGN KEY ... ON DELETE SET NULL constraint on products.category_id.
-        self.cursor.execute("DELETE FROM product_categories WHERE category_id = ?", (category_id,))
+    def delete_product_category(self, category_db_id: int): # Renamed
+        """Deletes a category. Products using it will have category_id set to NULL.
+           Child categories will have parent_id set to NULL."""
+        # FK constraints (ON DELETE SET NULL) handle relationships.
+        self.cursor.execute("DELETE FROM product_categories WHERE id = ?", (category_db_id,)) # Use id
         self.conn.commit()
 
-
-    def get_product_category_id_by_name(self, name: str) -> int | None: # No change needed here, name is unique
+    def get_product_category_id_by_name(self, name: str) -> int | None:
         """Retrieves the ID of a category by its name."""
         if not name:
             return None
-        self.cursor.execute("SELECT category_id FROM product_categories WHERE name = ?", (name,))
+        self.cursor.execute("SELECT id FROM product_categories WHERE name = ?", (name,)) # Use id
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_product_category_name_by_id(self, category_id: int) -> str | None: # No change needed here
+    def get_product_category_name_by_id(self, category_db_id: int) -> str | None: # Renamed
         """Retrieves the name of a category by its ID."""
-        if category_id is None:
+        if category_db_id is None:
             return None
-        self.cursor.execute("SELECT name FROM product_categories WHERE category_id = ?", (category_id,))
+        self.cursor.execute("SELECT name FROM product_categories WHERE id = ?", (category_db_id,)) # Use id
         row = self.cursor.fetchone()
         return row[0] if row else None
 
     def get_all_product_categories_from_table(self) -> list[tuple[int, str, int | None]]:
         """Retrieves all categories (ID, name, parent_id) from the product_categories table."""
-        self.cursor.execute("SELECT category_id, name, parent_category_id FROM product_categories ORDER BY name")
+        # Returns (id, name, parent_id). Alias 'id' to 'category_id' for consumers if needed,
+        # but internal consistency uses 'id'.
+        self.cursor.execute("SELECT id, name, parent_id FROM product_categories ORDER BY name")
         return self.cursor.fetchall()
 
 # Unit of Measure specific methods
-    def add_product_unit_of_measure(self, name: str) -> int:
+    def add_product_unit_of_measure(self, name: str) -> int | None: # Return None if name is empty
         """Adds a new unit of measure to product_units_of_measure if it doesn't exist, returns the unit ID."""
         if not name:
             return None
@@ -713,119 +884,24 @@ class DatabaseHandler:
         """Retrieves the ID of a unit of measure by its name."""
         if not name:
             return None
-        self.cursor.execute("SELECT unit_id FROM product_units_of_measure WHERE name = ?", (name,))
+        self.cursor.execute("SELECT id FROM product_units_of_measure WHERE name = ?", (name,)) # Use id
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_product_unit_of_measure_name_by_id(self, unit_id: int) -> str | None:
+    def get_product_unit_of_measure_name_by_id(self, uom_db_id: int) -> str | None: # Renamed unit_id to uom_db_id
         """Retrieves the name of a unit of measure by its ID."""
-        if unit_id is None:
+        if uom_db_id is None:
             return None
-        self.cursor.execute("SELECT name FROM product_units_of_measure WHERE unit_id = ?", (unit_id,))
+        self.cursor.execute("SELECT name FROM product_units_of_measure WHERE id = ?", (uom_db_id,)) # Use id
         row = self.cursor.fetchone()
         return row[0] if row else None
 
     def get_all_product_units_of_measure_from_table(self) -> list[tuple[int, str]]:
         """Retrieves all units of measure (ID, name) from the product_units_of_measure table."""
-        self.cursor.execute("SELECT unit_id, name FROM product_units_of_measure ORDER BY name")
-        self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
+        self.cursor.execute("SELECT id, name FROM product_units_of_measure ORDER BY name") # Use id
+        # The following line was a bug, fetching categories instead of UoMs and overwriting the result.
+        # self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
         return self.cursor.fetchall()
-
-# Unit of Measure specific methods
-    def add_product_unit_of_measure(self, name: str) -> int:
-        """Adds a new unit of measure to product_units_of_measure if it doesn't exist, returns the unit ID."""
-        if not name:
-            return None
-        try:
-            self.cursor.execute("INSERT INTO product_units_of_measure (name) VALUES (?)", (name,))
-            self.conn.commit()
-            return self.cursor.lastrowid
-        except sqlite3.IntegrityError: # Unit name already exists
-            self.conn.rollback()
-            return self.get_product_unit_of_measure_id_by_name(name)
-
-    def get_product_unit_of_measure_id_by_name(self, name: str) -> int | None:
-        """Retrieves the ID of a unit of measure by its name."""
-        if not name:
-            return None
-        self.cursor.execute("SELECT unit_id FROM product_units_of_measure WHERE name = ?", (name,))
-        row = self.cursor.fetchone()
-        return row[0] if row else None
-
-    def get_product_unit_of_measure_name_by_id(self, unit_id: int) -> str | None:
-        """Retrieves the name of a unit of measure by its ID."""
-        if unit_id is None:
-            return None
-        self.cursor.execute("SELECT name FROM product_units_of_measure WHERE unit_id = ?", (unit_id,))
-        row = self.cursor.fetchone()
-        return row[0] if row else None
-
-    def get_all_product_units_of_measure_from_table(self) -> list[tuple[int, str]]:
-        """Retrieves all units of measure (ID, name) from the product_units_of_measure table."""
-        self.cursor.execute("SELECT unit_id, name FROM product_units_of_measure ORDER BY name")
-        return self.cursor.fetchall()
-
-# Updated Product CRUD methods
-    def add_product(self, name, description, cost, is_active, category_name, unit_of_measure_name): # Renamed price to cost
-        """Add a new product. Handles category and unit_of_measure name to ID conversion."""
-        category_id = self.add_product_category(category_name) if category_name else None
-        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
-
-        self.cursor.execute("""
-            INSERT INTO products (name, description, cost, is_active, category_id, unit_of_measure_id) -- Renamed price to cost
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, description, cost, is_active, category_id, unit_of_measure_id)) # Parameter tuple, no SQL comment needed here
-        self.conn.commit()
-        return self.cursor.lastrowid
-
-    def get_product_details(self, product_id):
-        """Retrieve a single product's details, joining with categories and units of measure tables."""
-        self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,
-                   p.category_id, -- Return category_id directly
-                   puom.name as unit_of_measure_name
-            FROM products p
-            LEFT JOIN product_units_of_measure puom ON p.unit_of_measure_id = puom.unit_id
-            WHERE p.product_id = ?
-        """, (product_id,))
-        row = self.cursor.fetchone()
-        if row:
-            columns = [desc[0] for desc in self.cursor.description]
-            product_dict = dict(zip(columns, row))
-            # category_id is now directly in product_dict
-            product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
-            return product_dict
-        return None
-
-    def get_all_products(self):
-        """Retrieve all products with full details, returning category_id and joining for unit_of_measure name."""
-        self.cursor.execute("""
-            SELECT p.product_id, p.name, p.description, p.cost, p.is_active,
-                   p.category_id, -- Return category_id directly
-                   puom.name as unit_of_measure_name
-            FROM products p
-            LEFT JOIN product_units_of_measure puom ON p.unit_of_measure_id = puom.unit_id
-        """)
-        results = []
-        columns = [desc[0] for desc in self.cursor.description]
-        for row_data in self.cursor.fetchall():
-            product_dict = dict(zip(columns, row_data))
-            # category_id is now directly in product_dict
-            product_dict['unit_of_measure'] = product_dict.pop('unit_of_measure_name', None)
-            results.append(product_dict)
-        return results
-
-    def update_product(self, product_id, name, description, cost, is_active, category_name, unit_of_measure_name):
-        """Update product details. Handles category and unit_of_measure name to ID conversion."""
-        category_id = self.add_product_category(category_name) if category_name else None
-        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
-
-        self.cursor.execute("""
-            UPDATE products
-            SET name = ?, description = ?, cost = ?, is_active = ?, category_id = ?, unit_of_measure_id = ? -- Renamed price to cost
-            WHERE product_id = ?
-        """, (name, description, cost, is_active, category_id, unit_of_measure_id, product_id)) # Parameter tuple, no SQL comment needed here
-        self.conn.commit()
 
 # Purchase Document related methods
     def add_purchase_document(self, doc_number: str, vendor_id: int, created_date: str, status: str, notes: str = None) -> int:
@@ -874,6 +950,17 @@ class DatabaseHandler:
     def update_purchase_document_status(self, doc_id: int, new_status: str):
         """Updates the status of a purchase document."""
         self.cursor.execute("UPDATE purchase_documents SET status = ? WHERE id = ?", (new_status, doc_id))
+        self.conn.commit()
+
+    def update_purchase_document(self, doc_id: int, updates: dict):
+        """Updates a purchase document. 'updates' is a dict of column:value."""
+        if not updates:
+            return
+        set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+        values = list(updates.values())
+        values.append(doc_id)
+
+        self.cursor.execute(f"UPDATE purchase_documents SET {set_clause} WHERE id = ?", values)
         self.conn.commit()
 
     def update_purchase_document_notes(self, doc_id: int, notes: str):

@@ -22,37 +22,24 @@ def populate_purchase_documents(db_handler: DatabaseHandler, purchase_logic: Pur
             print("Could not find vendor account with ID 1 (Test Account 01) to create a PO. Skipping PO creation.")
             return
 
-        vendor_id = vendor_account_details.account_id # account_id from the Account object
+        vendor_id = vendor_account_details.account_id
 
-        # Create a sample Purchase Document
-        po_doc = PurchaseDocument(
-            document_number="PO-SANDBOX-001",
+        # Create a sample RFQ using PurchaseLogic to get auto-generated number
+        print("Creating sample RFQ...")
+        rfq_doc_obj = purchase_logic.create_rfq(
             vendor_id=vendor_id,
-            created_date=datetime.datetime.now().isoformat(),
-            status=PurchaseDocumentStatus.PO_ISSUED,
-            notes="Sample PO created by sandbox script."
+            notes="Sample RFQ automatically numbered by sandbox script."
         )
-        # Use db handler directly for sandbox simplicity
-        new_doc_id = purchase_logic.db.add_purchase_document(
-            doc_number=po_doc.document_number,
-            vendor_id=po_doc.vendor_id,
-            created_date=po_doc.created_date,
-            status=po_doc.status.value, # Ensure enum value is passed
-            notes=po_doc.notes
-        )
-        created_doc_obj = None
-        if new_doc_id:
-            created_doc_obj = purchase_logic.get_purchase_document_details(new_doc_id)
 
-        if not created_doc_obj or not created_doc_obj.id:
-            print(f"Failed to create purchase document {po_doc.document_number}.")
+        if not rfq_doc_obj or not rfq_doc_obj.id:
+            print(f"Failed to create RFQ document.")
             return
 
-        print(f"Purchase Document '{created_doc_obj.document_number}' created with ID {created_doc_obj.id}.")
+        print(f"RFQ Document '{rfq_doc_obj.document_number}' created with ID {rfq_doc_obj.id}, Status: {rfq_doc_obj.status.value}.")
 
-        # Add items to the Purchase Document
+        # Add items to the RFQ Document
         item1 = PurchaseDocumentItem(
-            purchase_document_id=created_doc_obj.id,
+            purchase_document_id=rfq_doc_obj.id,
             product_description="Sandbox Item A - Super Widget",
             quantity=10,
             unit_price=19.99,
@@ -71,10 +58,10 @@ def populate_purchase_documents(db_handler: DatabaseHandler, purchase_logic: Pur
         if new_item1_id:
             added_item1 = purchase_logic.get_purchase_document_item_details(new_item1_id)
             if added_item1:
-                 print(f"Added item '{added_item1.product_description}' to PO {created_doc_obj.document_number}")
+                 print(f"Added item '{added_item1.product_description}' to RFQ {rfq_doc_obj.document_number}")
 
         item2 = PurchaseDocumentItem(
-            purchase_document_id=created_doc_obj.id,
+            purchase_document_id=rfq_doc_obj.id,
             product_description="Sandbox Item B - Mega Gadget",
             quantity=5,
             unit_price=125.50,
@@ -92,52 +79,62 @@ def populate_purchase_documents(db_handler: DatabaseHandler, purchase_logic: Pur
         if new_item2_id:
             added_item2 = purchase_logic.get_purchase_document_item_details(new_item2_id)
             if added_item2:
-                print(f"Added item '{added_item2.product_description}' to PO {created_doc_obj.document_number}")
+                print(f"Added item '{added_item2.product_description}' to RFQ {rfq_doc_obj.document_number}")
 
-        # Create a second PO for variety
-        po_doc_2 = PurchaseDocument(
-            document_number="PO-SANDBOX-002",
+        # Create a second document, this time let's make it a PO after creation
+        print("Creating sample PO (via RFQ then conversion)...")
+        po_doc_obj = purchase_logic.create_rfq(
             vendor_id=vendor_id, # Same vendor for simplicity
-            created_date=datetime.datetime.now().isoformat(),
-            status=PurchaseDocumentStatus.RFQ,
-            notes="Sample RFQ created by sandbox script."
+            notes="Sample PO (initially RFQ) automatically numbered by sandbox script."
         )
-        new_doc_2_id = purchase_logic.db.add_purchase_document(
-            doc_number=po_doc_2.document_number,
-            vendor_id=po_doc_2.vendor_id,
-            created_date=po_doc_2.created_date,
-            status=po_doc_2.status.value, # Ensure enum value
-            notes=po_doc_2.notes
-        )
-        created_doc_obj_2 = None
-        if new_doc_2_id:
-            created_doc_obj_2 = purchase_logic.get_purchase_document_details(new_doc_2_id)
 
-        if not created_doc_obj_2 or not created_doc_obj_2.id:
-            print(f"Failed to create purchase document {po_doc_2.document_number}.")
+        if not po_doc_obj or not po_doc_obj.id:
+            print(f"Failed to create initial RFQ for PO conversion.")
             return
-        print(f"Purchase Document '{created_doc_obj_2.document_number}' created with ID {created_doc_obj_2.id}.")
 
+        print(f"Initial document '{po_doc_obj.document_number}' created with ID {po_doc_obj.id}, Status: {po_doc_obj.status.value}.")
+
+        # Simulate quoting and conversion to PO
+        # Add an item (required for some status transitions, or just good for testing)
         item3 = PurchaseDocumentItem(
-            purchase_document_id=created_doc_obj_2.id,
-            product_description="Sandbox Item C - Tiny Gizmo",
+            purchase_document_id=po_doc_obj.id,
+            product_description="Sandbox Item C - Tiny Gizmo for PO",
             quantity=100,
-            unit_price=1.75,
+            unit_price=1.75, # Providing a unit price
             product_id=None
         )
         item3.calculate_total_price()
-        new_item3_id = purchase_logic.db.add_purchase_document_item(
-            doc_id=item3.purchase_document_id,
-            product_description=item3.product_description,
+        # Use the proper PurchaseLogic method to add items which might also update status to Quoted
+        added_item3_obj = purchase_logic.add_item_to_document(
+            doc_id=po_doc_obj.id,
+            product_id=item3.product_id, # Will be None
             quantity=item3.quantity,
-            product_id=item3.product_id,
-            unit_price=item3.unit_price,
-            total_price=item3.total_price
+            unit_price=item3.unit_price, # Pass unit price
+            product_description_override=item3.product_description
         )
-        if new_item3_id:
-            added_item3 = purchase_logic.get_purchase_document_item_details(new_item3_id)
-            if added_item3:
-                print(f"Added item '{added_item3.product_description}' to PO {created_doc_obj_2.document_number}")
+
+        if added_item3_obj:
+            print(f"Added item '{added_item3_obj.product_description}' to document {po_doc_obj.document_number}")
+            # Check if status became Quoted (add_item_to_document in PurchaseLogic might do this if unit_price is given)
+            # For sandbox, let's explicitly update status to Quoted if not already, then to PO_Issued
+            # This requires get_purchase_document_details to be accurate.
+            current_doc_state = purchase_logic.get_purchase_document_details(po_doc_obj.id)
+            if current_doc_state.status == PurchaseDocumentStatus.RFQ:
+                 print(f"Updating status of doc {current_doc_state.document_number} to Quoted...")
+                 purchase_logic.update_document_status(current_doc_state.id, PurchaseDocumentStatus.QUOTED)
+                 current_doc_state = purchase_logic.get_purchase_document_details(po_doc_obj.id) # Refresh state
+
+            if current_doc_state.status == PurchaseDocumentStatus.QUOTED:
+                print(f"Converting doc {current_doc_state.document_number} to PO-Issued...")
+                po_final_obj = purchase_logic.convert_rfq_to_po(current_doc_state.id)
+                if po_final_obj:
+                    print(f"Document '{po_final_obj.document_number}' is now PO-Issued with ID {po_final_obj.id}.")
+                else:
+                    print(f"Failed to convert doc {current_doc_state.document_number} to PO-Issued.")
+            else:
+                print(f"Document {current_doc_state.document_number} status is {current_doc_state.status.value}, not converting to PO for sandbox.")
+        else:
+            print(f"Failed to add item to document {po_doc_obj.document_number}, cannot proceed with PO conversion steps.")
 
 
     except Exception as e:

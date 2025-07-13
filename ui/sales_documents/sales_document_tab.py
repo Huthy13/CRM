@@ -85,7 +85,7 @@ class SalesDocumentTab:
             if doc.customer_id: # Changed from vendor_id
                 customer_account = self.account_logic.get_account_details(doc.customer_id)
                 if customer_account:
-                    customer_name = customer_account.get('name', "Error: Name not found")
+                    customer_name = customer_account.name
 
 
             formatted_date = doc.created_date

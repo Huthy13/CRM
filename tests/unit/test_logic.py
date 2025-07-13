@@ -64,12 +64,18 @@ class TestLogic(unittest.TestCase):
         new_account = Account(
             name="Test Account Inc.",
             phone="123-456-7890",
-            billing_address_id=billing_address_id,
-            shipping_address_id=shipping_address_id,
+            addresses=[
+                Address(address_id=billing_address_id, street="1 Billing Rd", city="Billville", state="BS", zip_code="B1B1B1", country="BC"),
+                Address(address_id=shipping_address_id, street="1 Shipping Wy", city="Shipburg", state="SS", zip_code="S1S1S1", country="SC")
+            ],
             website="http://testaccount.com",
             description="A test account",
             account_type=AccountType.CUSTOMER
         )
+        new_account.addresses[0].address_type = "Billing"
+        new_account.addresses[0].is_primary = True
+        new_account.addresses[1].address_type = "Shipping"
+        new_account.addresses[1].is_primary = True
         # The save_account in logic should handle the db interaction and return the ID
         # For now, we assume save_account doesn't directly return the ID,
         # so we'll retrieve it to confirm.
@@ -85,8 +91,7 @@ class TestLogic(unittest.TestCase):
         self.assertIsNotNone(retrieved_account)
         self.assertEqual(retrieved_account.name, "Test Account Inc.")
         self.assertEqual(retrieved_account.phone, "123-456-7890")
-        self.assertEqual(retrieved_account.billing_address_id, billing_address_id)
-        self.assertEqual(retrieved_account.shipping_address_id, shipping_address_id)
+        self.assertEqual(len(retrieved_account.addresses), 2)
         self.assertEqual(retrieved_account.website, "http://testaccount.com")
         self.assertEqual(retrieved_account.description, "A test account")
 
@@ -102,7 +107,9 @@ class TestLogic(unittest.TestCase):
     def test_delete_account(self):
         """Test deleting an account."""
         billing_address_id = self.logic.add_address("1 Delete Rd", "Delville", "DS", "D1D1D1", "DC")
-        new_account = Account(name="To Be Deleted", phone="1112223333", billing_address_id=billing_address_id, account_type=AccountType.VENDOR)
+        new_account = Account(name="To Be Deleted", phone="1112223333", addresses=[Address(address_id=billing_address_id, street="1 Delete Rd", city="Delville", state="DS", zip_code="D1D1D1", country="DC")], account_type=AccountType.VENDOR)
+        new_account.addresses[0].is_primary = True
+        new_account.addresses[0].address_type = "Billing"
         self.logic.save_account(new_account)
         # Get the ID of the newly created account
         accounts = self.logic.get_accounts()
@@ -117,7 +124,9 @@ class TestLogic(unittest.TestCase):
         """Test saving (add/update) and retrieving a contact."""
         # First, create an account for the contact
         billing_address_id = self.logic.add_address("Acc Main St", "Acc City", "AS", "A1A1A1", "AC")
-        account = Account(name="Contact's Account", phone="555-0000", billing_address_id=billing_address_id, account_type=AccountType.CUSTOMER)
+        account = Account(name="Contact's Account", phone="555-0000", addresses=[Address(address_id=billing_address_id, street="Acc Main St", city="Acc City", state="AS", zip_code="A1A1A1", country="AC")], account_type=AccountType.CUSTOMER)
+        account.addresses[0].is_primary = True
+        account.addresses[0].address_type = "Billing"
         self.logic.save_account(account)
         accounts = self.logic.get_accounts()
         account_id = accounts[0][0] # Get the ID of the created account
@@ -156,13 +165,17 @@ class TestLogic(unittest.TestCase):
         """Test retrieving contacts associated with a specific account."""
         # Account 1
         b_addr1_id = self.logic.add_address("Acc1 St", "City1", "S1", "11111", "C1")
-        acc1 = Account(name="Account One", phone="111-1111", billing_address_id=b_addr1_id, account_type=AccountType.CUSTOMER)
+        acc1 = Account(name="Account One", phone="111-1111", addresses=[Address(address_id=b_addr1_id, street="Acc1 St", city="City1", state="S1", zip_code="11111", country="C1")], account_type=AccountType.CUSTOMER)
+        acc1.addresses[0].is_primary = True
+        acc1.addresses[0].address_type = "Billing"
         self.logic.save_account(acc1)
         acc1_id = self.logic.get_accounts()[0][0]
 
         # Account 2
         b_addr2_id = self.logic.add_address("Acc2 St", "City2", "S2", "22222", "C2")
-        acc2 = Account(name="Account Two", phone="222-2222", billing_address_id=b_addr2_id, account_type=AccountType.VENDOR)
+        acc2 = Account(name="Account Two", phone="222-2222", addresses=[Address(address_id=b_addr2_id, street="Acc2 St", city="City2", state="S2", zip_code="22222", country="C2")], account_type=AccountType.VENDOR)
+        acc2.addresses[0].is_primary = True
+        acc2.addresses[0].address_type = "Billing"
         self.logic.save_account(acc2)
         acc2_id = self.logic.get_accounts()[1][0]
 
@@ -186,12 +199,16 @@ class TestLogic(unittest.TestCase):
     def test_get_all_contacts(self):
         """Test retrieving all contacts."""
         b_addr1_id = self.logic.add_address("All1 St", "CityA1", "SA1", "A1111", "CA1")
-        acc1 = Account(name="Global Corp", phone="100-1000", billing_address_id=b_addr1_id, account_type=AccountType.CUSTOMER)
+        acc1 = Account(name="Global Corp", phone="100-1000", addresses=[Address(address_id=b_addr1_id, street="All1 St", city="CityA1", state="SA1", zip_code="A1111", country="CA1")], account_type=AccountType.CUSTOMER)
+        acc1.addresses[0].is_primary = True
+        acc1.addresses[0].address_type = "Billing"
         self.logic.save_account(acc1)
         acc1_id = self.logic.get_accounts()[0][0]
 
         b_addr2_id = self.logic.add_address("All2 St", "CityA2", "SA2", "A2222", "CA2")
-        acc2 = Account(name="Local LLC", phone="200-2000", billing_address_id=b_addr2_id, account_type=AccountType.VENDOR)
+        acc2 = Account(name="Local LLC", phone="200-2000", addresses=[Address(address_id=b_addr2_id, street="All2 St", city="CityA2", state="SA2", zip_code="A2222", country="CA2")], account_type=AccountType.VENDOR)
+        acc2.addresses[0].is_primary = True
+        acc2.addresses[0].address_type = "Billing"
         self.logic.save_account(acc2)
         acc2_id = self.logic.get_accounts()[1][0]
 
@@ -209,7 +226,9 @@ class TestLogic(unittest.TestCase):
     def test_delete_contact(self):
         """Test deleting a contact."""
         b_addr_id = self.logic.add_address("DelCon St", "DelCon City", "DS", "DCS01", "DC")
-        account = Account(name="Contact Delete Account", phone="555-9999", billing_address_id=b_addr_id, account_type=AccountType.CUSTOMER)
+        account = Account(name="Contact Delete Account", phone="555-9999", addresses=[Address(address_id=b_addr_id, street="DelCon St", city="DelCon City", state="DS", zip_code="DCS01", country="DC")], account_type=AccountType.CUSTOMER)
+        account.addresses[0].is_primary = True
+        account.addresses[0].address_type = "Billing"
         self.logic.save_account(account)
         account_id = self.logic.get_accounts()[0][0]
 

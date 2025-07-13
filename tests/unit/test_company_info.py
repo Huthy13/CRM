@@ -205,5 +205,41 @@ class TestCompanyInfo(unittest.TestCase):
         self.assertIsNotNone(db_entry)
         self.assertEqual(db_entry['name'], "My Company")
 
+    def test_07_enforce_single_primary_address(self):
+        """Test that only one primary billing and one primary shipping address can be saved for the company."""
+        if not self.root:
+            self.skipTest("Tkinter root not available, skipping UI-dependent test.")
+
+        tab = CompanyInfoTab(self.root, self.db_handler)
+
+        # Add two primary billing addresses
+        billing_address1 = Address(street="123 Billing St", city="Billington", state="BS", zip_code="12345", country="BC")
+        billing_address1.address_type = "Billing"
+        billing_address1.is_primary = True
+        billing_address2 = Address(street="456 Billing St", city="Billington", state="BS", zip_code="12345", country="BC")
+        billing_address2.address_type = "Billing"
+        billing_address2.is_primary = True
+        tab.company_info.addresses.append(billing_address1)
+        tab.company_info.addresses.append(billing_address2)
+
+        # Add two primary shipping addresses
+        shipping_address1 = Address(street="123 Shipping St", city="Shippsville", state="SS", zip_code="67890", country="SC")
+        shipping_address1.address_type = "Shipping"
+        shipping_address1.is_primary = True
+        shipping_address2 = Address(street="456 Shipping St", city="Shippsville", state="SS", zip_code="67890", country="SC")
+        shipping_address2.address_type = "Shipping"
+        shipping_address2.is_primary = True
+        tab.company_info.addresses.append(shipping_address1)
+        tab.company_info.addresses.append(shipping_address2)
+
+        tab.save_company_information()
+
+        # Verify that only one of each is primary
+        addresses = self.db_handler.get_company_addresses(tab.company_info.company_id)
+        primary_billing_addresses = [addr for addr in addresses if addr['address_type'] == 'Billing' and addr['is_primary']]
+        self.assertEqual(len(primary_billing_addresses), 1)
+        primary_shipping_addresses = [addr for addr in addresses if addr['address_type'] == 'Shipping' and addr['is_primary']]
+        self.assertEqual(len(primary_shipping_addresses), 1)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

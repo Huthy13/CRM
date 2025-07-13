@@ -634,29 +634,18 @@ def add_or_update_product_price(data: dict, db_conn=None) -> int | None:
         prod_exists = get_product(product_id, db_conn=conn)
         if not prod_exists:
             print(f"Error: Product with ID {product_id} does not exist."); return None
-        if price_record_id:
-            update_sql = "UPDATE product_prices SET product_id=?, price=?, currency=?, valid_from=?, valid_to=?"
-            update_params = [product_id, price_value, currency, valid_from, valid_to]
-            if 'price_type' in data:
-                update_sql += ", price_type=?"
-                update_params.append(data['price_type'].upper())
-            update_sql += " WHERE id=?"
-            update_params.append(price_record_id)
-            cursor.execute(update_sql, tuple(update_params))
-            if cursor.rowcount == 0: price_record_id = None
+        query_find = "SELECT id FROM product_prices WHERE product_id = ? AND price_type = ? AND valid_from = ? AND currency = ?"
+        params_find = [product_id, price_type, valid_from, currency]
+        cursor.execute(query_find, tuple(params_find))
+        existing_record = cursor.fetchone()
+        if existing_record:
+            price_record_id = existing_record['id']
+            cursor.execute("UPDATE product_prices SET price = ?, valid_to = ? WHERE id = ?",
+                           (price_value, valid_to, price_record_id))
         else:
-            query_find = "SELECT id FROM product_prices WHERE product_id = ? AND price_type = ? AND valid_from = ?"
-            params_find = [product_id, price_type, valid_from]
-            cursor.execute(query_find, tuple(params_find))
-            existing_record = cursor.fetchone()
-            if existing_record:
-                price_record_id = existing_record['id']
-                cursor.execute("UPDATE product_prices SET price = ?, currency = ?, valid_to = ? WHERE id = ?",
-                               (price_value, currency, valid_to, price_record_id))
-            else:
-                cursor.execute("INSERT INTO product_prices (product_id, price_type, price, currency, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)",
-                               (product_id, price_type, price_value, currency, valid_from, valid_to))
-                price_record_id = cursor.lastrowid
+            cursor.execute("INSERT INTO product_prices (product_id, price_type, price, currency, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)",
+                           (product_id, price_type, price_value, currency, valid_from, valid_to))
+            price_record_id = cursor.lastrowid
         if price_record_id is not None and not conn_provided: conn.commit()
         elif price_record_id is None and conn_provided: conn.rollback()
         return price_record_id

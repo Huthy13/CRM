@@ -15,24 +15,29 @@ def adapt_date_iso(val):
 def convert_timestamp_iso(val_bytes):
     """Convert ISO 8601 string to datetime.datetime object. Handles 'Z' and milliseconds."""
     val_str = val_bytes.decode('utf-8')
-    if val_str.endswith('Z'):
-        val_str = val_str[:-1] + '+00:00'
-    # Handle up to nanoseconds, then truncate to microseconds for fromisoformat
-    if '.' in val_str and len(val_str.split('.')[1].split('+')[0].split('-')[0]) > 6:
-        parts = val_str.split('.')
-        time_part_before_frac = parts[0]
-        frac_second_and_rest = parts[1]
-        frac_second = frac_second_and_rest[:6] # Keep only microseconds
-        rest_of_string = frac_second_and_rest[len(frac_second_and_rest.split('+')[0].split('-')[0]):] # Get timezone if present
-        val_str = f"{time_part_before_frac}.{frac_second}{rest_of_string}"
-
     try:
-        return datetime.datetime.fromisoformat(val_str)
-    except ValueError: # Fallback if not full datetime (e.g. just date)
+        # For 'YYYY-MM-DD HH:MM:SS' format
+        return datetime.datetime.strptime(val_str, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        # Fallback for ISO 8601 format
+        if val_str.endswith('Z'):
+            val_str = val_str[:-1] + '+00:00'
+        # Handle up to nanoseconds, then truncate to microseconds for fromisoformat
+        if '.' in val_str and len(val_str.split('.')[1].split('+')[0].split('-')[0]) > 6:
+            parts = val_str.split('.')
+            time_part_before_frac = parts[0]
+            frac_second_and_rest = parts[1]
+            frac_second = frac_second_and_rest[:6] # Keep only microseconds
+            rest_of_string = frac_second_and_rest[len(frac_second_and_rest.split('+')[0].split('-')[0]):] # Get timezone if present
+            val_str = f"{time_part_before_frac}.{frac_second}{rest_of_string}"
+
         try:
-            return datetime.datetime.combine(datetime.date.fromisoformat(val_str), datetime.time.min)
-        except ValueError:
-            return None # Or raise a more specific error / log
+            return datetime.datetime.fromisoformat(val_str)
+        except ValueError: # Fallback if not full datetime (e.g. just date)
+            try:
+                return datetime.datetime.combine(datetime.date.fromisoformat(val_str), datetime.time.min)
+            except ValueError:
+                return None # Or raise a more specific error / log
 
 def convert_date_iso(val_bytes):
     """Convert ISO 8601 date string to datetime.date object."""

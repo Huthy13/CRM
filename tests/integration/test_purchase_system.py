@@ -45,8 +45,6 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         cls.vendor1_id = cls.db_handler.add_account(
             name="Test Vendor One",
             phone="123-456-7890",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="vendor.com",
             description="Main vendor for testing",
             account_type=AccountType.VENDOR.value # Use the string value for DB
@@ -54,8 +52,6 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         cls.vendor2_id = cls.db_handler.add_account(
             name="Test Vendor Two",
             phone="987-654-3210",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="vendor2.com",
             description="Second vendor",
             account_type=AccountType.VENDOR.value

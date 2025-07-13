@@ -31,8 +31,8 @@ def create_tables(db_conn=None):
             category_id INTEGER,
             unit_of_measure_id INTEGER, -- Changed from unit_of_measure TEXT
             is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES product_categories(id),
             FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure(id) -- Added FK
         )
@@ -230,7 +230,7 @@ def create_tables(db_conn=None):
             valid_from DATE NOT NULL,
             valid_to DATE,
             FOREIGN KEY (product_id) REFERENCES products(id),
-            UNIQUE (product_id, price_type, valid_from) -- Ensure unique price per type for a given start date
+            UNIQUE (product_id, price_type, valid_from, currency)
         )
         """)
 

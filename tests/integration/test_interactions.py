@@ -26,8 +26,6 @@ class TestAccountInteractions(unittest.TestCase): # Renamed class for clarity
         cls.account1_id = cls.db_handler.add_account(
             name="Test Account 1",
             phone="1234567890",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="test.com",
             description="Desc",
             account_type=AccountType.CUSTOMER.value
@@ -51,8 +49,6 @@ class TestAccountInteractions(unittest.TestCase): # Renamed class for clarity
         TestAccountInteractions.account1_id = self.db_handler.add_account(
             name="Test Account 1",
             phone="1234567890",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="test.com",
             description="Desc",
             account_type=AccountType.CUSTOMER.value
@@ -379,8 +375,6 @@ class TestAccountInteractions(unittest.TestCase): # Renamed class for clarity
         account2_id = self.db_handler.add_account(
             name="Filter Account",
             phone="111222333",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="filter.com",
             description="Desc",
             account_type=AccountType.CUSTOMER.value
@@ -409,8 +403,6 @@ class TestAccountInteractions(unittest.TestCase): # Renamed class for clarity
         temp_account_id = self.db_handler.add_account(
             name="Temp Account",
             phone="555555",
-            billing_address_id=None,
-            shipping_address_id=None,
             website="temp.com",
             description="Temp Desc",
             account_type=AccountType.CUSTOMER.value

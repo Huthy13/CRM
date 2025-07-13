@@ -69,22 +69,23 @@ class AddressBookLogic:
         primary_billing_found = False
         primary_shipping_found = False
 
+        # Ensure there's only one primary billing and one primary shipping address
         primary_billing_found = False
         primary_shipping_found = False
-
         for address in reversed(account.addresses):
             if address.is_primary:
                 if address.address_type == 'Billing':
-                    if not primary_billing_found:
+                    if primary_billing_found:
+                        address.is_primary = False
+                    else:
                         primary_billing_found = True
-                    else:
-                        address.is_primary = False
                 elif address.address_type == 'Shipping':
-                    if not primary_shipping_found:
-                        primary_shipping_found = True
-                    else:
+                    if primary_shipping_found:
                         address.is_primary = False
+                    else:
+                        primary_shipping_found = True
 
+        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
         for address in account.addresses:
             if address.address_id:
                 self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)

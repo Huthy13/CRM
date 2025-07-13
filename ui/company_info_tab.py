@@ -90,14 +90,20 @@ class CompanyInfoTab:
         for i in self.address_tree.get_children():
             self.address_tree.delete(i)
         if self.company_info and hasattr(self.company_info, 'addresses'):
-            for addr in self.company_info.addresses:
+            for i, addr in enumerate(self.company_info.addresses):
                 address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
-                self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=addr.address_id)
+                self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=i)
 
     def add_address(self):
         address_popup = AddressPopup(self.frame)
         self.frame.wait_window(address_popup)
         if hasattr(address_popup, 'address'):
+            if not hasattr(address_popup.address, 'address_id'):
+                address_popup.address.address_id = None
+            if not hasattr(address_popup.address, 'address_type'):
+                address_popup.address.address_type = ''
+            if not hasattr(address_popup.address, 'is_primary'):
+                address_popup.address.is_primary = False
             self.company_info.addresses.append(address_popup.address)
             self.populate_address_tree()
 
@@ -107,12 +113,11 @@ class CompanyInfoTab:
             messagebox.showerror("Error", "Please select an address to edit.")
             return
 
-        address_id = int(selected_item[0])
-        address = next((addr for addr in self.company_info.addresses if addr.address_id == address_id), None)
-        if address:
-            address_popup = AddressPopup(self.frame, address)
-            self.frame.wait_window(address_popup)
-            self.populate_address_tree()
+        index = int(selected_item[0])
+        address = self.company_info.addresses[index]
+        address_popup = AddressPopup(self.frame, address)
+        self.frame.wait_window(address_popup)
+        self.populate_address_tree()
 
     def delete_address(self):
         selected_item = self.address_tree.selection()
@@ -120,8 +125,8 @@ class CompanyInfoTab:
             messagebox.showerror("Error", "Please select an address to delete.")
             return
 
-        address_id = int(selected_item[0])
-        self.company_info.addresses = [addr for addr in self.company_info.addresses if addr.address_id != address_id]
+        index = int(selected_item[0])
+        del self.company_info.addresses[index]
         self.populate_address_tree()
 
     def save_company_information(self):

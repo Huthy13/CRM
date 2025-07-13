@@ -93,6 +93,17 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         ttk.Label(self.content_frame, text="Customer:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W) # Changed from Vendor
         self.customer_combobox = ttk.Combobox(self.content_frame, textvariable=self.customer_var, state="readonly", width=37) # Changed from vendor_combobox
         self.customer_combobox.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        self.customer_combobox.bind("<<ComboboxSelected>>", self.on_customer_selected)
+        current_row += 1
+
+        ttk.Label(self.content_frame, text="Billing Address:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.billing_address_combobox = ttk.Combobox(self.content_frame, state="readonly", width=37)
+        self.billing_address_combobox.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        ttk.Label(self.content_frame, text="Shipping Address:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.shipping_address_combobox = ttk.Combobox(self.content_frame, state="readonly", width=37)
+        self.shipping_address_combobox.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
         current_row += 1
 
         ttk.Label(self.content_frame, text="Created Date:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
@@ -239,28 +250,51 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             traceback.print_exc()
 
 
+    def on_customer_selected(self, event=None):
+        selected_customer_name = self.customer_var.get()
+        if selected_customer_name == NO_CUSTOMER_LABEL:
+            self.billing_address_combobox['values'] = []
+            self.shipping_address_combobox['values'] = []
+            return
+
+        customer_id = self.customer_map.get(selected_customer_name)
+        if customer_id:
+            customer = self.account_logic.get_account_details(customer_id)
+            if customer:
+                billing_addresses = [addr for addr in customer.addresses if addr.address_type == 'Billing']
+                shipping_addresses = [addr for addr in customer.addresses if addr.address_type == 'Shipping']
+
+                self.billing_address_combobox['values'] = [f"{addr.street}, {addr.city}" for addr in billing_addresses]
+                self.shipping_address_combobox['values'] = [f"{addr.street}, {addr.city}" for addr in shipping_addresses]
+
+                primary_billing = next((addr for addr in billing_addresses if addr.is_primary), None)
+                if primary_billing:
+                    self.billing_address_combobox.set(f"{primary_billing.street}, {primary_billing.city}")
+                elif billing_addresses:
+                    self.billing_address_combobox.set(f"{billing_addresses[0].street}, {billing_addresses[0].city}")
+
+                primary_shipping = next((addr for addr in shipping_addresses if addr.is_primary), None)
+                if primary_shipping:
+                    self.shipping_address_combobox.set(f"{primary_shipping.street}, {primary_shipping.city}")
+                elif shipping_addresses:
+                    self.shipping_address_combobox.set(f"{shipping_addresses[0].street}, {shipping_addresses[0].city}")
+
     def populate_customer_dropdown(self): # Changed from populate_vendor_dropdown
         self.customer_map.clear()
         customer_names = [NO_CUSTOMER_LABEL]
-        # Assuming account_logic.get_all_accounts() returns list of Account objects or dicts
-        all_accounts_raw = self.account_logic.get_all_accounts()
+        all_accounts = self.account_logic.get_all_accounts()
 
-        for acc in all_accounts_raw:
-            try:
-                # Assuming acc is an Account object with attributes
-                if acc.account_type == AccountType.CUSTOMER:
-                    self.customer_map[acc.name] = acc.account_id
-                    customer_names.append(acc.name)
-            except (ValueError, AttributeError) as e:
-                # Catching AttributeError as well in case the object structure is not as expected
-                print(f"Warning: Skipping account due to error: {e}")
-
+        for acc in all_accounts:
+            if acc.account_type == AccountType.CUSTOMER:
+                self.customer_map[acc.name] = acc.account_id
+                customer_names.append(acc.name)
 
         self.customer_combobox['values'] = sorted(list(set(customer_names)))
         if self.document_data and self.document_data.customer_id:
             for name, c_id in self.customer_map.items():
                 if c_id == self.document_data.customer_id:
                     self.customer_var.set(name) # Use self.customer_var
+                    self.on_customer_selected()
                     return
         self.customer_var.set(NO_CUSTOMER_LABEL)
 

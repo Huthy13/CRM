@@ -92,11 +92,22 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             company_billing_address_pdf_lines = ["Company information not found in database."]
 
         customer: Account = None
-        customer_address: Address = None
+        customer_billing_address: Address = None
+        customer_shipping_address: Address = None
         if doc.customer_id:
             customer = address_book_logic.get_account_details(doc.customer_id)
-            if customer and customer.billing_address_id:
-                customer_address = address_book_logic.get_address_obj(customer.billing_address_id)
+            if customer:
+                for address in customer.addresses:
+                    if address.address_type == 'Billing' and address.is_primary:
+                        customer_billing_address = address
+                    if address.address_type == 'Shipping' and address.is_primary:
+                        customer_shipping_address = address
+                # Fallback if no primary is set
+                if not customer_billing_address and any(addr.address_type == 'Billing' for addr in customer.addresses):
+                    customer_billing_address = next(addr for addr in customer.addresses if addr.address_type == 'Billing')
+                if not customer_shipping_address and any(addr.address_type == 'Shipping' for addr in customer.addresses):
+                    customer_shipping_address = next(addr for addr in customer.addresses if addr.address_type == 'Shipping')
+
 
         items: list[SalesDocumentItem] = sales_logic.get_items_for_sales_document(doc.id)
 
@@ -150,16 +161,16 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             pdf.set_x(right_column_x)
             pdf.cell(col_width_half, line_height, customer.name or "N/A", 0, 1, "L")
 
-            if customer_address:
+            if customer_billing_address:
                 pdf.set_x(right_column_x)
                 pdf.multi_cell(col_width_half, line_height,
-                               f"{customer_address.street or ''}\n"
-                               f"{customer_address.city or ''}, {customer_address.state or ''} {customer_address.zip_code or ''}\n"
-                               f"{customer_address.country or ''}".strip(),
+                               f"{customer_billing_address.street or ''}\n"
+                               f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}\n"
+                               f"{customer_billing_address.country or ''}".strip(),
                                0, "L")
             else:
                 pdf.set_x(right_column_x)
-                pdf.cell(col_width_half, line_height, "No address on file.", 0, 1, "L")
+                pdf.cell(col_width_half, line_height, "No billing address on file.", 0, 1, "L")
 
             if customer.phone:
                 pdf.set_x(right_column_x)

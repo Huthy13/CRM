@@ -69,26 +69,29 @@ class AddressBookLogic:
         primary_billing_found = False
         primary_shipping_found = False
 
+        primary_billing_found = False
+        primary_shipping_found = False
+
+        for address in reversed(account.addresses):
+            if address.is_primary:
+                if address.address_type == 'Billing':
+                    if not primary_billing_found:
+                        primary_billing_found = True
+                    else:
+                        address.is_primary = False
+                elif address.address_type == 'Shipping':
+                    if not primary_shipping_found:
+                        primary_shipping_found = True
+                    else:
+                        address.is_primary = False
+
         for address in account.addresses:
-            is_primary = address.is_primary
-            if address.address_type == 'Billing':
-                if is_primary and not primary_billing_found:
-                    primary_billing_found = True
-                elif is_primary and primary_billing_found:
-                    is_primary = False # Demote additional primary
-
-            if address.address_type == 'Shipping':
-                if is_primary and not primary_shipping_found:
-                    primary_shipping_found = True
-                elif is_primary and primary_shipping_found:
-                    is_primary = False # Demote additional primary
-
             if address.address_id:
                 self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address.address_id, address.address_type, is_primary)
+                self.db.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
             else:
                 address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address_id, address.address_type, is_primary)
+                self.db.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
 
 
     def get_all_accounts(self) -> List[Account]:

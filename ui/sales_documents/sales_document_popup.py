@@ -54,10 +54,12 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             self.created_date_var.set(datetime.date.today().isoformat())
 
             if self.current_doc_type == SalesDocumentType.QUOTE:
-                self.status_var.set(SalesDocumentStatus.QUOTE_DRAFT.value)
+                self.current_status = SalesDocumentStatus.QUOTE_DRAFT
+                self.status_var.set(self.current_status.value)
                 self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
             elif self.current_doc_type == SalesDocumentType.INVOICE:
-                self.status_var.set(SalesDocumentStatus.INVOICE_DRAFT.value)
+                self.current_status = SalesDocumentStatus.INVOICE_DRAFT
+                self.status_var.set(self.current_status.value)
                 self.due_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
 
             self.populate_customer_dropdown() # Changed from vendor

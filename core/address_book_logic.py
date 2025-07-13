@@ -65,29 +65,22 @@ class AddressBookLogic:
             return account # Return the updated account object
 
 
-    def get_all_accounts(self): # This likely returns tuples, not Account objects
-        """Retrieve all accounts. Consider returning list of Account objects if needed elsewhere."""
-        # Modified to return Account objects
-        accounts_data = self.db.get_all_accounts()
+    def get_all_accounts(self) -> List[Account]:
+        """
+        Retrieve all accounts from the database and return them as a list of Account objects.
+        This method is intended for use cases where the full Account object is needed, for example,
+        in UI dropdowns that need to filter by account type.
+        """
+        accounts_data = self.db.get_all_accounts()  # This should return a list of dicts
         accounts_list = []
-        for row_data in accounts_data:
-            # Assuming row_data is a tuple: (id, name, phone, description, account_type_str)
-            account_type_str = row_data[4] if len(row_data) > 4 else None
-            account_type_enum = None
-            if account_type_str:
-                try:
-                    account_type_enum = AccountType(account_type_str)
-                except ValueError:
-                    # Handle invalid string, e.g., log a warning or default
-                    print(f"Warning: Invalid account type string '{account_type_str}' found in database for account ID {row_data[0]}.")
-            accounts_list.append(Account(
-                account_id=row_data[0],
-                name=row_data[1],
-                phone=row_data[2],
-                description=row_data[3],
-                account_type=account_type_enum
-                # Note: billing/shipping addresses are not fetched by db.get_all_accounts here
-            ))
+        for acc_data in accounts_data:
+            try:
+                # The from_dict method will handle the conversion, including the account_type enum
+                account = Account.from_dict(acc_data)
+                accounts_list.append(account)
+            except (ValueError, KeyError) as e:
+                # Log an error if a record is malformed or has an invalid account_type
+                print(f"Warning: Could not process account record: {acc_data}. Error: {e}")
         return accounts_list
 
     def get_account_details(self, account_id) -> Account | None:

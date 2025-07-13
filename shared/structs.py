@@ -77,6 +77,27 @@ class Account:
 
         return self.billing_address_id == self.shipping_address_id
 
+    @classmethod
+    def from_row(cls, row: tuple) -> 'Account':
+        """
+        Creates an Account object from a database row.
+        """
+        account_id, name, phone, description, account_type_str = row
+        account_type_enum = None
+        if account_type_str:
+            try:
+                account_type_enum = AccountType(account_type_str)
+            except ValueError:
+                print(f"Warning: Invalid account type string '{account_type_str}' in data: {row}")
+
+        return cls(
+            account_id=account_id,
+            name=name,
+            phone=phone,
+            description=description,
+            account_type=account_type_enum
+        )
+
 
 class Contact:
     def __init__(self, contact_id=None, name="", phone="", email="", account_id=None, role=""):

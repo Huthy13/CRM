@@ -128,12 +128,10 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         product_display_names = ["<Select Product>"]
         all_products = self.product_logic.get_all_products() # Expects list of Product objects or dicts
 
-        for prod_data in all_products: # Assuming get_all_products returns dicts now
-            prod_name = prod_data.get('name')
-            prod_id = prod_data.get('product_id') # This should be the DB 'id'
-            if prod_name and prod_id is not None:
-                display_name = f"{prod_name}"
-                self.product_map[display_name] = prod_id
+        for prod in all_products:
+            if prod.name and prod.product_id is not None:
+                display_name = f"{prod.name}"
+                self.product_map[display_name] = prod.product_id
                 product_display_names.append(display_name)
 
         self.product_combobox['values'] = sorted(product_display_names)
@@ -146,8 +144,8 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
 
         if product_id:
             product_details = self.product_logic.get_product_details(product_id) # Expects dict
-            if product_details and product_details.get('sale_price') is not None:
-                self.unit_price_var.set(f"{product_details['sale_price']:.2f}")
+            if product_details and product_details.sale_price is not None:
+                self.unit_price_var.set(f"{product_details.sale_price:.2f}")
             else: # Product found but no sale price
                 self.unit_price_var.set("0.00")
                 messagebox.showwarning("No Sale Price", f"Product '{selected_product_name}' does not have a sale price set.", parent=self)
@@ -193,7 +191,7 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
 
         # Fetch product description from product_logic, not just name, if available
         product_details_for_desc = self.product_logic.get_product_details(selected_product_id)
-        final_product_description = product_details_for_desc.get('name', selected_product_name) if product_details_for_desc else selected_product_name
+        final_product_description = product_details_for_desc.name if product_details_for_desc else selected_product_name
 
         # Line total is calculated by sales_logic.add_item_to_sales_document or update_sales_document_item
         try:
@@ -280,4 +278,3 @@ if __name__ == '__main__':
     ttk.Button(root, text="Add Sales Item", command=open_add_item_popup).pack(pady=10)
     ttk.Button(root, text="Edit Sales Item", command=open_edit_item_popup).pack(pady=10)
     root.mainloop()
-Tool output for `create_file_with_block`:

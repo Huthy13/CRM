@@ -39,7 +39,7 @@ class TestAddressBookLogic(unittest.TestCase):
             self.db_handler.cursor.execute("DELETE FROM product_prices")
             self.db_handler.cursor.execute("DELETE FROM products")
             self.db_handler.cursor.execute("DELETE FROM product_categories")
-            self.db_handler.cursor.execute("DELETE FROM product_units_of_measure") # Added this line
+            self.db_handler.cursor.execute("DELETE FROM unit_types")
 
     def test_add_and_get_product(self):
         # Test adding a product and retrieving it
@@ -144,7 +144,9 @@ class TestAddressBookLogic(unittest.TestCase):
     def test_get_all_product_units_of_measure_from_table(self):
         self.logic.save_product(Product(name="UnitProd A", unit_of_measure="KG", cost=10, sale_price=12))
         self.logic.save_product(Product(name="UnitProd B", unit_of_measure="Meter", cost=20, sale_price=22))
-        # ... rest of test ...
+        units = self.logic.get_all_unit_types()
+        self.assertIn("KG", [unit['name'] for unit in units])
+        self.assertIn("Meter", [unit['name'] for unit in units])
 
 if __name__ == '__main__':
     unittest.main()

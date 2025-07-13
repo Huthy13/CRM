@@ -123,7 +123,7 @@ class TestProductCRUD(BaseTestCase):
         retrieved = pm.get_product(product_id, db_conn=self.conn)
         self.assertIsNone(retrieved['description'])
         self.assertIsNone(retrieved['category_id'])
-        self.assertIsNone(retrieved['unit_of_measure'])
+        self.assertIsNone(retrieved['unit_type_name'])
 
 
 class TestCategoryManagement(BaseTestCase):
@@ -255,7 +255,6 @@ class TestPricingEngine(BaseTestCase):
             'product_id': self.product_id, 'price': 7.00, 'currency': 'USD',
             'valid_from': '2023-01-01', 'price_type': 'COST'
         }, db_conn=self.conn)
-
 
     def test_add_product_price(self):
         self.assertIsNotNone(self.price1_id)

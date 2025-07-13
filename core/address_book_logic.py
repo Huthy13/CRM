@@ -546,7 +546,7 @@ class AddressBookLogic:
                 sale_price=product.sale_price, # Pass sale_price
                 is_active=product.is_active,
                 category_name=product.category,
-                unit_of_measure_name=product.unit_of_measure
+                unit_type_name=product.unit_of_measure
                 # currency and price_valid_from will use defaults in db.add_product
             )
             if new_product_id:
@@ -565,7 +565,7 @@ class AddressBookLogic:
                 sale_price=product.sale_price, # Pass sale_price
                 is_active=product.is_active,
                 category_name=product.category,
-                unit_of_measure_name=product.unit_of_measure
+                unit_type_name=product.unit_of_measure
                 # currency and price_valid_from will use defaults in db.update_product
             )
             return product.product_id
@@ -582,7 +582,7 @@ class AddressBookLogic:
                 sale_price=product_data_from_db.get("sale_price"),
                 is_active=product_data_from_db.get("is_active", True),
                 category=product_data_from_db.get("category_name") or "",
-                unit_of_measure=product_data_from_db.get("unit_of_measure_name") or ""
+                unit_of_measure=product_data_from_db.get("unit_type_name") or ""
             )
         return None
 
@@ -600,7 +600,7 @@ class AddressBookLogic:
                 sale_price=row_data.get("sale_price"),
                 is_active=row_data.get("is_active", True),
                 category=row_data.get("category_name") or "",
-                unit_of_measure=row_data.get("unit_of_measure_name") or ""
+                unit_of_measure=row_data.get("unit_type_name") or ""
             ))
         return product_list
 
@@ -703,9 +703,14 @@ class AddressBookLogic:
         self.db.delete_product_category(category_id)
 
 
+    def get_all_unit_types(self) -> list[dict]:
+        """Retrieve all unit types."""
+        unit_types_tuples = self.db.get_all_unit_types_from_table()
+        return [{"id": id, "name": name} for id, name in unit_types_tuples]
+
     def get_all_product_units_of_measure(self) -> list[str]:
         """Retrieve a list of all product unit of measure names from the dedicated table."""
-        units_tuples = self.db.get_all_product_units_of_measure_from_table() # Returns list of (id, name)
+        units_tuples = self.db.get_all_unit_types_from_table() # Returns list of (id, name)
         return [name for id, name in units_tuples] # Extract just the names
 
     def _get_category_path_string(self, category_id: int, all_categories_map: dict[int, tuple[str, int | None]]) -> str:

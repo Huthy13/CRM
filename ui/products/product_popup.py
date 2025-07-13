@@ -43,9 +43,13 @@ class ProductDetailsPopup(tk.Toplevel):
 
 
         tk.Label(self, text="Unit of Measure:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        self.unit_of_measure_combobox = ttk.Combobox(self, width=37) # Changed to Combobox
-        self.unit_of_measure_combobox.grid(row=4, column=1, padx=5, pady=5)
-        self.populate_unit_of_measure_combobox()
+        self.unit_type_combobox = ttk.Combobox(self, width=37)
+        self.unit_type_combobox.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
+
+        self.manage_units_button = ttk.Button(self, text="...", command=self.open_unit_type_manager, width=3)
+        self.manage_units_button.grid(row=4, column=2, padx=(0, 5), pady=5, sticky="w")
+
+        self.populate_unit_type_combobox()
 
         tk.Label(self, text="Active:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.active_checkbutton = tk.Checkbutton(self, variable=self.is_active_var)
@@ -87,18 +91,31 @@ class ProductDetailsPopup(tk.Toplevel):
             self.category_combobox.set("")
 
 
-    def populate_unit_of_measure_combobox(self):
+    def populate_unit_type_combobox(self):
         try:
-            units = self.product_logic.get_all_product_units_of_measure() # Use product_logic
-            self.unit_of_measure_combobox['values'] = units
-            if not self.product_id and units: # For new product
-                self.unit_of_measure_combobox.set("") # Or set to first: units[0]
+            units = self.product_logic.get_all_unit_types()
+            self.unit_type_combobox['values'] = [unit['name'] for unit in units]
+            if not self.product_id and units:
+                self.unit_type_combobox.set("")
             elif not units:
-                self.unit_of_measure_combobox.set("")
+                self.unit_type_combobox.set("")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load units of measure: {e}", parent=self)
-            self.unit_of_measure_combobox['values'] = []
-            self.unit_of_measure_combobox.set("")
+            self.unit_type_combobox['values'] = []
+            self.unit_type_combobox.set("")
+
+    def open_unit_type_manager(self):
+        from ui.unit_type_popup import UnitTypePopup
+        current_selected_unit = self.unit_type_combobox.get()
+        unit_manager_popup = UnitTypePopup(self, self.product_logic)
+        self.wait_window(unit_manager_popup)
+        self.populate_unit_type_combobox()
+        if current_selected_unit in self.unit_type_combobox['values']:
+            self.unit_type_combobox.set(current_selected_unit)
+        elif self.unit_type_combobox['values']:
+            self.unit_type_combobox.current(0)
+        else:
+            self.unit_type_combobox.set('')
 
     def open_category_manager(self):
         # Store current selection to try and re-select it later
@@ -145,11 +162,11 @@ class ProductDetailsPopup(tk.Toplevel):
             self.category_combobox.set(category_path_to_set)
 
             current_unit = product_details.unit_of_measure if product_details.unit_of_measure else ""
-            if current_unit and current_unit not in self.unit_of_measure_combobox['values']:
-                current_values_uom = list(self.unit_of_measure_combobox['values'])
+            if current_unit and current_unit not in self.unit_type_combobox['values']:
+                current_values_uom = list(self.unit_type_combobox['values'])
                 updated_values_uom = [current_unit] + current_values_uom
-                self.unit_of_measure_combobox['values'] = updated_values_uom
-            self.unit_of_measure_combobox.set(current_unit)
+                self.unit_type_combobox['values'] = updated_values_uom
+            self.unit_type_combobox.set(current_unit)
 
             self.is_active_var.set(product_details.is_active)
         else:
@@ -167,7 +184,7 @@ class ProductDetailsPopup(tk.Toplevel):
             # Extract leaf name from path "Parent\\Child\\Leaf" -> "Leaf"
             leaf_category_name = selected_category_path.split('\\')[-1]
 
-        unit_of_measure = self.unit_of_measure_combobox.get().strip()
+        unit_of_measure = self.unit_type_combobox.get().strip()
         is_active = self.is_active_var.get()
 
         if not name:

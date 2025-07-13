@@ -509,7 +509,7 @@ class DatabaseHandler:
         self.conn.commit()
 
     def add_product(self, sku: str, name: str, description: str, cost: float, sale_price: float, # This 'cost' is for product_prices
-                    is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
+                    is_active: bool, category_name: str = None, unit_type_name: str = None,
                     currency: str = 'USD', price_valid_from: str = None):
         """Add a new product and its cost and sale price."""
         # Diagnostic print moved after this line in previous step, should be fine.
@@ -532,14 +532,14 @@ class DatabaseHandler:
         # --- End PRAGMA ---
 
         category_id = self.add_product_category(category_name) if category_name else None
-        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
+        unit_type_id = self.add_unit_type(unit_type_name) if unit_type_name else None
 
         # SQL for inserting into the 'products' table. This must not include 'cost' or 'sale_price' columns.
         sql_insert_product = """
-            INSERT INTO products (sku, name, description, category_id, unit_of_measure_id, is_active)
+            INSERT INTO products (sku, name, description, category_id, unit_type_id, is_active)
             VALUES (?, ?, ?, ?, ?, ?)
         """
-        params_insert_product = (sku, name, description, category_id, unit_of_measure_id, is_active)
+        params_insert_product = (sku, name, description, category_id, unit_type_id, is_active)
 
         try:
             self.cursor.execute(sql_insert_product, params_insert_product)
@@ -575,11 +575,11 @@ class DatabaseHandler:
         """Retrieve a product's details, including its current cost and sale price, by its DB ID."""
         self.cursor.execute("""
             SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
-                   p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.unit_type_id, ut.name as unit_type_name,
                    p.is_active, cat.name as category_name
             FROM products p
             LEFT JOIN product_categories cat ON p.category_id = cat.id
-            LEFT JOIN product_units_of_measure uom ON p.unit_of_measure_id = uom.id
+            LEFT JOIN unit_types ut ON p.unit_type_id = ut.id
             WHERE p.id = ?
         """, (product_db_id,))
         row = self.cursor.fetchone()
@@ -612,11 +612,11 @@ class DatabaseHandler:
         """Retrieve all products with their current cost and sale price."""
         self.cursor.execute("""
             SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
-                   p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.unit_type_id, ut.name as unit_type_name,
                    p.is_active, cat.name as category_name
             FROM products p
             LEFT JOIN product_categories cat ON p.category_id = cat.id
-            LEFT JOIN product_units_of_measure uom ON p.unit_of_measure_id = uom.id
+            LEFT JOIN unit_types ut ON p.unit_type_id = ut.id
             ORDER BY p.name
         """)
         products = [dict(row) for row in self.cursor.fetchall()]
@@ -642,7 +642,7 @@ class DatabaseHandler:
         return products
 
     def update_product(self, product_db_id: int, sku: str, name: str, description: str, cost: float, sale_price: float,
-                       is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
+                       is_active: bool, category_name: str = None, unit_type_name: str = None,
                        currency: str = 'USD', price_valid_from: str = None): # Renamed parameter
         """Update product details and its cost and sale price, by its DB ID."""
         print(f"DEBUG DB.update_product entered. ID: {product_db_id}, SKU: {sku}")
@@ -663,15 +663,15 @@ class DatabaseHandler:
         # --- End PRAGMA ---
 
         category_id = self.add_product_category(category_name) if category_name else None
-        unit_of_measure_id = self.add_product_unit_of_measure(unit_of_measure_name) if unit_of_measure_name else None
+        unit_type_id = self.add_unit_type(unit_type_name) if unit_type_name else None
 
         sql_update_product = """
             UPDATE products
-            SET sku = ?, name = ?, description = ?, category_id = ?, unit_of_measure_id = ?, is_active = ?,
+            SET sku = ?, name = ?, description = ?, category_id = ?, unit_type_id = ?, is_active = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """
-        params_update_product = (sku, name, description, category_id, unit_of_measure_id, is_active, product_db_id)
+        params_update_product = (sku, name, description, category_id, unit_type_id, is_active, product_db_id)
 
         try:
             self.cursor.execute(sql_update_product, params_update_product)
@@ -867,40 +867,46 @@ class DatabaseHandler:
         self.cursor.execute("SELECT id, name, parent_id FROM product_categories ORDER BY name")
         return self.cursor.fetchall()
 
-# Unit of Measure specific methods
-    def add_product_unit_of_measure(self, name: str) -> int | None: # Return None if name is empty
-        """Adds a new unit of measure to product_units_of_measure if it doesn't exist, returns the unit ID."""
+# Unit Type specific methods
+    def add_unit_type(self, name: str) -> int | None:
+        """Adds a new unit type to the unit_types table if it doesn't exist, returns the unit ID."""
         if not name:
             return None
         try:
-            self.cursor.execute("INSERT INTO product_units_of_measure (name) VALUES (?)", (name,))
+            self.cursor.execute("INSERT INTO unit_types (name) VALUES (?)", (name,))
             self.conn.commit()
             return self.cursor.lastrowid
-        except sqlite3.IntegrityError: # Unit name already exists
+        except sqlite3.IntegrityError: # Unit type name already exists
             self.conn.rollback()
-            return self.get_product_unit_of_measure_id_by_name(name)
+            return self.get_unit_type_id_by_name(name)
 
-    def get_product_unit_of_measure_id_by_name(self, name: str) -> int | None:
-        """Retrieves the ID of a unit of measure by its name."""
+    def get_unit_type_id_by_name(self, name: str) -> int | None:
+        """Retrieves the ID of a unit type by its name."""
         if not name:
             return None
-        self.cursor.execute("SELECT id FROM product_units_of_measure WHERE name = ?", (name,)) # Use id
+        self.cursor.execute("SELECT id FROM unit_types WHERE name = ?", (name,))
         row = self.cursor.fetchone()
         return row[0] if row else None
 
-    def get_product_unit_of_measure_name_by_id(self, uom_db_id: int) -> str | None: # Renamed unit_id to uom_db_id
-        """Retrieves the name of a unit of measure by its ID."""
-        if uom_db_id is None:
-            return None
-        self.cursor.execute("SELECT name FROM product_units_of_measure WHERE id = ?", (uom_db_id,)) # Use id
-        row = self.cursor.fetchone()
-        return row[0] if row else None
+    def update_unit_type(self, unit_type_id: int, new_name: str):
+        """Updates a unit type's name."""
+        if not new_name:
+            raise ValueError("New unit type name cannot be empty.")
+        try:
+            self.cursor.execute("UPDATE unit_types SET name = ? WHERE id = ?", (new_name, unit_type_id))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            self.conn.rollback()
+            raise ValueError(f"Unit type name '{new_name}' already exists.")
 
-    def get_all_product_units_of_measure_from_table(self) -> list[tuple[int, str]]:
-        """Retrieves all units of measure (ID, name) from the product_units_of_measure table."""
-        self.cursor.execute("SELECT id, name FROM product_units_of_measure ORDER BY name") # Use id
-        # The following line was a bug, fetching categories instead of UoMs and overwriting the result.
-        # self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
+    def delete_unit_type(self, unit_type_id: int):
+        """Deletes a unit type."""
+        self.cursor.execute("DELETE FROM unit_types WHERE id = ?", (unit_type_id,))
+        self.conn.commit()
+
+    def get_all_unit_types_from_table(self) -> list[tuple[int, str]]:
+        """Retrieves all unit types (ID, name) from the unit_types table."""
+        self.cursor.execute("SELECT id, name FROM unit_types ORDER BY name")
         return self.cursor.fetchall()
 
 # Purchase Document related methods

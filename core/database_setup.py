@@ -29,12 +29,12 @@ def create_tables(db_conn=None):
             name TEXT NOT NULL,
             description TEXT,
             category_id INTEGER,
-            unit_of_measure_id INTEGER, -- Changed from unit_of_measure TEXT
+            unit_type_id INTEGER,
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES product_categories(id),
-            FOREIGN KEY (unit_of_measure_id) REFERENCES product_units_of_measure(id) -- Added FK
+            FOREIGN KEY (unit_type_id) REFERENCES unit_types(id)
         )
         """)
 
@@ -51,23 +51,13 @@ def create_tables(db_conn=None):
         """)
         # No specific trigger for addresses in original, can add if needed.
 
-        # Product Units of Measure Table (NEW)
+        # Unit Types Table
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS product_units_of_measure (
+        CREATE TABLE IF NOT EXISTS unit_types (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            description TEXT
+            name TEXT UNIQUE NOT NULL
         )
         """)
-        # Trigger for product_units_of_measure (Optional, if needed for auditing)
-        # cursor.execute("""
-        # CREATE TRIGGER IF NOT EXISTS update_product_units_of_measure_updated_at
-        # AFTER UPDATE ON product_units_of_measure
-        # FOR EACH ROW
-        # BEGIN
-        #     UPDATE product_units_of_measure SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-        # END;
-        # """)
 
 
         # Accounts Table (Referenced by SalesDocuments and potentially others)

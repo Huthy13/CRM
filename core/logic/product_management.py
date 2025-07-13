@@ -24,7 +24,7 @@ class ProductLogic:
                 sale_price=getattr(product_struct, 'sale_price', None),
                 is_active=product_struct.is_active,
                 category_name=product_struct.category,
-                unit_of_measure_name=product_struct.unit_of_measure
+                unit_type_name=product_struct.unit_of_measure
                 # currency and price_valid_from will use defaults in db.add_product
             )
             if new_product_id:
@@ -40,7 +40,7 @@ class ProductLogic:
                 sale_price=getattr(product_struct, 'sale_price', None),
                 is_active=product_struct.is_active,
                 category_name=product_struct.category,
-                unit_of_measure_name=product_struct.unit_of_measure
+                unit_type_name=product_struct.unit_of_measure
                 # currency and price_valid_from will use defaults in db.update_product
             )
             return product_struct.product_id
@@ -64,7 +64,7 @@ class ProductLogic:
                 sale_price=product_data_dict.get("sale_price"), # From product_prices
                 is_active=product_data_dict.get("is_active", True),
                 category=category_path,
-                unit_of_measure=product_data_dict.get("unit_of_measure_name")
+                unit_of_measure=product_data_dict.get("unit_type_name")
             )
         return None
 
@@ -86,7 +86,7 @@ class ProductLogic:
                 sale_price=p_dict.get("sale_price"), # From product_prices
                 is_active=p_dict.get("is_active", True),
                 category=category_path,
-                unit_of_measure=p_dict.get("unit_of_measure_name")
+                unit_of_measure=p_dict.get("unit_type_name")
             ))
         return products_list
 
@@ -116,9 +116,18 @@ class ProductLogic:
         leaf_paths.sort(key=lambda x: x[1])
         return leaf_paths
 
-    def get_all_product_units_of_measure(self) -> list[str]:
-        units_tuples = self.db.get_all_product_units_of_measure_from_table()
-        return [name for uom_id, name in units_tuples] # Use uom_id
+    def get_all_unit_types(self) -> list[dict]:
+        unit_types_tuples = self.db.get_all_unit_types_from_table()
+        return [{"id": id, "name": name} for id, name in unit_types_tuples]
+
+    def add_unit_type(self, name: str):
+        return self.db.add_unit_type(name)
+
+    def update_unit_type(self, unit_type_id: int, new_name: str):
+        return self.db.update_unit_type(unit_type_id, new_name)
+
+    def delete_unit_type(self, unit_type_id: int):
+        return self.db.delete_unit_type(unit_type_id)
 
     def get_all_product_categories_from_table(self):
         return self.db.get_all_product_categories_from_table()
@@ -221,7 +230,7 @@ def create_product(data: dict, db_conn=None) -> int | None:
     try:
         cursor = conn.cursor()
 
-        direct_product_cols = ['sku', 'name', 'description', 'category_id', 'unit_of_measure_id', 'is_active']
+        direct_product_cols = ['sku', 'name', 'description', 'category_id', 'unit_type_id', 'is_active']
         values_to_insert = {col: data.get(col) for col in direct_product_cols if col in data}
         values_to_insert.setdefault('is_active', True)
 
@@ -231,11 +240,11 @@ def create_product(data: dict, db_conn=None) -> int | None:
         elif 'category_id' in data and not data['category_id']:
              values_to_insert['category_id'] = None
 
-        if 'unit_of_measure' in data and 'unit_of_measure_id' not in data:
-            print(f"Warning (standalone create_product): unit_of_measure name '{data['unit_of_measure']}' provided but ID resolution not implemented here. Setting unit_of_measure_id to None.")
-            values_to_insert['unit_of_measure_id'] = None
-        elif 'unit_of_measure_id' in data and not data['unit_of_measure_id']:
-            values_to_insert['unit_of_measure_id'] = None
+        if 'unit_of_measure' in data and 'unit_type_id' not in data:
+            print(f"Warning (standalone create_product): unit_of_measure name '{data['unit_of_measure']}' provided but ID resolution not implemented here. Setting unit_type_id to None.")
+            values_to_insert['unit_type_id'] = None
+        elif 'unit_type_id' in data and not data['unit_type_id']:
+            values_to_insert['unit_type_id'] = None
 
         current_time_iso = datetime.now().isoformat()
         values_to_insert.setdefault('created_at', current_time_iso)
@@ -243,12 +252,12 @@ def create_product(data: dict, db_conn=None) -> int | None:
 
         sql_cols_list = []
         sql_vals_list = []
-        for col_name in ['sku', 'name', 'description', 'category_id', 'unit_of_measure_id', 'is_active', 'created_at', 'updated_at']:
+        for col_name in ['sku', 'name', 'description', 'category_id', 'unit_type_id', 'is_active', 'created_at', 'updated_at']:
             if col_name in values_to_insert:
                 sql_cols_list.append(col_name)
                 sql_vals_list.append(values_to_insert[col_name])
-            elif col_name == 'unit_of_measure_id' and 'unit_of_measure_id' not in values_to_insert:
-                sql_cols_list.append('unit_of_measure_id')
+            elif col_name == 'unit_type_id' and 'unit_type_id' not in values_to_insert:
+                sql_cols_list.append('unit_type_id')
                 sql_vals_list.append(None)
 
         placeholders = ', '.join(['?'] * len(sql_cols_list))
@@ -279,12 +288,12 @@ def get_product(product_id: int, db_conn=None) -> dict | None:
 
         product_dict = dict(product_row)
 
-        if product_dict.get('unit_of_measure_id'):
-            cursor.execute("SELECT name FROM product_units_of_measure WHERE id = ?", (product_dict['unit_of_measure_id'],))
+        if product_dict.get('unit_type_id'):
+            cursor.execute("SELECT name FROM unit_types WHERE id = ?", (product_dict['unit_type_id'],))
             uom_row = cursor.fetchone()
-            product_dict['unit_of_measure_name'] = uom_row['name'] if uom_row else None
+            product_dict['unit_type_name'] = uom_row['name'] if uom_row else None
         else:
-            product_dict['unit_of_measure_name'] = None
+            product_dict['unit_type_name'] = None
 
         if product_dict.get('category_id'):
             cursor.execute("SELECT name FROM product_categories WHERE id = ?", (product_dict['category_id'],))
@@ -334,7 +343,7 @@ def update_product(product_id: int, data: dict, db_conn=None) -> bool:
 
         allowed_fields_map = {
             'name': 'name', 'description': 'description', 'category_id': 'category_id',
-            'unit_of_measure_id': 'unit_of_measure_id', 'is_active': 'is_active'
+            'unit_type_id': 'unit_type_id', 'is_active': 'is_active'
         }
 
         for key_in_data, db_column_name in allowed_fields_map.items():
@@ -342,8 +351,8 @@ def update_product(product_id: int, data: dict, db_conn=None) -> bool:
                 fields_to_update.append(f"{db_column_name} = ?")
                 values_to_update.append(data[key_in_data])
 
-        if 'unit_of_measure' in data and 'unit_of_measure_id' not in data:
-            print(f"Warning (standalone update_product): unit_of_measure name '{data['unit_of_measure']}' provided. This function expects 'unit_of_measure_id'. Field not updated by name.")
+        if 'unit_of_measure' in data and 'unit_type_id' not in data:
+            print(f"Warning (standalone update_product): unit_of_measure name '{data['unit_of_measure']}' provided. This function expects 'unit_type_id'. Field not updated by name.")
         if 'category' in data and 'category_id' not in data:
             print(f"Warning (standalone update_product): category name '{data['category']}' provided. This function expects 'category_id'. Field not updated by name.")
 
@@ -657,13 +666,18 @@ def add_or_update_product_price(data: dict, db_conn=None) -> int | None:
                 cursor.execute("INSERT INTO product_prices (product_id, price_type, price, currency, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?)",
                                (product_id, price_type, price_value, currency, valid_from, valid_to))
                 price_record_id = cursor.lastrowid
-        if price_record_id is not None and not conn_provided: conn.commit()
-        elif price_record_id is None and conn_provided: conn.rollback()
+        if not conn_provided:
+            conn.commit()
         return price_record_id
-    except ValueError as ve: print(f"Date parsing error: {ve}"); return None
-    except sqlite3.Error as e: print(f"Database error adding/updating price: {e}"); return None
+    except ValueError as ve:
+        print(f"Date parsing error: {ve}")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error adding/updating price: {e}")
+        return None
     finally:
-        if not conn_provided and conn: conn.close()
+        if not conn_provided and conn:
+            conn.close()
 
 def get_product_prices(product_id: int, currency: str | None = None, price_type: str | None = None, db_conn=None) -> list[dict]:
     conn_provided = db_conn is not None

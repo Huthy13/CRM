@@ -2,28 +2,33 @@ import unittest
 import sqlite3 # Using sqlite3 for in-memory database for testing
 from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler # Assuming this is your DB handler class
-from shared.structs import Account, Contact, Address
+from shared.structs import Account, Contact, Address, AccountType # Added AccountType
 
 class TestLogic(unittest.TestCase):
 
-    def setUp(self):
-        """Set up an in-memory SQLite database for each test."""
-        self.conn = sqlite3.connect(':memory:')
-        # The DatabaseHandler now takes the db_name (or path) directly.
-        # It also calls create_tables() in its __init__.
-        self.db_handler = DatabaseHandler(db_name=':memory:')
-        # Ensure the logic layer uses this specific db_handler instance.
-        self.logic = AddressBookLogic(self.db_handler)
-        # It's also good practice to ensure the db_handler in logic
-        # uses the same connection if it were to be managed separately,
-        # but since DatabaseHandler(':memory:') creates its own in-memory db,
-        # and logic uses the passed db_handler, this should be fine.
-        # If logic.py created its own db_handler, we'd have an issue.
-        # self.db_handler.conn = self.conn # This line might be redundant if db_handler(':memory:') works as expected
+    @classmethod
+    def setUpClass(cls):
+        """Set up an in-memory SQLite database for all tests in this class."""
+        cls.db_handler = DatabaseHandler(db_name=':memory:')
+        cls.logic = AddressBookLogic(cls.db_handler)
 
-    def tearDown(self):
-        """Close the database connection after each test."""
-        self.conn.close()
+    @classmethod
+    def tearDownClass(cls):
+        """Close the database connection after all tests in this class."""
+        cls.db_handler.close() # DatabaseHandler.close() closes its own connection
+
+    def setUp(self):
+        """Clear tables before each test for isolation."""
+        # Assuming db_handler and logic are set up in setUpClass
+        # We need to clear data from tables that these tests interact with
+        with self.db_handler.conn: # Use context manager for commit/rollback
+            self.db_handler.cursor.execute("DELETE FROM contacts")
+            self.db_handler.cursor.execute("DELETE FROM accounts")
+            self.db_handler.cursor.execute("DELETE FROM addresses")
+            # Add other relevant tables if tests touch them, e.g., interactions, tasks
+
+    # tearDown method for individual test cleanup (if any) can be added if needed.
+    # For now, assuming setUp handles necessary per-test reset.
 
     def test_add_and_get_address(self):
         """Test adding and retrieving an address."""
@@ -62,7 +67,8 @@ class TestLogic(unittest.TestCase):
             billing_address_id=billing_address_id,
             shipping_address_id=shipping_address_id,
             website="http://testaccount.com",
-            description="A test account"
+            description="A test account",
+            account_type=AccountType.CUSTOMER
         )
         # The save_account in logic should handle the db interaction and return the ID
         # For now, we assume save_account doesn't directly return the ID,
@@ -96,7 +102,7 @@ class TestLogic(unittest.TestCase):
     def test_delete_account(self):
         """Test deleting an account."""
         billing_address_id = self.logic.add_address("1 Delete Rd", "Delville", "DS", "D1D1D1", "DC")
-        new_account = Account(name="To Be Deleted", phone="1112223333", billing_address_id=billing_address_id)
+        new_account = Account(name="To Be Deleted", phone="1112223333", billing_address_id=billing_address_id, account_type=AccountType.VENDOR)
         self.logic.save_account(new_account)
         # Get the ID of the newly created account
         accounts = self.logic.get_accounts()
@@ -111,7 +117,7 @@ class TestLogic(unittest.TestCase):
         """Test saving (add/update) and retrieving a contact."""
         # First, create an account for the contact
         billing_address_id = self.logic.add_address("Acc Main St", "Acc City", "AS", "A1A1A1", "AC")
-        account = Account(name="Contact's Account", phone="555-0000", billing_address_id=billing_address_id)
+        account = Account(name="Contact's Account", phone="555-0000", billing_address_id=billing_address_id, account_type=AccountType.CUSTOMER)
         self.logic.save_account(account)
         accounts = self.logic.get_accounts()
         account_id = accounts[0][0] # Get the ID of the created account
@@ -124,11 +130,12 @@ class TestLogic(unittest.TestCase):
             role="Tester",
             account_id=account_id
         )
-        contact_id = self.logic.save_contact(new_contact)
-        self.assertIsNotNone(contact_id, "Contact ID should not be None after saving")
-        new_contact.contact_id = contact_id # Set the ID on the object
+        saved_contact = self.logic.save_contact(new_contact)
+        self.assertIsNotNone(saved_contact, "Contact object should not be None after saving")
+        self.assertIsNotNone(saved_contact.contact_id, "Contact ID should not be None after saving")
+        new_contact.contact_id = saved_contact.contact_id # Set the ID on the object
 
-        retrieved_contact = self.logic.get_contact_details(contact_id)
+        retrieved_contact = self.logic.get_contact_details(saved_contact.contact_id)
         self.assertIsNotNone(retrieved_contact)
         self.assertEqual(retrieved_contact.name, "John Doe")
         self.assertEqual(retrieved_contact.email, "john.doe@example.com")
@@ -138,10 +145,10 @@ class TestLogic(unittest.TestCase):
         # Test updating an existing contact
         retrieved_contact.name = "Jane Doe"
         retrieved_contact.email = "jane.doe@example.com"
-        updated_contact_id = self.logic.save_contact(retrieved_contact) # save_contact should detect existing ID
-        self.assertEqual(updated_contact_id, contact_id) # ID should remain the same
+        updated_contact = self.logic.save_contact(retrieved_contact) # save_contact should detect existing ID
+        self.assertEqual(updated_contact.contact_id, retrieved_contact.contact_id) # ID should remain the same
 
-        updated_contact_details = self.logic.get_contact_details(contact_id)
+        updated_contact_details = self.logic.get_contact_details(retrieved_contact.contact_id)
         self.assertEqual(updated_contact_details.name, "Jane Doe")
         self.assertEqual(updated_contact_details.email, "jane.doe@example.com")
 
@@ -149,13 +156,13 @@ class TestLogic(unittest.TestCase):
         """Test retrieving contacts associated with a specific account."""
         # Account 1
         b_addr1_id = self.logic.add_address("Acc1 St", "City1", "S1", "11111", "C1")
-        acc1 = Account(name="Account One", phone="111-1111", billing_address_id=b_addr1_id)
+        acc1 = Account(name="Account One", phone="111-1111", billing_address_id=b_addr1_id, account_type=AccountType.CUSTOMER)
         self.logic.save_account(acc1)
         acc1_id = self.logic.get_accounts()[0][0]
 
         # Account 2
         b_addr2_id = self.logic.add_address("Acc2 St", "City2", "S2", "22222", "C2")
-        acc2 = Account(name="Account Two", phone="222-2222", billing_address_id=b_addr2_id)
+        acc2 = Account(name="Account Two", phone="222-2222", billing_address_id=b_addr2_id, account_type=AccountType.VENDOR)
         self.logic.save_account(acc2)
         acc2_id = self.logic.get_accounts()[1][0]
 
@@ -179,12 +186,12 @@ class TestLogic(unittest.TestCase):
     def test_get_all_contacts(self):
         """Test retrieving all contacts."""
         b_addr1_id = self.logic.add_address("All1 St", "CityA1", "SA1", "A1111", "CA1")
-        acc1 = Account(name="Global Corp", phone="100-1000", billing_address_id=b_addr1_id)
+        acc1 = Account(name="Global Corp", phone="100-1000", billing_address_id=b_addr1_id, account_type=AccountType.CUSTOMER)
         self.logic.save_account(acc1)
         acc1_id = self.logic.get_accounts()[0][0]
 
         b_addr2_id = self.logic.add_address("All2 St", "CityA2", "SA2", "A2222", "CA2")
-        acc2 = Account(name="Local LLC", phone="200-2000", billing_address_id=b_addr2_id)
+        acc2 = Account(name="Local LLC", phone="200-2000", billing_address_id=b_addr2_id, account_type=AccountType.VENDOR)
         self.logic.save_account(acc2)
         acc2_id = self.logic.get_accounts()[1][0]
 
@@ -202,24 +209,25 @@ class TestLogic(unittest.TestCase):
     def test_delete_contact(self):
         """Test deleting a contact."""
         b_addr_id = self.logic.add_address("DelCon St", "DelCon City", "DS", "DCS01", "DC")
-        account = Account(name="Contact Delete Account", phone="555-9999", billing_address_id=b_addr_id)
+        account = Account(name="Contact Delete Account", phone="555-9999", billing_address_id=b_addr_id, account_type=AccountType.CUSTOMER)
         self.logic.save_account(account)
         account_id = self.logic.get_accounts()[0][0]
 
-        contact_to_delete_id = self.logic.save_contact(
+        contact_to_delete = self.logic.save_contact(
             Contact(name="Delete Me", phone="000-0000", email="del@me.com", role="Temp", account_id=account_id)
         )
-        self.assertIsNotNone(contact_to_delete_id)
+        self.assertIsNotNone(contact_to_delete)
+        self.assertIsNotNone(contact_to_delete.contact_id)
 
-        self.logic.delete_contact(contact_to_delete_id)
-        deleted_contact_details = self.logic.get_contact_details(contact_to_delete_id)
+        self.logic.delete_contact(contact_to_delete.contact_id)
+        deleted_contact_details = self.logic.get_contact_details(contact_to_delete.contact_id)
         self.assertIsNone(deleted_contact_details, "Contact should be None after deletion")
 
         # Ensure other contacts are not affected (if any)
-        other_contact_id = self.logic.save_contact(
+        other_contact = self.logic.save_contact(
             Contact(name="Still Here", phone="111-1111", email="still@here.com", role="Perm", account_id=account_id)
         )
-        still_here_details = self.logic.get_contact_details(other_contact_id)
+        still_here_details = self.logic.get_contact_details(other_contact.contact_id)
         self.assertIsNotNone(still_here_details)
 
 if __name__ == '__main__':

@@ -297,11 +297,12 @@ class Task:
         )
 
 class Product:
-    def __init__(self, product_id=None, name="", description="", cost=0.0, is_active=True, category="", unit_of_measure=""):
+    def __init__(self, product_id=None, name="", description="", cost=0.0, sale_price: Optional[float] = None, is_active=True, category="", unit_of_measure=""):
         self.product_id = product_id
         self.name = name
         self.description = description
-        self.cost = cost # Renamed from price
+        self.cost = cost
+        self.sale_price = sale_price # Added sale_price field
         self.is_active = is_active
         self.category = category
         self.unit_of_measure = unit_of_measure
@@ -310,7 +311,8 @@ class Product:
         return (f"Product ID: {self.product_id}\n"
                 f"Name: {self.name}\n"
                 f"Description: {self.description}\n"
-                f"Cost: {self.cost}\n" # Renamed from price
+                f"Cost: {self.cost}\n"
+                f"Sale Price: {self.sale_price if self.sale_price is not None else 'N/A'}\n" # Display sale_price
                 f"Active: {self.is_active}\n"
                 f"Category: {self.category}\n"
                 f"Unit of Measure: {self.unit_of_measure}")
@@ -321,7 +323,8 @@ class Product:
             "product_id": self.product_id,
             "name": self.name,
             "description": self.description,
-            "cost": self.cost, # Renamed from price
+            "cost": self.cost,
+            "sale_price": self.sale_price, # Ensure sale_price is in dict
             "is_active": self.is_active,
             "category": self.category,
             "unit_of_measure": self.unit_of_measure
@@ -333,6 +336,113 @@ class PurchaseDocumentStatus(Enum):
     PO_ISSUED = "PO-Issued" # Matches spec
     RECEIVED = "Received"
     CLOSED = "Closed"
+
+# --- Sales Document Structures ---
+class SalesDocumentType(Enum):
+    QUOTE = "Quote"
+    INVOICE = "Invoice"
+
+class SalesDocumentStatus(Enum):
+    # Quote statuses
+    QUOTE_DRAFT = "Quote Draft"
+    QUOTE_SENT = "Quote Sent"
+    QUOTE_ACCEPTED = "Quote Accepted"
+    QUOTE_REJECTED = "Quote Rejected"
+    QUOTE_EXPIRED = "Quote Expired"
+    # Invoice statuses
+    INVOICE_DRAFT = "Invoice Draft"
+    INVOICE_SENT = "Invoice Sent"
+    INVOICE_PARTIALLY_PAID = "Invoice Partially Paid"
+    INVOICE_PAID = "Invoice Paid"
+    INVOICE_VOID = "Invoice Void"
+    INVOICE_OVERDUE = "Invoice Overdue"
+
+class SalesDocument:
+    def __init__(self, doc_id=None, document_number: str = "", customer_id: int = None,
+                 document_type: SalesDocumentType = None,
+                 created_date: str = None, expiry_date: Optional[str] = None,  # For Quotes
+                 due_date: Optional[str] = None,  # For Invoices
+                 status: SalesDocumentStatus = None, notes: str = None,
+                 subtotal: Optional[float] = 0.0, taxes: Optional[float] = 0.0, total_amount: Optional[float] = 0.0,
+                 related_quote_id: Optional[int] = None): # Link invoice to quote
+        self.id = doc_id
+        self.document_number = document_number
+        self.customer_id = customer_id # Changed from vendor_id
+        self.document_type = document_type
+        self.created_date = created_date # Should be ISO string
+        self.expiry_date = expiry_date
+        self.due_date = due_date
+        self.status = status
+        self.notes = notes
+        self.subtotal = subtotal
+        self.taxes = taxes
+        self.total_amount = total_amount
+        self.related_quote_id = related_quote_id
+
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "document_number": self.document_number,
+            "customer_id": self.customer_id,
+            "document_type": self.document_type.value if self.document_type else None,
+            "created_date": self.created_date,
+            "expiry_date": self.expiry_date,
+            "due_date": self.due_date,
+            "status": self.status.value if self.status else None,
+            "notes": self.notes,
+            "subtotal": self.subtotal,
+            "taxes": self.taxes,
+            "total_amount": self.total_amount,
+            "related_quote_id": self.related_quote_id
+        }
+
+    def __str__(self) -> str:
+        return (f"SalesDocument(ID: {self.id}, Type: {self.document_type.value if self.document_type else 'N/A'}, "
+                f"Number: {self.document_number}, CustomerID: {self.customer_id}, "
+                f"Status: {self.status.value if self.status else 'N/A'}, Created: {self.created_date})")
+
+class SalesDocumentItem:
+    def __init__(self, item_id=None, sales_document_id: int = None, product_id: Optional[int] = None,
+                 product_description: str = "", quantity: float = 0.0,
+                 unit_price: float = None, # This would be sale_price from Product
+                 discount_percentage: Optional[float] = 0.0,
+                 line_total: float = None): # quantity * unit_price * (1 - discount_percentage/100)
+        self.id = item_id
+        self.sales_document_id = sales_document_id
+        self.product_id = product_id
+        self.product_description = product_description
+        self.quantity = quantity
+        self.unit_price = unit_price # Sale price
+        self.discount_percentage = discount_percentage if discount_percentage is not None else 0.0
+        self.line_total = line_total # Calculated
+
+    def calculate_line_total(self):
+        """Calculates line total based on quantity, unit_price, and discount."""
+        if self.quantity is not None and self.unit_price is not None:
+            discount_factor = 1.0 - (self.discount_percentage / 100.0 if self.discount_percentage is not None else 0.0)
+            self.line_total = self.quantity * self.unit_price * discount_factor
+        else:
+            self.line_total = None
+        return self.line_total
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "sales_document_id": self.sales_document_id,
+            "product_id": self.product_id,
+            "product_description": self.product_description,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "discount_percentage": self.discount_percentage,
+            "line_total": self.line_total
+        }
+
+    def __str__(self) -> str:
+        return (f"SalesDocumentItem(ID: {self.id}, DocID: {self.sales_document_id}, "
+                f"Product: {self.product_description}, Qty: {self.quantity}, UnitPrice: {self.unit_price}, "
+                f"Discount: {self.discount_percentage}%)")
+# --- End Sales Document Structures ---
 
 class PurchaseDocument:
     def __init__(self, doc_id=None, document_number: str = "", vendor_id: int = None,

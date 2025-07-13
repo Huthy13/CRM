@@ -33,11 +33,25 @@ class AddressBookLogic:
 #Account Methods
     def save_account(self, account: Account) -> Account | None:
         """Add a new account, or update existing account if valid account ID is provided. Returns the Account object."""
-        account_type_value = account.account_type.value if account.account_type else None
+        account_type_value = None
+        if account.account_type:
+            account_type_value = account.account_type.value
+        elif account.account_id is None: # It's a new account and no type provided
+            account.account_type = AccountType.CONTACT # Default to CONTACT for new accounts if none specified
+            account_type_value = account.account_type.value
+
+        if not account_type_value: # This implies an update is trying to set type to None, or initial was None and no default applied
+             # The DB has NOT NULL constraint on account_type.
+             # Allowing None here would lead to IntegrityError at DB level.
+             # Business logic should decide if this is an error or if a default should apply on update too.
+             # For now, let's enforce that a type must be present for DB operation.
+            raise ValueError("Account type cannot be None due to NOT NULL database constraint.")
+
+
         if account.account_id is None:
             # Call the specific add_account that takes an Account object
             new_id = self.db.add_account(account.name, account.phone, account.billing_address_id,
-                                         account.shipping_address_id, account.is_billing_same_as_shipping(),
+                                         account.shipping_address_id,
                                          account.website, account.description, account_type_value)
             if new_id:
                 account.account_id = new_id
@@ -46,7 +60,7 @@ class AddressBookLogic:
         else:
             # Call the specific update_account that takes an Account object
             self.db.update_account(account.account_id, account.name, account.phone, account.billing_address_id,
-                                   account.shipping_address_id, account.is_billing_same_as_shipping(),
+                                   account.shipping_address_id,
                                    account.website, account.description, account_type_value)
             return account # Return the updated account object
 
@@ -149,7 +163,7 @@ class AddressBookLogic:
                 role=contact.role,  # Pass the role attribute
                 account_id=contact.account_id
             )
-            return contact # Return updated contact object
+            return contact
 
     def get_contacts_by_account(self, account_id: int) -> list[Contact]:
         """Retrieve contacts associated with a specific account as Contact objects."""
@@ -524,119 +538,83 @@ class AddressBookLogic:
     # Product Methods
     def save_product(self, product: 'Product') -> Optional[int]:
         """Add a new product or update an existing one. Returns Product ID.
-           The database layer now handles category name to ID conversion."""
-        if product.product_id is None:
+           Calls the newer DatabaseHandler methods that handle product_prices table."""
+
+        # Basic SKU generation if not provided (can be made more robust or required on Product struct)
+        # For now, assuming Product struct might not have SKU, so we generate one for add.
+        # If Product struct is expected to have SKU, this logic might change.
+        sku = f"SKU_{product.name[:10].replace(' ','_').upper()}" if product.name else "SKU_UNKNOWN"
+
+        if product.product_id is None: # Adding a new product
             new_product_id = self.db.add_product(
+                sku=sku, # Pass SKU
                 name=product.name,
                 description=product.description,
-                cost=product.cost, # Renamed from price
+                cost=product.cost,
+                sale_price=product.sale_price, # Pass sale_price
                 is_active=product.is_active,
                 category_name=product.category,
                 unit_of_measure_name=product.unit_of_measure
+                # currency and price_valid_from will use defaults in db.add_product
             )
             if new_product_id:
-                product.product_id = new_product_id
+                product.product_id = new_product_id # Update struct with new ID
             return new_product_id
-        else:
+        else: # Updating an existing product
+            # For update, SKU might be part of the update or fixed.
+            # Assuming SKU can be updated or is derived similarly.
+            # The db.update_product expects product_db_id.
             self.db.update_product(
-                product_id=product.product_id,
+                product_db_id=product.product_id, # Correct parameter name for DB method
+                sku=sku, # Pass SKU
                 name=product.name,
                 description=product.description,
-                cost=product.cost, # Renamed from price
+                cost=product.cost,
+                sale_price=product.sale_price, # Pass sale_price
                 is_active=product.is_active,
                 category_name=product.category,
                 unit_of_measure_name=product.unit_of_measure
+                # currency and price_valid_from will use defaults in db.update_product
             )
             return product.product_id
 
     def get_product_details(self, product_id: int) -> Optional['Product']:
         """Retrieve full product details and return a Product object."""
-        product_data_from_db = self.db.get_product_details(product_id) # This returns a dict with 'category_id' (potentially)
+        product_data_from_db = self.db.get_product_details(product_id)
         if product_data_from_db:
-            all_categories_map = self._get_all_categories_map() # Fetch all categories for path reconstruction
-
-            # The db.get_product_details now returns category NAME directly due to JOIN.
-            # However, to build the *full path* if we only had category_id, we'd need the map.
-            # For now, db.get_product_details already provides the leaf name as 'category'.
-            # If we want the full path, we need the category_id from product and then build path.
-            # Let's assume db.get_product_details gives us 'category_id' and not the name directly for path building.
-            # This requires a change in db.get_product_details to return category_id.
-            # For now, let's assume it returns the leaf category name as 'category'.
-            # The plan was for Product.category to be the full path.
-
-            # To implement full path, db.get_product_details should return category_id.
-            # Let's adjust the expectation for product_data_from_db for a moment:
-            # It should contain 'category_id' not 'category' (name).
-            # This means db.get_product_details needs to change its SQL slightly.
-            # For now, I will proceed AS IF db.get_product_details provides 'category_id'
-            # and that the 'category' key in product_data_from_db holds the ID.
-            # This is a temporary assumption to write the path logic here.
-            # The database method was already changed to return the name as 'category'.
-            # So the path reconstruction is actually NOT needed here if Product.category is just the leaf name.
-            # Re-reading plan: "Product.category attribute will continue to store the category name (string)
-            # for ease of use... path will be constructed by the logic layer."
-            # This implies the Product object SHOULD have the full path.
-
-            # Correct approach: db.get_product_details returns category_id (not name via JOIN for this specific field)
-            # Then logic layer builds the path.
-            # Let's assume db.get_product_details returns a dict where product_data_from_db['category_id'] is the ID.
-            # This means I need to adjust the previous DB step's output description or the DB method itself.
-            # Given the current state of database.py (it returns joined name as 'category'), this path logic is redundant for now
-            # UNLESS we change DB to return category_id.
-
-            # Sticking to the plan that logic layer constructs the path:
-            # This means db.get_product_details *must* provide the category_id of the product.
-            # The current db.get_product_details returns the category name via JOIN.
-            # This is a conflict.
-            # RESOLUTION: For Product objects, `category` will be the full path.
-            # `db.get_product_details` will be modified to return `p.category_id` instead of `pc.name`.
-            # The following code assumes this change will be made to `db.get_product_details`.
-
-            category_path = ""
-            if product_data_from_db.get('category_id'): # Assuming db returns 'category_id'
-                 category_path = self._get_category_path_string(product_data_from_db['category_id'], all_categories_map)
-
             return Product(
-                product_id=product_data_from_db["product_id"],
-                name=product_data_from_db["name"],
-                description=product_data_from_db["description"],
-                cost=product_data_from_db["cost"],
+                product_id=product_data_from_db.get("product_id"),
+                name=product_data_from_db.get("name"),
+                description=product_data_from_db.get("description"),
+                cost=product_data_from_db.get("cost"),
+                sale_price=product_data_from_db.get("sale_price"),
                 is_active=product_data_from_db.get("is_active", True),
-                category=category_path, # This is now the full path
-                unit_of_measure=product_data_from_db.get("unit_of_measure") # Name is fine from DB
+                category=product_data_from_db.get("category_name") or "",
+                unit_of_measure=product_data_from_db.get("unit_of_measure_name") or ""
             )
         return None
 
     def get_all_products(self) -> list['Product']:
         """Retrieve all products as Product objects."""
-        products_data_from_db = self.db.get_all_products() # Expect list of dicts, each with 'category_id'
-        all_categories_map = self._get_all_categories_map()
+        products_data_from_db = self.db.get_all_products()
         product_list = []
 
         for row_data in products_data_from_db:
-            category_path = ""
-            if row_data.get('category_id'): # Assuming db returns 'category_id'
-                category_path = self._get_category_path_string(row_data['category_id'], all_categories_map)
-
             product_list.append(Product(
-                product_id=row_data["product_id"],
-                name=row_data["name"],
-                description=row_data["description"],
-                cost=row_data["cost"],
+                product_id=row_data.get("product_id"),
+                name=row_data.get("name"),
+                description=row_data.get("description"),
+                cost=row_data.get("cost"),
+                sale_price=row_data.get("sale_price"),
                 is_active=row_data.get("is_active", True),
-                category=category_path, # Full path
-                unit_of_measure=row_data.get("unit_of_measure") # Name is fine
+                category=row_data.get("category_name") or "",
+                unit_of_measure=row_data.get("unit_of_measure_name") or ""
             ))
         return product_list
 
     def delete_product(self, product_id: int):
         """Delete a specific product."""
         self.db.delete_product(product_id)
-
-    def get_all_product_categories(self) -> list[str]:
-        """Retrieve a list of all product category names from the dedicated table."""
-        categories_tuples = self.db.get_all_product_categories_from_table() # Returns list of (id, name)
-        return [name for id, name in categories_tuples] # Extract just the names
 
     def get_all_product_categories(self) -> list[str]: # Renamed this back or re-added for tests/old UI
         """Retrieve a flat, unique, sorted list of all product category names."""

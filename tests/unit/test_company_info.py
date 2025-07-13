@@ -11,20 +11,15 @@ TEST_DB_NAME = "test_crm_app_company_info.db"
 class TestCompanyInfo(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        """Set up a temporary database for all tests in this class."""
-        # Ensure we're using a test-specific database
-        cls.db_handler = DatabaseHandler(db_name=TEST_DB_NAME)
-        # Ensure tables are created
-        cls.db_handler.create_tables()
+        """Set up an in-memory SQLite database for all tests in this class."""
+        cls.db_handler = DatabaseHandler(db_name=':memory:')
+        # initialize_database is called within DatabaseHandler.__init__
+        # No need for os.remove as it's in-memory
 
     @classmethod
     def tearDownClass(cls):
-        """Close the database connection and remove the test database file."""
+        """Close the database connection after all tests."""
         cls.db_handler.close()
-        try:
-            os.remove(TEST_DB_NAME)
-        except OSError as e:
-            print(f"Error removing test database {TEST_DB_NAME}: {e}")
 
     def setUp(self):
         """Clean up and reset database before each test."""

@@ -77,6 +77,30 @@ class Account:
 
         return self.billing_address_id == self.shipping_address_id
 
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Account':
+        """
+        Creates an Account object from a dictionary representation.
+        """
+        account_type_str = data.get("account_type")
+        account_type_enum = None
+        if account_type_str:
+            try:
+                account_type_enum = AccountType(account_type_str)
+            except ValueError:
+                print(f"Warning: Invalid account type string '{account_type_str}' in data: {data}")
+
+        return cls(
+            account_id=data.get("account_id") or data.get("id"),
+            name=data.get("name", ""),
+            phone=data.get("phone", ""),
+            billing_address_id=data.get("billing_address_id"),
+            shipping_address_id=data.get("shipping_address_id"),
+            website=data.get("website", ""),
+            description=data.get("description", ""),
+            account_type=account_type_enum
+        )
+
 
 class Contact:
     def __init__(self, contact_id=None, name="", phone="", email="", account_id=None, role=""):

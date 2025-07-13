@@ -98,7 +98,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             if customer and customer.billing_address_id:
                 customer_address = address_book_logic.get_address_obj(customer.billing_address_id)
 
-        items: list[SalesDocumentItem] = sales_logic.get_items_for_document(doc.id)
+        items: list[SalesDocumentItem] = sales_logic.get_items_for_sales_document(doc.id)
 
         pdf = PDF(
             document_number=doc.document_number,

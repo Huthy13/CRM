@@ -105,14 +105,17 @@ class AddressBookLogic:
 
             addresses = []
             for addr_data in data.get('addresses', []):
-                addresses.append(Address(
+                address = Address(
                     address_id=addr_data['address_id'],
                     street=addr_data['street'],
                     city=addr_data['city'],
                     state=addr_data['state'],
                     zip_code=addr_data['zip'],
                     country=addr_data['country']
-                ))
+                )
+                address.address_type = addr_data['address_type']
+                address.is_primary = addr_data['is_primary']
+                addresses.append(address)
 
             return Account(
                 account_id=data.get("id"),  # Ensure key matches db output

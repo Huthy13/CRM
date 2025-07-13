@@ -210,12 +210,30 @@ class DatabaseHandler:
         self.conn.commit()
 
 #account related methods
-    def add_account(self, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
-        """Add a new account with billing and shipping address IDs."""
+    def add_account_address(self, account_id, address_id, address_type, is_primary):
+        """Add an address to an account."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, website, description, account_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type)) # Removed same_as_billing
+            INSERT INTO account_addresses (account_id, address_id, address_type, is_primary)
+            VALUES (?, ?, ?, ?)
+        """, (account_id, address_id, address_type, is_primary))
+        self.conn.commit()
+
+    def get_account_addresses(self, account_id):
+        """Retrieve all addresses for an account."""
+        self.cursor.execute("""
+            SELECT a.address_id, a.street, a.city, a.state, a.zip, a.country, aa.address_type, aa.is_primary
+            FROM addresses a
+            JOIN account_addresses aa ON a.address_id = aa.address_id
+            WHERE aa.account_id = ?
+        """, (account_id,))
+        return self.cursor.fetchall()
+
+    def add_account(self, name, phone, website, description, account_type):
+        """Add a new account."""
+        self.cursor.execute("""
+            INSERT INTO accounts (name, phone, website, description, account_type)
+            VALUES (?, ?, ?, ?, ?)
+        """, (name, phone, website, description, account_type))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -242,32 +260,26 @@ class DatabaseHandler:
         self.conn.commit()
 
     def get_account_details(self, account_id):
-        """Retrieve full account details, including both billing and shipping addresses."""
+        """Retrieve full account details, including all associated addresses."""
         self.cursor.execute("""
-            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type,
-                   a.billing_address_id, a.shipping_address_id,
-                   b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
-                   b.zip AS billing_zip, b.country AS billing_country,
-                   s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
-                   s.zip AS shipping_zip, s.country AS shipping_country
+            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type
             FROM accounts AS a
-            LEFT JOIN addresses AS b ON a.billing_address_id = b.address_id
-            LEFT JOIN addresses AS s ON a.shipping_address_id = s.address_id
             WHERE a.id = ?
         """, (account_id,))
         result = self.cursor.fetchone()
         if result:
-            columns = [desc[0] for desc in self.cursor.description]
-            return dict(zip(columns, result))
+            account_data = dict(result)
+            account_data['addresses'] = self.get_account_addresses(account_id)
+            return account_data
         return None
 
-    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
+    def update_account(self, account_id, name, phone, website, description, account_type):
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, website = ?, description = ?, account_type = ?
+            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?
             WHERE id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type, account_id)) # Removed same_as_billing
+        """, (name, phone, website, description, account_type, account_id))
         self.conn.commit()
 
 # Interaction related methods
@@ -1040,20 +1052,20 @@ class DatabaseHandler:
             return dict(zip(columns, row))
         return None
 
-    def update_company_information(self, company_id: int, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None):
+    def update_company_information(self, company_id: int, name: str, phone: str):
         """Update the company information."""
         self.cursor.execute("""
             UPDATE company_information
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?
+            SET name = ?, phone = ?
             WHERE company_id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, company_id))
+        """, (name, phone, company_id))
         self.conn.commit()
 
-    def add_company_information(self, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None) -> int:
+    def add_company_information(self, name: str, phone: str) -> int:
         """Add company information. Primarily for initial setup if needed, or if table could be empty."""
         self.cursor.execute("""
-            INSERT INTO company_information (name, phone, billing_address_id, shipping_address_id)
-            VALUES (?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id))
+            INSERT INTO company_information (name, phone)
+            VALUES (?, ?)
+        """, (name, phone))
         self.conn.commit()
         return self.cursor.lastrowid

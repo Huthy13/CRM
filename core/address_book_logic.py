@@ -36,33 +36,42 @@ class AddressBookLogic:
         account_type_value = None
         if account.account_type:
             account_type_value = account.account_type.value
-        elif account.account_id is None: # It's a new account and no type provided
-            account.account_type = AccountType.CONTACT # Default to CONTACT for new accounts if none specified
+        elif account.account_id is None:  # It's a new account and no type provided
+            account.account_type = AccountType.CONTACT  # Default to CONTACT for new accounts if none specified
             account_type_value = account.account_type.value
 
-        if not account_type_value: # This implies an update is trying to set type to None, or initial was None and no default applied
-             # The DB has NOT NULL constraint on account_type.
-             # Allowing None here would lead to IntegrityError at DB level.
-             # Business logic should decide if this is an error or if a default should apply on update too.
-             # For now, let's enforce that a type must be present for DB operation.
+        if not account_type_value:  # This implies an update is trying to set type to None, or initial was None and no default applied
+            # The DB has NOT NULL constraint on account_type.
+            # Allowing None here would lead to IntegrityError at DB level.
+            # Business logic should decide if this is an error or if a default should apply on update too.
+            # For now, let's enforce that a type must be present for DB operation.
             raise ValueError("Account type cannot be None due to NOT NULL database constraint.")
 
-
         if account.account_id is None:
-            # Call the specific add_account that takes an Account object
-            new_id = self.db.add_account(account.name, account.phone, account.billing_address_id,
-                                         account.shipping_address_id,
-                                         account.website, account.description, account_type_value)
+            # Add the account to get an ID
+            new_id = self.db.add_account(account.name, account.phone, account.website, account.description, account_type_value)
             if new_id:
                 account.account_id = new_id
+                # Now, add the addresses
+                for address in account.addresses:
+                    address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
+                    self.db.add_account_address(new_id, address_id, address.address_type, address.is_primary)
                 return account
-            return None # Failed to add
+            return None  # Failed to add
         else:
-            # Call the specific update_account that takes an Account object
-            self.db.update_account(account.account_id, account.name, account.phone, account.billing_address_id,
-                                   account.shipping_address_id,
-                                   account.website, account.description, account_type_value)
-            return account # Return the updated account object
+            # Update the account details
+            self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value)
+            # Clear existing addresses and add the new ones
+            # A more sophisticated approach would be to diff the addresses
+            self.db.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
+            for address in account.addresses:
+                if address.address_id:
+                    self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
+                    self.db.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
+                else:
+                    address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
+                    self.db.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
+            return account  # Return the updated account object
 
 
     def get_all_accounts(self) -> List[Account]:
@@ -84,7 +93,7 @@ class AddressBookLogic:
 
     def get_account_details(self, account_id) -> Account | None:
         """Retrieve full account details, including new fields."""
-        data = self.db.get_account_details(account_id) # db returns a dict
+        data = self.db.get_account_details(account_id)  # db returns a dict
         if data:
             account_type_enum = None
             account_type_str = data.get("account_type")
@@ -94,17 +103,26 @@ class AddressBookLogic:
                 except ValueError:
                     print(f"Warning: Invalid account type string '{account_type_str}' in DB for account ID {data.get('id')}.")
 
+            addresses = []
+            for addr_data in data.get('addresses', []):
+                addresses.append(Address(
+                    address_id=addr_data['address_id'],
+                    street=addr_data['street'],
+                    city=addr_data['city'],
+                    state=addr_data['state'],
+                    zip_code=addr_data['zip'],
+                    country=addr_data['country']
+                ))
+
             return Account(
-                    account_id=data.get("id"), # Ensure key matches db output
-                    name=data.get("name"),
-                    phone=data.get("phone"),
-                    billing_address_id=data.get("billing_address_id"),
-                    shipping_address_id=data.get("shipping_address_id"),
-                    # same_as_billing is handled by is_billing_same_as_shipping()
-                    website=data.get("website"),
-                    description=data.get("description"),
-                    account_type=account_type_enum
-                )
+                account_id=data.get("id"),  # Ensure key matches db output
+                name=data.get("name"),
+                phone=data.get("phone"),
+                addresses=addresses,
+                website=data.get("website"),
+                description=data.get("description"),
+                account_type=account_type_enum
+            )
         return None
 
     def get_accounts(self): # This likely returns tuples (id, name)

@@ -8,9 +8,6 @@ class CompanyInfoTab:
         self.frame = ttk.Frame(master)
         self.db_handler = db_handler
         self.company_info: CompanyInformation | None = None
-        self.billing_address: Address | None = None
-        self.shipping_address: Address | None = None
-
         self.load_company_data()
         self.setup_ui()
 
@@ -22,33 +19,27 @@ class CompanyInfoTab:
                 company_id=company_data_dict.get('company_id'),
                 name=company_data_dict.get('name'),
                 phone=company_data_dict.get('phone'),
-                billing_address_id=company_data_dict.get('billing_address_id'),
-                shipping_address_id=company_data_dict.get('shipping_address_id')
+                addresses=[]
             )
-            if self.company_info.billing_address_id:
-                addr_dict = self.db_handler.get_address(self.company_info.billing_address_id)
-                if addr_dict: # street, city, state, zip, country
-                    self.billing_address = Address(address_id=self.company_info.billing_address_id,
-                                                   street=addr_dict[0], city=addr_dict[1],
-                                                   state=addr_dict[2], zip_code=addr_dict[3], country=addr_dict[4])
-            if self.company_info.shipping_address_id:
-                addr_dict = self.db_handler.get_address(self.company_info.shipping_address_id)
-                if addr_dict:
-                    self.shipping_address = Address(address_id=self.company_info.shipping_address_id,
-                                                    street=addr_dict[0], city=addr_dict[1],
-                                                    state=addr_dict[2], zip_code=addr_dict[3], country=addr_dict[4])
+            addresses_data = self.db_handler.get_account_addresses(self.company_info.company_id)
+            for addr_data in addresses_data:
+                address = Address(
+                    address_id=addr_data['address_id'],
+                    street=addr_data['street'],
+                    city=addr_data['city'],
+                    state=addr_data['state'],
+                    zip_code=addr_data['zip'],
+                    country=addr_data['country']
+                )
+                address.address_type = addr_data['address_type']
+                address.is_primary = addr_data['is_primary']
+                self.company_info.addresses.append(address)
         else:
             # Initialize with default empty objects if no data found
-            self.company_info = CompanyInformation(name="My Company") # Default name
-            self.db_handler.add_company_information(self.company_info.name, "", None, None)
+            self.company_info = CompanyInformation(name="My Company", addresses=[]) # Default name
+            self.db_handler.add_company_information(self.company_info.name, "")
             # Reload to get the ID
             self.load_company_data()
-
-
-        if not self.billing_address:
-            self.billing_address = Address()
-        if not self.shipping_address:
-            self.shipping_address = Address()
 
 
     def setup_ui(self):
@@ -60,37 +51,23 @@ class CompanyInfoTab:
         self.name_entry = self._create_entry(form_frame, "Company Name:", 0, self.company_info.name if self.company_info else "")
         self.phone_entry = self._create_entry(form_frame, "Phone:", 1, self.company_info.phone if self.company_info else "")
 
-        # Billing Address Fields
-        billing_frame = ttk.LabelFrame(self.frame, text="Billing Address", padding="10")
-        billing_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
-        self.billing_street_entry = self._create_entry(billing_frame, "Street:", 0, self.billing_address.street)
-        self.billing_city_entry = self._create_entry(billing_frame, "City:", 1, self.billing_address.city)
-        self.billing_state_entry = self._create_entry(billing_frame, "State:", 2, self.billing_address.state)
-        self.billing_zip_entry = self._create_entry(billing_frame, "Zip Code:", 3, self.billing_address.zip_code)
-        self.billing_country_entry = self._create_entry(billing_frame, "Country:", 4, self.billing_address.country)
+        # Addresses Frame
+        addresses_frame = ttk.LabelFrame(self.frame, text="Addresses", padding="10")
+        addresses_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
 
-        # Shipping Address Fields
-        shipping_frame = ttk.LabelFrame(self.frame, text="Shipping Address", padding="10")
-        shipping_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
+        self.address_tree = ttk.Treeview(addresses_frame, columns=("type", "primary", "address"), show="headings")
+        self.address_tree.heading("type", text="Type")
+        self.address_tree.heading("primary", text="Primary")
+        self.address_tree.heading("address", text="Address")
+        self.address_tree.pack(side="top", fill="x", expand=True)
 
-        self.same_as_billing_var = tk.BooleanVar()
-        self.same_as_billing_checkbox = ttk.Checkbutton(
-            shipping_frame, text="Shipping address same as billing",
-            variable=self.same_as_billing_var,
-            command=self.toggle_shipping_fields
-        )
-        self.same_as_billing_checkbox.grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
+        self.populate_address_tree()
 
-        self.shipping_street_entry = self._create_entry(shipping_frame, "Street:", 1, self.shipping_address.street)
-        self.shipping_city_entry = self._create_entry(shipping_frame, "City:", 2, self.shipping_address.city)
-        self.shipping_state_entry = self._create_entry(shipping_frame, "State:", 3, self.shipping_address.state)
-        self.shipping_zip_entry = self._create_entry(shipping_frame, "Zip Code:", 4, self.shipping_address.zip_code)
-        self.shipping_country_entry = self._create_entry(shipping_frame, "Country:", 5, self.shipping_address.country)
-
-        # Initial check for same address (e.g. if both IDs are the same and not None)
-        if self.company_info and self.company_info.billing_address_id and self.company_info.billing_address_id == self.company_info.shipping_address_id:
-            self.same_as_billing_var.set(True)
-            self.toggle_shipping_fields()
+        address_button_frame = tk.Frame(addresses_frame)
+        address_button_frame.pack(side="bottom", fill="x", expand=True)
+        tk.Button(address_button_frame, text="Add", command=self.add_address).pack(side="left")
+        tk.Button(address_button_frame, text="Edit", command=self.edit_address).pack(side="left")
+        tk.Button(address_button_frame, text="Delete", command=self.delete_address).pack(side="left")
 
 
         # Save Button
@@ -109,51 +86,43 @@ class CompanyInfoTab:
         parent.columnconfigure(1, weight=1) # Make entry field expand
         return entry
 
-    def toggle_shipping_fields(self):
-        """Enable/disable shipping fields based on checkbox and copy data if checked."""
-        if self.same_as_billing_var.get():
-            # Copy from billing and disable
-            self.shipping_street_entry.delete(0, tk.END)
-            self.shipping_street_entry.insert(0, self.billing_street_entry.get())
-            self.shipping_street_entry.config(state=tk.DISABLED)
+    def populate_address_tree(self):
+        for i in self.address_tree.get_children():
+            self.address_tree.delete(i)
+        if self.company_info and hasattr(self.company_info, 'addresses'):
+            for addr in self.company_info.addresses:
+                address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
+                self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=addr.address_id)
 
-            self.shipping_city_entry.delete(0, tk.END)
-            self.shipping_city_entry.insert(0, self.billing_city_entry.get())
-            self.shipping_city_entry.config(state=tk.DISABLED)
+    def add_address(self):
+        address_popup = AddressPopup(self.frame)
+        self.frame.wait_window(address_popup)
+        if hasattr(address_popup, 'address'):
+            self.company_info.addresses.append(address_popup.address)
+            self.populate_address_tree()
 
-            self.shipping_state_entry.delete(0, tk.END)
-            self.shipping_state_entry.insert(0, self.billing_state_entry.get())
-            self.shipping_state_entry.config(state=tk.DISABLED)
+    def edit_address(self):
+        selected_item = self.address_tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select an address to edit.")
+            return
 
-            self.shipping_zip_entry.delete(0, tk.END)
-            self.shipping_zip_entry.insert(0, self.billing_zip_entry.get())
-            self.shipping_zip_entry.config(state=tk.DISABLED)
+        address_id = int(selected_item[0])
+        address = next((addr for addr in self.company_info.addresses if addr.address_id == address_id), None)
+        if address:
+            address_popup = AddressPopup(self.frame, address)
+            self.frame.wait_window(address_popup)
+            self.populate_address_tree()
 
-            self.shipping_country_entry.delete(0, tk.END)
-            self.shipping_country_entry.insert(0, self.billing_country_entry.get())
-            self.shipping_country_entry.config(state=tk.DISABLED)
-        else:
-            # Enable fields and clear them (or load original shipping data if available)
-            self.shipping_street_entry.config(state=tk.NORMAL)
-            self.shipping_street_entry.delete(0, tk.END)
-            self.shipping_street_entry.insert(0, self.shipping_address.street if self.shipping_address else "")
+    def delete_address(self):
+        selected_item = self.address_tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select an address to delete.")
+            return
 
-            self.shipping_city_entry.config(state=tk.NORMAL)
-            self.shipping_city_entry.delete(0, tk.END)
-            self.shipping_city_entry.insert(0, self.shipping_address.city if self.shipping_address else "")
-
-            self.shipping_state_entry.config(state=tk.NORMAL)
-            self.shipping_state_entry.delete(0, tk.END)
-            self.shipping_state_entry.insert(0, self.shipping_address.state if self.shipping_address else "")
-
-            self.shipping_zip_entry.config(state=tk.NORMAL)
-            self.shipping_zip_entry.delete(0, tk.END)
-            self.shipping_zip_entry.insert(0, self.shipping_address.zip_code if self.shipping_address else "")
-
-            self.shipping_country_entry.config(state=tk.NORMAL)
-            self.shipping_country_entry.delete(0, tk.END)
-            self.shipping_country_entry.insert(0, self.shipping_address.country if self.shipping_address else "")
-
+        address_id = int(selected_item[0])
+        self.company_info.addresses = [addr for addr in self.company_info.addresses if addr.address_id != address_id]
+        self.populate_address_tree()
 
     def save_company_information(self):
         """Saves the company information to the database."""
@@ -161,52 +130,24 @@ class CompanyInfoTab:
             messagebox.showerror("Error", "Company data not loaded correctly. Cannot save.")
             return
 
-        # Get billing address details
-        billing_street = self.billing_street_entry.get()
-        billing_city = self.billing_city_entry.get()
-        billing_state = self.billing_state_entry.get()
-        billing_zip = self.billing_zip_entry.get()
-        billing_country = self.billing_country_entry.get()
-
-        # Save or update billing address
-        if self.billing_address and self.billing_address.address_id:
-            self.db_handler.update_address(self.billing_address.address_id, billing_street, billing_city, billing_state, billing_zip, billing_country)
-            billing_address_id = self.billing_address.address_id
-        else:
-            billing_address_id = self.db_handler.add_address(billing_street, billing_city, billing_state, billing_zip, billing_country)
-        self.company_info.billing_address_id = billing_address_id
-
-
-        # Get shipping address details
-        if self.same_as_billing_var.get():
-            shipping_address_id = billing_address_id
-        else:
-            shipping_street = self.shipping_street_entry.get()
-            shipping_city = self.shipping_city_entry.get()
-            shipping_state = self.shipping_state_entry.get()
-            shipping_zip = self.shipping_zip_entry.get()
-            shipping_country = self.shipping_country_entry.get()
-
-            if self.shipping_address and self.shipping_address.address_id and self.shipping_address.address_id != billing_address_id : # Check if it's not the same as billing and exists
-                self.db_handler.update_address(self.shipping_address.address_id, shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country)
-                shipping_address_id = self.shipping_address.address_id
-            elif self.shipping_address and self.shipping_address.address_id and self.shipping_address.address_id == billing_address_id and not (shipping_street == billing_street and shipping_city == billing_city):
-                # If it was same as billing, but now different, create new shipping address
-                shipping_address_id = self.db_handler.add_address(shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country)
-            else: # New shipping address needed
-                 shipping_address_id = self.db_handler.add_address(shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country)
-        self.company_info.shipping_address_id = shipping_address_id
-
         # Update company information
         self.company_info.name = self.name_entry.get()
         self.company_info.phone = self.phone_entry.get()
 
+        # Clear existing addresses and add the new ones
+        self.db_handler.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (self.company_info.company_id,))
+        for address in self.company_info.addresses:
+            if address.address_id:
+                self.db_handler.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
+                self.db_handler.add_account_address(self.company_info.company_id, address.address_id, address.address_type, address.is_primary)
+            else:
+                address_id = self.db_handler.add_address(address.street, address.city, address.state, address.zip_code, address.country)
+                self.db_handler.add_account_address(self.company_info.company_id, address_id, address.address_type, address.is_primary)
+
         self.db_handler.update_company_information(
             self.company_info.company_id,
             self.company_info.name,
-            self.company_info.phone,
-            self.company_info.billing_address_id,
-            self.company_info.shipping_address_id
+            self.company_info.phone
         )
         messagebox.showinfo("Success", "Company information updated successfully.")
         self.load_company_data() # Reload to reflect changes and get fresh address objects
@@ -218,35 +159,42 @@ class CompanyInfoTab:
         self.name_entry.insert(0, self.company_info.name if self.company_info else "")
         self.phone_entry.delete(0, tk.END)
         self.phone_entry.insert(0, self.company_info.phone if self.company_info else "")
+        self.populate_address_tree()
 
-        self.billing_street_entry.delete(0, tk.END)
-        self.billing_street_entry.insert(0, self.billing_address.street if self.billing_address else "")
-        self.billing_city_entry.delete(0, tk.END)
-        self.billing_city_entry.insert(0, self.billing_address.city if self.billing_address else "")
-        self.billing_state_entry.delete(0, tk.END)
-        self.billing_state_entry.insert(0, self.billing_address.state if self.billing_address else "")
-        self.billing_zip_entry.delete(0, tk.END)
-        self.billing_zip_entry.insert(0, self.billing_address.zip_code if self.billing_address else "")
-        self.billing_country_entry.delete(0, tk.END)
-        self.billing_country_entry.insert(0, self.billing_address.country if self.billing_address else "")
+class AddressPopup(tk.Toplevel):
+    def __init__(self, master, address=None):
+        super().__init__(master)
+        self.address = address if address else Address()
+        self.title("Address")
+        # Add address fields here
+        self.street_entry = self._create_entry("Street:", 0, self.address.street)
+        self.city_entry = self._create_entry("City:", 1, self.address.city)
+        self.state_entry = self._create_entry("State:", 2, self.address.state)
+        self.zip_entry = self._create_entry("Zip:", 3, self.address.zip_code)
+        self.country_entry = self._create_entry("Country:", 4, self.address.country)
+        self.type_entry = self._create_entry("Type:", 5, self.address.address_type if hasattr(self.address, 'address_type') else '')
+        self.primary_var = tk.BooleanVar(value=self.address.is_primary if hasattr(self.address, 'is_primary') else False)
+        self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
+        self.primary_check.grid(row=6, column=0, columnspan=2)
+        tk.Button(self, text="Save", command=self.save).grid(row=7, column=0, columnspan=2)
 
-        if self.company_info and self.company_info.billing_address_id and self.company_info.billing_address_id == self.company_info.shipping_address_id:
-            self.same_as_billing_var.set(True)
-        else:
-            self.same_as_billing_var.set(False)
-        self.toggle_shipping_fields() # This will also populate shipping fields correctly
+    def _create_entry(self, label_text, row, initial_value=""):
+        label = tk.Label(self, text=label_text)
+        label.grid(row=row, column=0, padx=5, pady=5, sticky="e")
+        entry = tk.Entry(self, width=40)
+        entry.insert(0, initial_value if initial_value is not None else "")
+        entry.grid(row=row, column=1, padx=5, pady=5)
+        return entry
 
-        if not self.same_as_billing_var.get():
-            self.shipping_street_entry.delete(0, tk.END)
-            self.shipping_street_entry.insert(0, self.shipping_address.street if self.shipping_address else "")
-            self.shipping_city_entry.delete(0, tk.END)
-            self.shipping_city_entry.insert(0, self.shipping_address.city if self.shipping_address else "")
-            self.shipping_state_entry.delete(0, tk.END)
-            self.shipping_state_entry.insert(0, self.shipping_address.state if self.shipping_address else "")
-            self.shipping_zip_entry.delete(0, tk.END)
-            self.shipping_zip_entry.insert(0, self.shipping_address.zip_code if self.shipping_address else "")
-            self.shipping_country_entry.delete(0, tk.END)
-            self.shipping_country_entry.insert(0, self.shipping_address.country if self.shipping_address else "")
+    def save(self):
+        self.address.street = self.street_entry.get()
+        self.address.city = self.city_entry.get()
+        self.address.state = self.state_entry.get()
+        self.address.zip_code = self.zip_entry.get()
+        self.address.country = self.country_entry.get()
+        self.address.address_type = self.type_entry.get()
+        self.address.is_primary = self.primary_var.get()
+        self.destroy()
 
 if __name__ == '__main__':
     # This is example code for testing the tab independently.

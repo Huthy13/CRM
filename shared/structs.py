@@ -35,23 +35,21 @@ class Address:
         }
 
 class Account:
-    def __init__(self, account_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None, website="", description="", account_type: AccountType = None):
-
+    def __init__(self, account_id=None, name="", phone="", addresses=None, website="", description="", account_type: AccountType = None):
         self.account_id = account_id
         self.name = name
         self.phone = phone
-        self.billing_address_id = billing_address_id
-        self.shipping_address_id = shipping_address_id
+        self.addresses = addresses if addresses is not None else []
         self.website = website
         self.description = description
         self.account_type = account_type
 
     def __str__(self):
+        addresses_str = "\n".join([str(addr) for addr in self.addresses])
         return (f"Data from the string method!!! Account ID: {self.account_id}\n"
                 f"Name: {self.name}\n"
                 f"Phone: {self.phone}\n"
-                f"Billing Address ID: {self.billing_address_id}\n"
-                f"Shipping Address ID: {self.shipping_address_id}\n"
+                f"Addresses:\n{addresses_str}\n"
                 f"Website: {self.website}\n"
                 f"Description: {self.description}\n"
                 f"Account Type: {self.account_type.value if self.account_type else 'N/A'}")
@@ -62,20 +60,11 @@ class Account:
             "account_id": self.account_id,
             "name": self.name,
             "phone": self.phone,
-            "billing_address_id": self.billing_address_id,
-            "shipping_address_id": self.shipping_address_id,
-            "same_as_billing": self.is_billing_same_as_shipping(),
+            "addresses": [addr.to_dict() for addr in self.addresses],
             "website": self.website,
             "description": self.description,
             "account_type": self.account_type.value if self.account_type else None
         }
-
-    def is_billing_same_as_shipping(self):
-        """Checks if billing and shipping address IDs are the same."""
-        if self.billing_address_id is None and self.shipping_address_id is None:
-            return False
-
-        return self.billing_address_id == self.shipping_address_id
 
     @classmethod
     def from_row(cls, row: tuple) -> 'Account':
@@ -491,28 +480,26 @@ class PurchaseDocument:
 
 
 class CompanyInformation:
-    def __init__(self, company_id=None, name="", phone="", billing_address_id=None, shipping_address_id=None):
+    def __init__(self, company_id=None, name="", phone="", addresses=None):
         self.company_id = company_id
         self.name = name
         self.phone = phone
-        self.billing_address_id = billing_address_id
-        self.shipping_address_id = shipping_address_id
+        self.addresses = addresses if addresses is not None else []
 
     def to_dict(self):
         return {
             "company_id": self.company_id,
             "name": self.name,
             "phone": self.phone,
-            "billing_address_id": self.billing_address_id,
-            "shipping_address_id": self.shipping_address_id,
+            "addresses": [addr.to_dict() for addr in self.addresses],
         }
 
     def __str__(self):
+        addresses_str = "\n".join([str(addr) for addr in self.addresses])
         return (f"Company ID: {self.company_id}\n"
                 f"Name: {self.name}\n"
                 f"Phone: {self.phone}\n"
-                f"Billing Address ID: {self.billing_address_id}\n"
-                f"Shipping Address ID: {self.shipping_address_id}")
+                f"Addresses:\n{addresses_str}")
 
 
 class PurchaseDocumentItem:

@@ -10,12 +10,8 @@ class AccountDetailsPopup(tk.Toplevel):
 
         if self.account_id == None:
             self.active_account = Account()
-            self.billing_address = Address()
-            self.shipping_address = Address()
         else:
             self.active_account = self.logic.get_account_details(self.account_id)
-            self.billing_address = self.logic.get_address_obj(self.active_account.billing_address_id) if self.active_account.billing_address_id else Address()
-            self.shipping_address = self.logic.get_address_obj(self.active_account.shipping_address_id) if self.active_account.shipping_address_id else Address()
 
         # Account details Fields
         self.name_entry = self._create_entry("Account Name:", 0, self.active_account.name)
@@ -34,41 +30,66 @@ class AccountDetailsPopup(tk.Toplevel):
         self.description_entry = self._create_entry("Description:", 4, self.active_account.description)
 
 
-        # Billing Address Fields
-        tk.Label(self, text="Billing Address").grid(row=5, column=0, columnspan=2)
-        self.billing_street_entry = self._create_entry("Street:", 6, self.billing_address.street)
-        self.billing_city_entry = self._create_entry("City:", 7, self.billing_address.city)
-        self.billing_state_entry = self._create_entry("State:", 8, self.billing_address.state)
-        self.billing_zip_entry = self._create_entry("Zip:", 9, self.billing_address.zip_code)
-        self.billing_country_entry = self._create_entry("Country:", 10, self.billing_address.country)
+        # Addresses Frame
+        addresses_frame = tk.LabelFrame(self, text="Addresses")
+        addresses_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
-        self.same_as_billing_stat = tk.BooleanVar(value = self.active_account.is_billing_same_as_shipping())
+        self.address_tree = ttk.Treeview(addresses_frame, columns=("type", "primary", "address"), show="headings", height=5)
+        self.address_tree.heading("type", text="Type")
+        self.address_tree.heading("primary", text="Primary")
+        self.address_tree.heading("address", text="Address")
+        self.address_tree.pack(side="top", fill="x", expand=True)
 
-        # Checkbox for "Same as Billing"
-        self.same_as_billing_checkbox = tk.Checkbutton(
-            self, text="Shipping address same as billing",
-            variable=self.same_as_billing_stat,
-            command=self.toggle_shipping_fields
-        )
-        self.same_as_billing_checkbox.grid(row=11, column=0, columnspan=2, pady=5)
+        self.populate_address_tree()
 
-        # Shipping Address Fields
-        tk.Label(self, text="Shipping Address").grid(row=12, column=0, columnspan=2)
-        self.shipping_street_entry = self._create_entry("Street:", 13, self.shipping_address.street)
-        self.shipping_city_entry = self._create_entry("City:", 14, self.shipping_address.city)
-        self.shipping_state_entry = self._create_entry("State:", 15, self.shipping_address.state)
-        self.shipping_zip_entry = self._create_entry("Zip:", 16, self.shipping_address.zip_code)
-        self.shipping_country_entry = self._create_entry("Country:", 17, self.shipping_address.country)
-
-        if self.same_as_billing_stat.get():
-            self._copy_billing_to_shipping_and_disable()
+        address_button_frame = tk.Frame(addresses_frame)
+        address_button_frame.pack(side="bottom", fill="x", expand=True)
+        tk.Button(address_button_frame, text="Add", command=self.add_address).pack(side="left")
+        tk.Button(address_button_frame, text="Edit", command=self.edit_address).pack(side="left")
+        tk.Button(address_button_frame, text="Delete", command=self.delete_address).pack(side="left")
 
         # Save Button
         save_button = tk.Button(self, text="Save", command=self.save_account)
         save_button.grid(row=18, column=0, columnspan=2, pady=10)
 
-    def save_account(self):
+    def populate_address_tree(self):
+        for i in self.address_tree.get_children():
+            self.address_tree.delete(i)
+        for addr in self.active_account.addresses:
+            address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
+            self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=addr.address_id)
 
+    def add_address(self):
+        address_popup = AddressPopup(self)
+        self.wait_window(address_popup)
+        if hasattr(address_popup, 'address'):
+            self.active_account.addresses.append(address_popup.address)
+            self.populate_address_tree()
+
+    def edit_address(self):
+        selected_item = self.address_tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select an address to edit.")
+            return
+
+        address_id = int(selected_item[0])
+        address = next((addr for addr in self.active_account.addresses if addr.address_id == address_id), None)
+        if address:
+            address_popup = AddressPopup(self, address)
+            self.wait_window(address_popup)
+            self.populate_address_tree()
+
+    def delete_address(self):
+        selected_item = self.address_tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select an address to delete.")
+            return
+
+        address_id = int(selected_item[0])
+        self.active_account.addresses = [addr for addr in self.active_account.addresses if addr.address_id != address_id]
+        self.populate_address_tree()
+
+    def save_account(self):
         #Gathering account details
         self.active_account.name =  self.name_entry.get()
         self.active_account.phone = self.phone_entry.get()
@@ -85,27 +106,8 @@ class AccountDetailsPopup(tk.Toplevel):
         else:
             self.active_account.account_type = None
 
-
-        #Gathering billing address
-        self.active_account.billing_address_id = self.logic.add_address(
-            self.billing_street_entry.get(),
-            self.billing_city_entry.get(),
-            self.billing_state_entry.get(),
-            self.billing_zip_entry.get(),
-            self.billing_country_entry.get())
-
-        #Gathering shipping address
-        if  self.same_as_billing_stat.get():
-            self.active_account.shipping_address_id = self.active_account.billing_address_id
-        else:
-            self.active_account.shipping_address_id = self.logic.add_address(
-            self.shipping_street_entry.get(),
-            self.shipping_city_entry.get(),
-            self.shipping_state_entry.get(),
-            self.shipping_zip_entry.get(),
-            self.shipping_country_entry.get())
-
-        #actually save data to DB
+        # The addresses are already in self.active_account.addresses
+        # so we just need to save the account
         self.logic.save_account(self.active_account)
 
         self.destroy()
@@ -118,42 +120,37 @@ class AccountDetailsPopup(tk.Toplevel):
         entry.grid(row=row, column=1, padx=5, pady=5)
         return entry
 
-    def toggle_shipping_fields(self):
-        if self.same_as_billing_stat.get():
-            self._copy_billing_to_shipping_and_disable()
-            # self.active_account.shipping_address_id = self.active_account.billing_address_id # Logic handled in save
-        else:
-            # self.active_account.shipping_address_id = Address() # Logic handled in save
-            for widget in [self.shipping_street_entry, self.shipping_city_entry,
-                           self.shipping_state_entry, self.shipping_zip_entry,
-                           self.shipping_country_entry]:
-                widget.delete(0, tk.END) # Clear fields before enabling
-                widget.config(state=tk.NORMAL)
+class AddressPopup(tk.Toplevel):
+    def __init__(self, master, address=None):
+        super().__init__(master)
+        self.address = address if address else Address()
+        self.title("Address")
+        # Add address fields here
+        self.street_entry = self._create_entry("Street:", 0, self.address.street)
+        self.city_entry = self._create_entry("City:", 1, self.address.city)
+        self.state_entry = self._create_entry("State:", 2, self.address.state)
+        self.zip_entry = self._create_entry("Zip:", 3, self.address.zip_code)
+        self.country_entry = self._create_entry("Country:", 4, self.address.country)
+        self.type_entry = self._create_entry("Type:", 5, self.address.address_type if hasattr(self.address, 'address_type') else '')
+        self.primary_var = tk.BooleanVar(value=self.address.is_primary if hasattr(self.address, 'is_primary') else False)
+        self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
+        self.primary_check.grid(row=6, column=0, columnspan=2)
+        tk.Button(self, text="Save", command=self.save).grid(row=7, column=0, columnspan=2)
 
+    def _create_entry(self, label_text, row, initial_value=""):
+        label = tk.Label(self, text=label_text)
+        label.grid(row=row, column=0, padx=5, pady=5, sticky="e")
+        entry = tk.Entry(self, width=40)
+        entry.insert(0, initial_value if initial_value is not None else "")
+        entry.grid(row=row, column=1, padx=5, pady=5)
+        return entry
 
-    def _copy_billing_to_shipping_and_disable(self):
-
-        #clear text in fields
-        self.shipping_street_entry.config(state=tk.NORMAL)
-        self.shipping_city_entry.config(state=tk.NORMAL)
-        self.shipping_state_entry.config(state=tk.NORMAL)
-        self.shipping_zip_entry.config(state=tk.NORMAL)
-        self.shipping_country_entry.config(state=tk.NORMAL)
-
-        self.shipping_street_entry.delete(0, tk.END)
-        self.shipping_city_entry.delete(0, tk.END)
-        self.shipping_state_entry.delete(0, tk.END)
-        self.shipping_zip_entry.delete(0, tk.END)
-        self.shipping_country_entry.delete(0, tk.END)
-
-        #copy text from billing into fields
-        self.shipping_street_entry.insert(0, self.billing_street_entry.get())
-        self.shipping_city_entry.insert(0, self.billing_city_entry.get())
-        self.shipping_state_entry.insert(0, self.billing_state_entry.get())
-        self.shipping_zip_entry.insert(0, self.billing_zip_entry.get())
-        self.shipping_country_entry.insert(0,  self.billing_country_entry.get())
-
-        for widget in [self.shipping_street_entry, self.shipping_city_entry,
-                    self.shipping_state_entry, self.shipping_zip_entry,
-                    self.shipping_country_entry]:
-            widget.config(state=tk.DISABLED)
+    def save(self):
+        self.address.street = self.street_entry.get()
+        self.address.city = self.city_entry.get()
+        self.address.state = self.state_entry.get()
+        self.address.zip_code = self.zip_entry.get()
+        self.address.country = self.country_entry.get()
+        self.address.address_type = self.type_entry.get()
+        self.address.is_primary = self.primary_var.get()
+        self.destroy()

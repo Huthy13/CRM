@@ -78,17 +78,25 @@ def create_tables(db_conn=None):
             account_type TEXT NOT NULL, -- 'Customer', 'Vendor', 'Contact' (from AccountType enum)
             phone TEXT, -- Made phone not null in old DB handler, but setup allows null. Keeping as is for now.
             email TEXT, -- Removed UNIQUE from email for now, matches old DB handler
-            billing_address_id INTEGER,
-            shipping_address_id INTEGER,
-            -- same_as_billing BOOLEAN DEFAULT 0, -- This was in old DB handler, not in struct directly
             website TEXT,
             description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Added
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Added
-            FOREIGN KEY (billing_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL, -- Added ON DELETE
-            FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL -- Added ON DELETE
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Added
         )
         """)
+        # Account Addresses Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS account_addresses (
+            account_id INTEGER NOT NULL,
+            address_id INTEGER NOT NULL,
+            address_type TEXT NOT NULL,
+            is_primary BOOLEAN DEFAULT 0,
+            FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE,
+            FOREIGN KEY (address_id) REFERENCES addresses (address_id) ON DELETE CASCADE,
+            PRIMARY KEY (account_id, address_id, address_type)
+        )
+        """)
+
         # Trigger for accounts updated_at
         cursor.execute("""
         CREATE TRIGGER IF NOT EXISTS update_accounts_updated_at

@@ -191,7 +191,7 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
 
         # Fetch product description from product_logic, not just name, if available
         product_details_for_desc = self.product_logic.get_product_details(selected_product_id)
-        final_product_description = product_details_for_desc.get('name', selected_product_name) if product_details_for_desc else selected_product_name
+        final_product_description = product_details_for_desc.name if product_details_for_desc else selected_product_name
 
         # Line total is calculated by sales_logic.add_item_to_sales_document or update_sales_document_item
         try:

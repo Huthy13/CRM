@@ -280,4 +280,3 @@ if __name__ == '__main__':
     ttk.Button(root, text="Add Sales Item", command=open_add_item_popup).pack(pady=10)
     ttk.Button(root, text="Edit Sales Item", command=open_edit_item_popup).pack(pady=10)
     root.mainloop()
-Tool output for `create_file_with_block`:

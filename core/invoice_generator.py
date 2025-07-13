@@ -189,7 +189,8 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
         document_subtotal = 0.0
         if items:
             for item in items:
-                item_total = item.total_price if item.total_price is not None else 0.0
+                item.calculate_line_total()
+                item_total = item.line_total if item.line_total is not None else 0.0
                 if item.unit_price is None and item.quantity is not None and item_total != 0.0 and item.quantity != 0:
                     effective_unit_price = item_total / item.quantity
                 else:

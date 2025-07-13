@@ -139,6 +139,22 @@ class CompanyInfoTab:
         self.company_info.name = self.name_entry.get()
         self.company_info.phone = self.phone_entry.get()
 
+        # Enforce single primary address
+        primary_billing_found = False
+        primary_shipping_found = False
+        for address in self.company_info.addresses:
+            if address.address_type == 'Billing':
+                if address.is_primary and not primary_billing_found:
+                    primary_billing_found = True
+                elif address.is_primary and primary_billing_found:
+                    address.is_primary = False # Demote additional primary
+
+            if address.address_type == 'Shipping':
+                if address.is_primary and not primary_shipping_found:
+                    primary_shipping_found = True
+                elif address.is_primary and primary_shipping_found:
+                    address.is_primary = False # Demote additional primary
+
         # Clear existing addresses and add the new ones
         self.db_handler.cursor.execute("DELETE FROM company_addresses WHERE company_id = ?", (self.company_info.company_id,))
         for address in self.company_info.addresses:

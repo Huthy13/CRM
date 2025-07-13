@@ -53,25 +53,42 @@ class AddressBookLogic:
             if new_id:
                 account.account_id = new_id
                 # Now, add the addresses
-                for address in account.addresses:
-                    address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                    self.db.add_account_address(new_id, address_id, address.address_type, address.is_primary)
+                self.save_account_addresses(account)
                 return account
             return None  # Failed to add
         else:
             # Update the account details
             self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value)
             # Clear existing addresses and add the new ones
-            # A more sophisticated approach would be to diff the addresses
-            self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
-            for address in account.addresses:
-                if address.address_id:
-                    self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                    self.db.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
-                else:
-                    address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                    self.db.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
+            self.save_account_addresses(account)
             return account  # Return the updated account object
+
+    def save_account_addresses(self, account: Account):
+        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
+
+        primary_billing_found = False
+        primary_shipping_found = False
+
+        for address in account.addresses:
+            is_primary = address.is_primary
+            if address.address_type == 'Billing':
+                if is_primary and not primary_billing_found:
+                    primary_billing_found = True
+                elif is_primary and primary_billing_found:
+                    is_primary = False # Demote additional primary
+
+            if address.address_type == 'Shipping':
+                if is_primary and not primary_shipping_found:
+                    primary_shipping_found = True
+                elif is_primary and primary_shipping_found:
+                    is_primary = False # Demote additional primary
+
+            if address.address_id:
+                self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
+                self.db.add_account_address(account.account_id, address.address_id, address.address_type, is_primary)
+            else:
+                address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
+                self.db.add_account_address(account.account_id, address_id, address.address_type, is_primary)
 
 
     def get_all_accounts(self) -> List[Account]:

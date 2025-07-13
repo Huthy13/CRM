@@ -71,12 +71,11 @@ class AddressBookLogic:
         This method is intended for use cases where the full Account object is needed, for example,
         in UI dropdowns that need to filter by account type.
         """
-        accounts_data = self.db.get_all_accounts()  # This should return a list of dicts
+        accounts_data = self.db.get_all_accounts()
         accounts_list = []
         for acc_data in accounts_data:
             try:
-                # The from_dict method will handle the conversion, including the account_type enum
-                account = Account.from_dict(acc_data)
+                account = Account.from_row(acc_data)
                 accounts_list.append(account)
             except (ValueError, KeyError) as e:
                 # Log an error if a record is malformed or has an invalid account_type

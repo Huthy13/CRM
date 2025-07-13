@@ -408,7 +408,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         item_popup = SalesDocumentItemPopup(self, self.sales_logic, self.product_logic, self.document_data.id)
         self.wait_window(item_popup)
         if hasattr(item_popup, 'item_saved') and item_popup.item_saved:
-            self.load_items_for_document()
+            self.load_document_and_items()
 
     def _ensure_document_exists_for_items(self) -> bool:
         if self.document_id and self.document_data: return True

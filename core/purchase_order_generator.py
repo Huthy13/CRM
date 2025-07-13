@@ -14,72 +14,7 @@ from .database import DatabaseHandler # Relative import for modules within the s
 from .purchase_logic import PurchaseLogic # Relative import
 from .address_book_logic import AddressBookLogic # Relative import
 from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
-
-class PDF(FPDF):
-    def __init__(self, po_document_number=None, company_name="Your Company Name", company_billing_address_lines=None):
-        super().__init__()
-        self.po_document_number = po_document_number
-        self.company_name = company_name
-        self.company_billing_address_lines = company_billing_address_lines if company_billing_address_lines else []
-
-    def header(self):
-        # Get current Y position at the start of this header call (top of current page)
-        current_page_top_y = self.get_y()
-        top_padding = 5 # Small padding from the very top of the page margin
-
-        header_content_start_y = current_page_top_y + top_padding
-
-        address_line_height = 5 # Smaller line height for address details
-        company_name_line_height = 8
-        po_title_line_height = 8
-
-        # Define available width and column widths
-        drawable_width = self.w - self.l_margin - self.r_margin
-        left_column_width = drawable_width * 0.6
-        right_column_width = drawable_width * 0.4
-
-        # --- Left Block: Company Name & Billing Address ---
-        self.set_xy(self.l_margin, header_content_start_y)
-
-        # Company Name
-        self.set_font("Arial", "B", 16)
-        self.multi_cell(left_column_width, company_name_line_height, self.company_name, 0, "L")
-        # multi_cell moves Y position. No ln(X) needed here if address immediately follows.
-
-        # Company Billing Address
-        if self.company_billing_address_lines:
-            self.set_font("Arial", "", 10)
-            self.set_x(self.l_margin) # Ensure X is reset after company name multi_cell
-            for line in self.company_billing_address_lines:
-                if line.strip():
-                    self.multi_cell(left_column_width, address_line_height, line, 0, "L")
-                    # self.ln(address_line_height) # multi_cell with ln=0 and then an explicit ln might be better
-                                               # Actually, multi_cell moves Y, so subsequent multi_cell should be fine.
-
-        y_after_left_block = self.get_y()
-
-        # --- Right Block: PO Title ---
-        self.set_xy(self.l_margin + left_column_width, header_content_start_y) # X for right column, Y aligns with top of company name
-
-        self.set_font("Arial", "B", 14)
-        title = "Purchase Order"
-        if self.po_document_number:
-            title += f" - {self.po_document_number}"
-        self.multi_cell(right_column_width, po_title_line_height, title, 0, "C") # Centered in the right column width
-
-        y_after_right_block = self.get_y()
-
-        # --- Finalize Header Vertical Position ---
-        # Set Y to be after the taller of the two blocks (left or right)
-        final_header_y = max(y_after_left_block, y_after_right_block)
-        self.set_y(final_header_y)
-
-        self.ln(10) # Space after the entire header block before main content
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Arial", "I", 8)
-        self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", 0, 0, "C") # Added total pages
+from .pdf_generator import PDF
 
 def generate_po_pdf(purchase_document_id: int, output_path: str = None):
     """
@@ -187,9 +122,10 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
 
         # 5. Initialize PDF (pass document number, company name, and billing address for header)
         pdf = PDF(
-            po_document_number=doc.document_number,
+            document_number=doc.document_number,
             company_name=company_name_for_header,
-            company_billing_address_lines=company_billing_address_pdf_lines
+            company_billing_address_lines=company_billing_address_pdf_lines,
+            document_type="Purchase Order"
         )
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()

@@ -1032,24 +1032,36 @@ class DatabaseHandler:
     #     self.conn.commit()
 
 # Company Information related methods
+    def add_company_address(self, company_id, address_id, address_type, is_primary):
+        """Add an address to a company."""
+        self.cursor.execute("""
+            INSERT INTO company_addresses (company_id, address_id, address_type, is_primary)
+            VALUES (?, ?, ?, ?)
+        """, (company_id, address_id, address_type, is_primary))
+        self.conn.commit()
+
+    def get_company_addresses(self, company_id):
+        """Retrieve all addresses for a company."""
+        self.cursor.execute("""
+            SELECT a.address_id, a.street, a.city, a.state, a.zip, a.country, ca.address_type, ca.is_primary
+            FROM addresses a
+            JOIN company_addresses ca ON a.address_id = ca.address_id
+            WHERE ca.company_id = ?
+        """, (company_id,))
+        return self.cursor.fetchall()
+
     def get_company_information(self) -> dict | None:
         """Retrieve the company information. Assumes a single entry."""
         self.cursor.execute("""
-            SELECT ci.company_id, ci.name, ci.phone,
-                   ci.billing_address_id, ci.shipping_address_id,
-                   b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
-                   b.zip AS billing_zip, b.country AS billing_country,
-                   s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
-                   s.zip AS shipping_zip, s.country AS shipping_country
+            SELECT ci.company_id, ci.name, ci.phone
             FROM company_information AS ci
-            LEFT JOIN addresses AS b ON ci.billing_address_id = b.address_id
-            LEFT JOIN addresses AS s ON ci.shipping_address_id = s.address_id
             LIMIT 1
         """) # Ensure only one row is fetched, typically the first one if multiple exist.
         row = self.cursor.fetchone()
         if row:
-            columns = [desc[0] for desc in self.cursor.description]
-            return dict(zip(columns, row))
+            company_data = dict(row)
+            company_data['addresses'] = self.get_company_addresses(company_data['company_id'])
+            return company_data
         return None
 
     def update_company_information(self, company_id: int, name: str, phone: str):

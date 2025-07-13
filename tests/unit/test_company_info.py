@@ -30,7 +30,7 @@ class TestCompanyInfo(unittest.TestCase):
 
         # Add a default company info record for tests that might expect one
         # This matches the logic in CompanyInfoTab that adds one if none exists
-        self.db_handler.add_company_information("Default Test Company", "123-456-7890", None, None)
+        self.db_handler.add_company_information("Default Test Company", "123-456-7890")
 
 
         # Setup Tkinter root for UI tests (if directly testing UI components)
@@ -59,20 +59,19 @@ class TestCompanyInfo(unittest.TestCase):
 
         test_name = "Test Corp"
         test_phone = "555-0101"
+        company_id = self.db_handler.add_company_information(test_name, test_phone)
+        self.assertIsNotNone(company_id, "Adding company info should return an ID.")
+
         billing_addr_id = self.db_handler.add_address("123 Billing St", "Billville", "BS", "B1B1B1", "BCountry")
         shipping_addr_id = self.db_handler.add_address("456 Shipping Rd", "Shipburg", "SS", "S1S1S1", "SCountry")
-
-        company_id = self.db_handler.add_company_information(test_name, test_phone, billing_addr_id, shipping_addr_id)
-        self.assertIsNotNone(company_id, "Adding company info should return an ID.")
+        self.db_handler.add_company_address(company_id, billing_addr_id, "Billing", True)
+        self.db_handler.add_company_address(company_id, shipping_addr_id, "Shipping", True)
 
         retrieved_info_dict = self.db_handler.get_company_information()
         self.assertIsNotNone(retrieved_info_dict, "Should retrieve company information.")
         self.assertEqual(retrieved_info_dict['name'], test_name)
         self.assertEqual(retrieved_info_dict['phone'], test_phone)
-        self.assertEqual(retrieved_info_dict['billing_address_id'], billing_addr_id)
-        self.assertEqual(retrieved_info_dict['shipping_address_id'], shipping_addr_id)
-        self.assertEqual(retrieved_info_dict['billing_street'], "123 Billing St")
-        self.assertEqual(retrieved_info_dict['shipping_city'], "Shipburg")
+        self.assertEqual(len(retrieved_info_dict['addresses']), 2)
 
 
     def test_02_update_company_information(self):
@@ -83,16 +82,12 @@ class TestCompanyInfo(unittest.TestCase):
 
         new_name = "Updated Test Corp"
         new_phone = "555-0202"
-        new_billing_addr_id = self.db_handler.add_address("789 New Bill St", "NewBillVille", "NB", "NB1NB1", "NBCountry")
 
-        self.db_handler.update_company_information(company_id_to_update, new_name, new_phone, new_billing_addr_id, None)
+        self.db_handler.update_company_information(company_id_to_update, new_name, new_phone)
 
         updated_info = self.db_handler.get_company_information() # Fetches the first/only one
         self.assertEqual(updated_info['name'], new_name)
         self.assertEqual(updated_info['phone'], new_phone)
-        self.assertEqual(updated_info['billing_address_id'], new_billing_addr_id)
-        self.assertIsNone(updated_info['shipping_address_id'], "Shipping address ID should be None after update.")
-        self.assertEqual(updated_info['billing_street'], "789 New Bill St")
 
 
     def test_03_company_info_tab_load_data(self):

@@ -392,6 +392,19 @@ def create_tables(db_conn=None):
                 FOREIGN KEY (shipping_address_id) REFERENCES addresses (address_id) ON DELETE SET NULL
             )
         """)
+        # Company Addresses Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS company_addresses (
+            company_id INTEGER NOT NULL,
+            address_id INTEGER NOT NULL,
+            address_type TEXT NOT NULL,
+            is_primary BOOLEAN DEFAULT 0,
+            FOREIGN KEY (company_id) REFERENCES company_information (company_id) ON DELETE CASCADE,
+            FOREIGN KEY (address_id) REFERENCES addresses (address_id) ON DELETE CASCADE,
+            PRIMARY KEY (company_id, address_id, address_type)
+        )
+        """)
+
         # Trigger for company_information updated_at
         cursor.execute("""
         CREATE TRIGGER IF NOT EXISTS update_company_information_updated_at

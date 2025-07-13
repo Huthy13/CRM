@@ -21,7 +21,7 @@ class CompanyInfoTab:
                 phone=company_data_dict.get('phone'),
                 addresses=[]
             )
-            addresses_data = self.db_handler.get_account_addresses(self.company_info.company_id)
+            addresses_data = self.db_handler.get_company_addresses(self.company_info.company_id)
             for addr_data in addresses_data:
                 address = Address(
                     address_id=addr_data['address_id'],
@@ -135,14 +135,14 @@ class CompanyInfoTab:
         self.company_info.phone = self.phone_entry.get()
 
         # Clear existing addresses and add the new ones
-        self.db_handler.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (self.company_info.company_id,))
+        self.db_handler.cursor.execute("DELETE FROM company_addresses WHERE company_id = ?", (self.company_info.company_id,))
         for address in self.company_info.addresses:
             if address.address_id:
                 self.db_handler.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                self.db_handler.add_account_address(self.company_info.company_id, address.address_id, address.address_type, address.is_primary)
+                self.db_handler.add_company_address(self.company_info.company_id, address.address_id, address.address_type, address.is_primary)
             else:
                 address_id = self.db_handler.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                self.db_handler.add_account_address(self.company_info.company_id, address_id, address.address_type, address.is_primary)
+                self.db_handler.add_company_address(self.company_info.company_id, address_id, address.address_type, address.is_primary)
 
         self.db_handler.update_company_information(
             self.company_info.company_id,
@@ -172,7 +172,12 @@ class AddressPopup(tk.Toplevel):
         self.state_entry = self._create_entry("State:", 2, self.address.state)
         self.zip_entry = self._create_entry("Zip:", 3, self.address.zip_code)
         self.country_entry = self._create_entry("Country:", 4, self.address.country)
-        self.type_entry = self._create_entry("Type:", 5, self.address.address_type if hasattr(self.address, 'address_type') else '')
+        tk.Label(self, text="Type:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        self.type_var = tk.StringVar(self)
+        self.type_dropdown = ttk.Combobox(self, textvariable=self.type_var, values=["Billing", "Shipping"], state="readonly", width=37)
+        if hasattr(self.address, 'address_type'):
+            self.type_dropdown.set(self.address.address_type)
+        self.type_dropdown.grid(row=5, column=1, padx=5, pady=5)
         self.primary_var = tk.BooleanVar(value=self.address.is_primary if hasattr(self.address, 'is_primary') else False)
         self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
         self.primary_check.grid(row=6, column=0, columnspan=2)
@@ -192,7 +197,7 @@ class AddressPopup(tk.Toplevel):
         self.address.state = self.state_entry.get()
         self.address.zip_code = self.zip_entry.get()
         self.address.country = self.country_entry.get()
-        self.address.address_type = self.type_entry.get()
+        self.address.address_type = self.type_var.get()
         self.address.is_primary = self.primary_var.get()
         self.destroy()
 

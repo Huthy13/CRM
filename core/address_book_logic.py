@@ -63,7 +63,7 @@ class AddressBookLogic:
             self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value)
             # Clear existing addresses and add the new ones
             # A more sophisticated approach would be to diff the addresses
-            self.db.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
+            self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
             for address in account.addresses:
                 if address.address_id:
                     self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)

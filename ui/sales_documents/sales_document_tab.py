@@ -21,7 +21,13 @@ class SalesDocumentTab:
         button_frame.pack(pady=10, padx=10, fill=tk.X)
 
         # Updated button text for sales context
-        self.manage_button = ttk.Button(button_frame, text="Manage Document", command=self.open_manage_document_popup)
+        self.new_quote_button = ttk.Button(button_frame, text="New Quote", command=lambda: self.open_manage_document_popup(doc_type=SalesDocumentType.QUOTE))
+        self.new_quote_button.pack(side=tk.LEFT, padx=5)
+
+        self.new_invoice_button = ttk.Button(button_frame, text="New Invoice", command=lambda: self.open_manage_document_popup(doc_type=SalesDocumentType.INVOICE))
+        self.new_invoice_button.pack(side=tk.LEFT, padx=5)
+
+        self.manage_button = ttk.Button(button_frame, text="Manage Document", command=lambda: self.open_manage_document_popup())
         self.manage_button.pack(side=tk.LEFT, padx=5)
 
         self.delete_button = ttk.Button(button_frame, text="Delete Document", command=self.delete_selected_document, state=tk.DISABLED)
@@ -121,17 +127,22 @@ class SalesDocumentTab:
             self.selected_document_id = None
             self.delete_button.config(state=tk.DISABLED)
 
-    def open_manage_document_popup(self):
+    def open_manage_document_popup(self, doc_type=None):
         # Import SalesDocumentPopup locally
         from .sales_document_popup import SalesDocumentPopup
-        # If no document is selected, this will open the "new document" popup.
-        # Otherwise, it opens the selected document.
+        # If a doc_type is passed, it's a "new" command. Otherwise, it's "manage".
+        if doc_type:
+            doc_id = None
+        else:
+            doc_id = self.selected_document_id
+
         popup = SalesDocumentPopup(
             master=self.frame.winfo_toplevel(),
             sales_logic=self.sales_logic,
             account_logic=self.account_logic,
             product_logic=self.product_logic,
-            document_id=self.selected_document_id,
+            document_id=doc_id,
+            initial_doc_type=doc_type,
             parent_controller=self
         )
         self.frame.wait_window(popup)

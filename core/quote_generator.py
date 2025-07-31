@@ -12,6 +12,7 @@ from core.database import DatabaseHandler
 from core.sales_logic import SalesLogic
 from core.address_book_logic import AddressBookLogic
 from shared.structs import SalesDocument, SalesDocumentItem, Account, Address
+from shared.utils import sanitize_filename
 from core.pdf_generator import PDF
 
 def generate_quote_pdf(sales_document_id: int, output_path: str = None):
@@ -235,7 +236,12 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             pdf.set_font("Arial", "", 10)
             pdf.multi_cell(0, line_height, doc.notes.strip(), 0, "L")
 
-        filename = output_path or f"quote_{doc.document_number.replace('/', '_')}.pdf"
+        if output_path:
+            filename = output_path
+        else:
+            sanitized_doc_number = sanitize_filename(doc.document_number)
+            filename = f"quote_{sanitized_doc_number}.pdf"
+
         pdf.output(filename, "F")
         print(f"PDF generated: {filename}")
 

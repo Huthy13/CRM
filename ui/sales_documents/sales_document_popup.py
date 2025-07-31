@@ -239,7 +239,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         try:
             file_prefix = "quote" if doc_type == SalesDocumentType.QUOTE else "invoice"
-            output_filename = f"{file_prefix}_{self.doc_number_var.get().replace('/', '_')}.pdf"
+            output_filename = f"{file_prefix}_{self.doc_number_var.get()}.pdf"
             # TODO: Use filedialog.asksaveasfilename for better UX
 
             generator_module(self.document_id, output_path=output_filename) # Call the specific generator
@@ -498,7 +498,14 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         if confirm:
             try:
                 self.sales_logic.delete_sales_document_item(item_id) # Use sales_logic
-                self.load_items_for_document() # Reload items and recalculate totals
+                # After deletion, totals are recalculated in the backend.
+                # We need to refresh the main document_data object to get the new totals.
+                self.document_data = self.sales_logic.get_sales_document_details(self.document_id)
+                # Now, reload the items list and update the display.
+                self.load_items_for_document()
+                # Also, if a parent controller is present, update its view as well
+                if self.parent_controller:
+                    self.parent_controller.load_documents()
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete item: {e}", parent=self)
 

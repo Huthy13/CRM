@@ -16,7 +16,12 @@ class SalesLogic:
         and Invoices (INV-YYYYMMDD-XXXX).
         XXXX is a 4-digit incrementing number for that day and type.
         """
-        prefix = "QUO" if doc_type == SalesDocumentType.QUOTE else "INV"
+        if doc_type == SalesDocumentType.QUOTE:
+            prefix = "QUO"
+        elif doc_type == SalesDocumentType.SALES_ORDER:
+            prefix = "SO"
+        else: # Invoice
+            prefix = "INV"
         today_str = datetime.date.today().strftime("%Y%m%d")
         full_prefix = f"{prefix}-{today_str}-"
 
@@ -79,7 +84,8 @@ class SalesLogic:
         # Define statuses where items can be added/modified
         editable_statuses = [
             SalesDocumentStatus.QUOTE_DRAFT,
-            SalesDocumentStatus.INVOICE_DRAFT
+            SalesDocumentStatus.INVOICE_DRAFT,
+            SalesDocumentStatus.SO_OPEN
         ]
         if doc.status not in editable_statuses:
              raise ValueError(f"Items cannot be added to a document with status '{doc.status.value}'.")
@@ -194,14 +200,29 @@ class SalesLogic:
         }
         self.db.update_sales_document(doc_id, updates)
 
-    def convert_quote_to_invoice(self, quote_id: int, due_date_iso: Optional[str] = None) -> Optional[SalesDocument]:
+    def convert_quote_to_sales_order(self, quote_id: int) -> Optional[SalesDocument]:
         quote_doc = self.get_sales_document_details(quote_id)
         if not quote_doc:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
-        if quote_doc.status != SalesDocumentStatus.QUOTE_ACCEPTED:
-            raise ValueError(f"Only accepted Quotes can be converted to Invoices. Current status: {quote_doc.status.value}")
+        # Update the document type and status
+        updates = {
+            "document_type": SalesDocumentType.SALES_ORDER.value,
+            "status": SalesDocumentStatus.SO_OPEN.value
+        }
+        self.db.update_sales_document(quote_id, updates)
+
+        return self.get_sales_document_details(quote_id)
+
+    def convert_sales_order_to_invoice(self, sales_order_id: int, due_date_iso: Optional[str] = None) -> Optional[SalesDocument]:
+        so_doc = self.get_sales_document_details(sales_order_id)
+        if not so_doc:
+            raise ValueError(f"Sales Order with ID {sales_order_id} not found.")
+        if so_doc.document_type != SalesDocumentType.SALES_ORDER:
+            raise ValueError(f"Document ID {sales_order_id} is not a Sales Order.")
+        if so_doc.status not in [SalesDocumentStatus.SO_FULFILLED, SalesDocumentStatus.SO_CLOSED]:
+            raise ValueError(f"Only fulfilled or closed Sales Orders can be converted to Invoices. Current status: {so_doc.status.value}")
 
         invoice_number = self._generate_sales_document_number(SalesDocumentType.INVOICE)
         created_date_str = datetime.datetime.now().isoformat()
@@ -213,24 +234,24 @@ class SalesLogic:
 
         new_invoice_id = self.db.add_sales_document(
             doc_number=invoice_number,
-            customer_id=quote_doc.customer_id,
+            customer_id=so_doc.customer_id,
             document_type=SalesDocumentType.INVOICE.value,
             created_date=created_date_str,
             due_date=final_due_date_iso,
-            status=SalesDocumentStatus.INVOICE_DRAFT.value, # Or INVOICE_SENT if sent immediately
-            notes=quote_doc.notes, # Copy notes from quote
-            subtotal=quote_doc.subtotal,
-            taxes=quote_doc.taxes,
-            total_amount=quote_doc.total_amount,
-            related_quote_id=quote_id
+            status=SalesDocumentStatus.INVOICE_DRAFT.value,
+            notes=so_doc.notes,
+            subtotal=so_doc.subtotal,
+            taxes=so_doc.taxes,
+            total_amount=so_doc.total_amount,
+            related_quote_id=so_doc.id
         )
 
         if not new_invoice_id:
             raise Exception("Failed to create invoice record in database.")
 
-        # Copy items from quote to invoice
-        quote_items = self.get_items_for_sales_document(quote_id)
-        for item in quote_items:
+        # Copy items from sales order to invoice
+        so_items = self.get_items_for_sales_document(sales_order_id)
+        for item in so_items:
             self.db.add_sales_document_item(
                 sales_doc_id=new_invoice_id,
                 product_id=item.product_id,
@@ -240,7 +261,7 @@ class SalesLogic:
                 discount_percentage=item.discount_percentage,
                 line_total=item.line_total
             )
-        # Recalculate totals for the new invoice just in case, though they are copied
+
         self._recalculate_sales_document_totals(new_invoice_id)
         return self.get_sales_document_details(new_invoice_id)
 
@@ -260,6 +281,11 @@ class SalesLogic:
             valid_quote_statuses = [s for s in SalesDocumentStatus if s.name.startswith("QUOTE_")]
             if new_status not in valid_quote_statuses:
                 raise ValueError(f"Invalid status '{new_status.value}' for a Quote.")
+        # Example: Sales Order specific transitions
+        elif doc.document_type == SalesDocumentType.SALES_ORDER:
+            valid_so_statuses = [s for s in SalesDocumentStatus if s.name.startswith("SO_")]
+            if new_status not in valid_so_statuses:
+                raise ValueError(f"Invalid status '{new_status.value}' for a Sales Order.")
         # Example: Invoice specific transitions
         elif doc.document_type == SalesDocumentType.INVOICE:
             valid_invoice_statuses = [s for s in SalesDocumentStatus if s.name.startswith("INVOICE_")]

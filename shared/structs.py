@@ -350,6 +350,7 @@ class PurchaseDocumentStatus(Enum):
 # --- Sales Document Structures ---
 class SalesDocumentType(Enum):
     QUOTE = "Quote"
+    SALES_ORDER = "Sales Order"
     INVOICE = "Invoice"
 
 class SalesDocumentStatus(Enum):
@@ -359,6 +360,12 @@ class SalesDocumentStatus(Enum):
     QUOTE_ACCEPTED = "Quote Accepted"
     QUOTE_REJECTED = "Quote Rejected"
     QUOTE_EXPIRED = "Quote Expired"
+
+    # Sales Order statuses
+    SO_OPEN = "SO Open"
+    SO_FULFILLED = "SO Fulfilled"
+    SO_CLOSED = "SO Closed"
+
     # Invoice statuses
     INVOICE_DRAFT = "Invoice Draft"
     INVOICE_SENT = "Invoice Sent"

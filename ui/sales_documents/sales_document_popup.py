@@ -180,6 +180,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         bottom_button_frame.pack(pady=10, padx=10, fill=tk.X, side=tk.BOTTOM)
         self.save_button = ttk.Button(bottom_button_frame, text="Save", command=self.save_document)
         self.save_button.pack(side=tk.RIGHT, padx=5)
+        self.convert_to_invoice_button = ttk.Button(bottom_button_frame, text="Convert to Invoice", command=self.convert_to_invoice, state=tk.DISABLED)
+        self.convert_to_invoice_button.pack(side=tk.RIGHT, padx=5)
         self.export_pdf_button = ttk.Button(bottom_button_frame, text="Export to PDF", command=self.export_to_pdf, state=tk.DISABLED)
         self.export_pdf_button.pack(side=tk.RIGHT, padx=5)
         self.close_button = ttk.Button(bottom_button_frame, text="Close", command=self.destroy)
@@ -197,6 +199,10 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                         self.status_var.set(SalesDocumentStatus.QUOTE_DRAFT.value)
                         self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
                         self.due_date_var.set("")
+                    elif self.current_doc_type == SalesDocumentType.SALES_ORDER:
+                        self.status_var.set(SalesDocumentStatus.SO_OPEN.value)
+                        self.expiry_date_var.set("")
+                        self.due_date_var.set("")
                     elif self.current_doc_type == SalesDocumentType.INVOICE:
                         self.status_var.set(SalesDocumentStatus.INVOICE_DRAFT.value)
                         self.due_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
@@ -205,6 +211,23 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         except ValueError:
             messagebox.showerror("Error", f"Invalid document type selected: {selected_type_str}", parent=self)
+
+    def convert_to_invoice(self):
+        if not self.document_id or not self.document_data:
+            return
+
+        try:
+            new_invoice = self.sales_logic.convert_sales_order_to_invoice(self.document_id)
+            if new_invoice:
+                messagebox.showinfo("Success", f"Sales Order {self.document_data.document_number} converted to Invoice {new_invoice.document_number}.", parent=self)
+                self.document_id = new_invoice.id
+                self.load_document_and_items()
+                if self.parent_controller:
+                    self.parent_controller.load_documents()
+            else:
+                messagebox.showerror("Error", "Failed to convert Sales Order to Invoice.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred during conversion: {e}", parent=self)
 
     def update_export_button_state(self):
         # PDF export enabled only if document exists and is of a type we can export (e.g. Quote or Invoice)
@@ -372,7 +395,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         editable_statuses = [
             SalesDocumentStatus.QUOTE_DRAFT,
-            SalesDocumentStatus.INVOICE_DRAFT
+            SalesDocumentStatus.INVOICE_DRAFT,
+            SalesDocumentStatus.SO_OPEN
         ]
         return self.current_status in editable_statuses
 
@@ -397,6 +421,14 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 customer_combo_state = tk.DISABLED
                 notes_text_state = tk.DISABLED
                 conditional_date_entry_state = tk.DISABLED
+        elif self.current_doc_type == SalesDocumentType.SALES_ORDER:
+            self.conditional_date_label.config(text="Order Date:")
+            self.conditional_date_entry.config(textvariable=self.created_date_var) # No specific date for SO
+            relevant_statuses = [s.value for s in SalesDocumentStatus if s.name.startswith("SO_")]
+            if self.current_status not in [SalesDocumentStatus.SO_OPEN]:
+                customer_combo_state = tk.DISABLED
+                notes_text_state = tk.DISABLED
+                conditional_date_entry_state = tk.DISABLED
         elif self.current_doc_type == SalesDocumentType.INVOICE:
             self.conditional_date_label.config(text="Due Date:")
             self.conditional_date_entry.config(textvariable=self.due_date_var)
@@ -418,10 +450,13 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         # Status combobox state
         status_combo_state = "readonly" # Generally allow changing status unless it's terminal like PAID/VOID/CLOSED
-        if self.current_status in [SalesDocumentStatus.INVOICE_PAID, SalesDocumentStatus.INVOICE_VOID, SalesDocumentStatus.QUOTE_ACCEPTED, SalesDocumentStatus.QUOTE_REJECTED, SalesDocumentStatus.QUOTE_EXPIRED]:
+        if self.current_status in [SalesDocumentStatus.INVOICE_PAID, SalesDocumentStatus.INVOICE_VOID, SalesDocumentStatus.QUOTE_ACCEPTED, SalesDocumentStatus.QUOTE_REJECTED, SalesDocumentStatus.QUOTE_EXPIRED, SalesDocumentStatus.SO_CLOSED, SalesDocumentStatus.SO_FULFILLED]:
             status_combo_state = tk.DISABLED # Lock status for these states
         self.status_combobox.config(state=status_combo_state)
 
+        # Convert to Invoice button state
+        can_convert_to_invoice = self.current_doc_type == SalesDocumentType.SALES_ORDER and self.current_status in [SalesDocumentStatus.SO_FULFILLED, SalesDocumentStatus.SO_CLOSED]
+        self.convert_to_invoice_button.config(state=tk.NORMAL if can_convert_to_invoice else tk.DISABLED)
 
         self.add_item_button.config(state=tk.NORMAL if can_edit_items_flag else tk.DISABLED)
         self.on_item_tree_select(None) # Updates edit/remove item buttons
@@ -611,9 +646,10 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                     updates["notes"] = notes_content
 
                 if self.document_data.status != selected_status_enum:
-                    # Use the dedicated status update method for potential logic/validation
-                    self.sales_logic.update_sales_document_status(self.document_id, selected_status_enum)
-                    # No need to add to 'updates' dict as it's handled separately
+                    if self.current_doc_type == SalesDocumentType.QUOTE and selected_status_enum == SalesDocumentStatus.QUOTE_ACCEPTED:
+                        self.sales_logic.convert_quote_to_sales_order(self.document_id)
+                    else:
+                        updates["status"] = selected_status_enum.value
 
                 if self.current_doc_type == SalesDocumentType.QUOTE and self.document_data.expiry_date != expiry_date_iso:
                     updates["expiry_date"] = expiry_date_iso

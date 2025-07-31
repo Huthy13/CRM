@@ -21,11 +21,8 @@ class SalesDocumentTab:
         button_frame.pack(pady=10, padx=10, fill=tk.X)
 
         # Updated button text for sales context
-        self.add_button = ttk.Button(button_frame, text="New Quote/Invoice", command=self.open_new_document_popup)
-        self.add_button.pack(side=tk.LEFT, padx=5)
-
-        self.edit_button = ttk.Button(button_frame, text="View/Edit Document", command=self.open_edit_document_popup, state=tk.DISABLED)
-        self.edit_button.pack(side=tk.LEFT, padx=5)
+        self.manage_button = ttk.Button(button_frame, text="Manage Document", command=self.open_manage_document_popup)
+        self.manage_button.pack(side=tk.LEFT, padx=5)
 
         self.delete_button = ttk.Button(button_frame, text="Delete Document", command=self.delete_selected_document, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=5)
@@ -71,7 +68,7 @@ class SalesDocumentTab:
             except ValueError:
                 self.selected_document_id = None
         if self.selected_document_id:
-            self.open_edit_document_popup()
+            self.open_manage_document_popup()
 
     def load_documents(self):
         for i in self.tree.get_children():
@@ -116,47 +113,28 @@ class SalesDocumentTab:
         if selected_items:
             try:
                 self.selected_document_id = int(selected_items[0])
-                self.edit_button.config(state=tk.NORMAL)
                 self.delete_button.config(state=tk.NORMAL)
             except ValueError:
                 self.selected_document_id = None
-                self.edit_button.config(state=tk.DISABLED)
                 self.delete_button.config(state=tk.DISABLED)
         else:
             self.selected_document_id = None
-            self.edit_button.config(state=tk.DISABLED)
             self.delete_button.config(state=tk.DISABLED)
 
-    def open_new_document_popup(self):
+    def open_manage_document_popup(self):
         # Import SalesDocumentPopup locally
         from .sales_document_popup import SalesDocumentPopup
+        # If no document is selected, this will open the "new document" popup.
+        # Otherwise, it opens the selected document.
         popup = SalesDocumentPopup(
             master=self.frame.winfo_toplevel(),
-            sales_logic=self.sales_logic, # Pass sales_logic
-            account_logic=self.account_logic,
-            product_logic=self.product_logic,
-            document_id=None,
-            parent_controller=self
-        )
-        self.frame.wait_window(popup)
-        # self.load_documents() # Reload handled by popup via parent_controller
-
-    def open_edit_document_popup(self):
-        if not self.selected_document_id:
-            messagebox.showwarning("No Selection", "Please select a document to view/edit.")
-            return
-        # Import SalesDocumentPopup locally
-        from .sales_document_popup import SalesDocumentPopup
-        popup = SalesDocumentPopup(
-            master=self.frame.winfo_toplevel(),
-            sales_logic=self.sales_logic, # Pass sales_logic
+            sales_logic=self.sales_logic,
             account_logic=self.account_logic,
             product_logic=self.product_logic,
             document_id=self.selected_document_id,
             parent_controller=self
         )
         self.frame.wait_window(popup)
-        # self.load_documents() # Reload handled by popup via parent_controller
 
     def delete_selected_document(self):
         doc_id_to_delete = self.selected_document_id

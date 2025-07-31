@@ -73,7 +73,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
     def _setup_ui(self):
         self.content_frame = ttk.Frame(self, padding="10")
         self.content_frame.pack(expand=True, fill=tk.BOTH)
-        self.geometry("750x650") # Adjusted size
+        self.geometry("750x700") # Adjusted size
 
         current_row = 0
 
@@ -494,7 +494,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             messagebox.showwarning("Cannot Remove Items", f"Items cannot be removed from a document with status '{self.current_status.value}'.", parent=self)
             return
 
-        confirm = messagebox.askyesno("Confirm Delete", f"Delete item '{item_to_delete.product_description}'?")
+        confirm = messagebox.askyesno("Confirm Delete", f"Delete item '{item_to_delete.product_description}'?", parent=self)
         if confirm:
             try:
                 self.sales_logic.delete_sales_document_item(item_id) # Use sales_logic

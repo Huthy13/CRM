@@ -206,9 +206,6 @@ class SalesLogic:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
-        if quote_doc.status != SalesDocumentStatus.QUOTE_ACCEPTED:
-            raise ValueError(f"Only accepted Quotes can be converted to Sales Orders. Current status: {quote_doc.status.value}")
-
         # Update the document type and status
         updates = {
             "document_type": SalesDocumentType.SALES_ORDER.value,

@@ -649,9 +649,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                     if self.current_doc_type == SalesDocumentType.QUOTE and selected_status_enum == SalesDocumentStatus.QUOTE_ACCEPTED:
                         self.sales_logic.convert_quote_to_sales_order(self.document_id)
                     else:
-                        # Use the dedicated status update method for potential logic/validation
-                        self.sales_logic.update_sales_document_status(self.document_id, selected_status_enum)
-                        # No need to add to 'updates' dict as it's handled separately
+                        updates["status"] = selected_status_enum.value
 
                 if self.current_doc_type == SalesDocumentType.QUOTE and self.document_data.expiry_date != expiry_date_iso:
                     updates["expiry_date"] = expiry_date_iso

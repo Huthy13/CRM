@@ -267,11 +267,6 @@ class TestSalesLogic(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Document ID 1 is not a Quote."):
             self.sales_logic.convert_quote_to_sales_order(1)
 
-    def test_convert_quote_to_sales_order_wrong_status(self):
-        self.mock_db_handler.get_sales_document_by_id.return_value = {"id": 1, "document_type": SalesDocumentType.QUOTE.value, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "customer_id":1, "document_number":"Q", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
-        with self.assertRaisesRegex(ValueError, "Only accepted Quotes can be converted to Sales Orders. Current status: Quote Draft"):
-            self.sales_logic.convert_quote_to_sales_order(1)
-
     def test_convert_sales_order_to_invoice_success(self):
         mock_so_id = 1
         mock_customer_id = 5

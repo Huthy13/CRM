@@ -15,24 +15,29 @@ def adapt_date_iso(val):
 def convert_timestamp_iso(val_bytes):
     """Convert ISO 8601 string to datetime.datetime object. Handles 'Z' and milliseconds."""
     val_str = val_bytes.decode('utf-8')
-    if val_str.endswith('Z'):
-        val_str = val_str[:-1] + '+00:00'
-    # Handle up to nanoseconds, then truncate to microseconds for fromisoformat
-    if '.' in val_str and len(val_str.split('.')[1].split('+')[0].split('-')[0]) > 6:
-        parts = val_str.split('.')
-        time_part_before_frac = parts[0]
-        frac_second_and_rest = parts[1]
-        frac_second = frac_second_and_rest[:6] # Keep only microseconds
-        rest_of_string = frac_second_and_rest[len(frac_second_and_rest.split('+')[0].split('-')[0]):] # Get timezone if present
-        val_str = f"{time_part_before_frac}.{frac_second}{rest_of_string}"
-
     try:
-        return datetime.datetime.fromisoformat(val_str)
-    except ValueError: # Fallback if not full datetime (e.g. just date)
+        # For 'YYYY-MM-DD HH:MM:SS' format
+        return datetime.datetime.strptime(val_str, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        # Fallback for ISO 8601 format
+        if val_str.endswith('Z'):
+            val_str = val_str[:-1] + '+00:00'
+        # Handle up to nanoseconds, then truncate to microseconds for fromisoformat
+        if '.' in val_str and len(val_str.split('.')[1].split('+')[0].split('-')[0]) > 6:
+            parts = val_str.split('.')
+            time_part_before_frac = parts[0]
+            frac_second_and_rest = parts[1]
+            frac_second = frac_second_and_rest[:6] # Keep only microseconds
+            rest_of_string = frac_second_and_rest[len(frac_second_and_rest.split('+')[0].split('-')[0]):] # Get timezone if present
+            val_str = f"{time_part_before_frac}.{frac_second}{rest_of_string}"
+
         try:
-            return datetime.datetime.combine(datetime.date.fromisoformat(val_str), datetime.time.min)
-        except ValueError:
-            return None # Or raise a more specific error / log
+            return datetime.datetime.fromisoformat(val_str)
+        except ValueError: # Fallback if not full datetime (e.g. just date)
+            try:
+                return datetime.datetime.combine(datetime.date.fromisoformat(val_str), datetime.time.min)
+            except ValueError:
+                return None # Or raise a more specific error / log
 
 def convert_date_iso(val_bytes):
     """Convert ISO 8601 date string to datetime.date object."""
@@ -210,12 +215,30 @@ class DatabaseHandler:
         self.conn.commit()
 
 #account related methods
-    def add_account(self, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
-        """Add a new account with billing and shipping address IDs."""
+    def add_account_address(self, account_id, address_id, address_type, is_primary):
+        """Add an address to an account."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, billing_address_id, shipping_address_id, website, description, account_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type)) # Removed same_as_billing
+            INSERT INTO account_addresses (account_id, address_id, address_type, is_primary)
+            VALUES (?, ?, ?, ?)
+        """, (account_id, address_id, address_type, is_primary))
+        self.conn.commit()
+
+    def get_account_addresses(self, account_id):
+        """Retrieve all addresses for an account."""
+        self.cursor.execute("""
+            SELECT a.address_id, a.street, a.city, a.state, a.zip, a.country, aa.address_type, aa.is_primary
+            FROM addresses a
+            JOIN account_addresses aa ON a.address_id = aa.address_id
+            WHERE aa.account_id = ?
+        """, (account_id,))
+        return self.cursor.fetchall()
+
+    def add_account(self, name, phone, website, description, account_type):
+        """Add a new account."""
+        self.cursor.execute("""
+            INSERT INTO accounts (name, phone, website, description, account_type)
+            VALUES (?, ?, ?, ?, ?)
+        """, (name, phone, website, description, account_type))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -242,32 +265,26 @@ class DatabaseHandler:
         self.conn.commit()
 
     def get_account_details(self, account_id):
-        """Retrieve full account details, including both billing and shipping addresses."""
+        """Retrieve full account details, including all associated addresses."""
         self.cursor.execute("""
-            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type,
-                   a.billing_address_id, a.shipping_address_id,
-                   b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
-                   b.zip AS billing_zip, b.country AS billing_country,
-                   s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
-                   s.zip AS shipping_zip, s.country AS shipping_country
+            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type
             FROM accounts AS a
-            LEFT JOIN addresses AS b ON a.billing_address_id = b.address_id
-            LEFT JOIN addresses AS s ON a.shipping_address_id = s.address_id
             WHERE a.id = ?
         """, (account_id,))
         result = self.cursor.fetchone()
         if result:
-            columns = [desc[0] for desc in self.cursor.description]
-            return dict(zip(columns, result))
+            account_data = dict(result)
+            account_data['addresses'] = self.get_account_addresses(account_id)
+            return account_data
         return None
 
-    def update_account(self, account_id, name, phone, billing_address_id, shipping_address_id, website, description, account_type): # Removed same_as_billing
+    def update_account(self, account_id, name, phone, website, description, account_type):
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?, website = ?, description = ?, account_type = ?
+            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?
             WHERE id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, website, description, account_type, account_id)) # Removed same_as_billing
+        """, (name, phone, website, description, account_type, account_id))
         self.conn.commit()
 
 # Interaction related methods
@@ -1020,40 +1037,52 @@ class DatabaseHandler:
     #     self.conn.commit()
 
 # Company Information related methods
+    def add_company_address(self, company_id, address_id, address_type, is_primary):
+        """Add an address to a company."""
+        self.cursor.execute("""
+            INSERT INTO company_addresses (company_id, address_id, address_type, is_primary)
+            VALUES (?, ?, ?, ?)
+        """, (company_id, address_id, address_type, is_primary))
+        self.conn.commit()
+
+    def get_company_addresses(self, company_id):
+        """Retrieve all addresses for a company."""
+        self.cursor.execute("""
+            SELECT a.address_id, a.street, a.city, a.state, a.zip, a.country, ca.address_type, ca.is_primary
+            FROM addresses a
+            JOIN company_addresses ca ON a.address_id = ca.address_id
+            WHERE ca.company_id = ?
+        """, (company_id,))
+        return self.cursor.fetchall()
+
     def get_company_information(self) -> dict | None:
         """Retrieve the company information. Assumes a single entry."""
         self.cursor.execute("""
-            SELECT ci.company_id, ci.name, ci.phone,
-                   ci.billing_address_id, ci.shipping_address_id,
-                   b.street AS billing_street, b.city AS billing_city, b.state AS billing_state,
-                   b.zip AS billing_zip, b.country AS billing_country,
-                   s.street AS shipping_street, s.city AS shipping_city, s.state AS shipping_state,
-                   s.zip AS shipping_zip, s.country AS shipping_country
+            SELECT ci.company_id, ci.name, ci.phone
             FROM company_information AS ci
-            LEFT JOIN addresses AS b ON ci.billing_address_id = b.address_id
-            LEFT JOIN addresses AS s ON ci.shipping_address_id = s.address_id
             LIMIT 1
         """) # Ensure only one row is fetched, typically the first one if multiple exist.
         row = self.cursor.fetchone()
         if row:
-            columns = [desc[0] for desc in self.cursor.description]
-            return dict(zip(columns, row))
+            company_data = dict(row)
+            company_data['addresses'] = self.get_company_addresses(company_data['company_id'])
+            return company_data
         return None
 
-    def update_company_information(self, company_id: int, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None):
+    def update_company_information(self, company_id: int, name: str, phone: str):
         """Update the company information."""
         self.cursor.execute("""
             UPDATE company_information
-            SET name = ?, phone = ?, billing_address_id = ?, shipping_address_id = ?
+            SET name = ?, phone = ?
             WHERE company_id = ?
-        """, (name, phone, billing_address_id, shipping_address_id, company_id))
+        """, (name, phone, company_id))
         self.conn.commit()
 
-    def add_company_information(self, name: str, phone: str, billing_address_id: int | None, shipping_address_id: int | None) -> int:
+    def add_company_information(self, name: str, phone: str) -> int:
         """Add company information. Primarily for initial setup if needed, or if table could be empty."""
         self.cursor.execute("""
-            INSERT INTO company_information (name, phone, billing_address_id, shipping_address_id)
-            VALUES (?, ?, ?, ?)
-        """, (name, phone, billing_address_id, shipping_address_id))
+            INSERT INTO company_information (name, phone)
+            VALUES (?, ?)
+        """, (name, phone))
         self.conn.commit()
         return self.cursor.lastrowid

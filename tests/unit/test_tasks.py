@@ -193,12 +193,15 @@ class TestTaskLogic(unittest.TestCase):
         """Confirm filtering by status, user, priority, and sorting by due date."""
         # Create a company to associate tasks with
         billing_addr_id = self.logic.add_address("123 Billing St", "Test City", "TS", "12345", "TC")
+        from shared.structs import Address
         company = Account(
             name="Test Company For Tasks",
             phone="111-222-3333",
-            billing_address_id=billing_addr_id,
+            addresses=[Address(address_id=billing_addr_id, street="123 Billing St", city="Test City", state="TS", zip_code="12345", country="TC")],
             account_type=AccountType.CUSTOMER # Provide account_type
         )
+        company.addresses[0].is_primary = True
+        company.addresses[0].address_type = "Billing"
         self.logic.save_account(company) # save_account in logic should handle db interaction
         # Retrieve the company to get its ID
         # This assumes get_accounts() returns (id, name) and it's the latest one.

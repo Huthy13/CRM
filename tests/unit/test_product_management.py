@@ -123,7 +123,7 @@ class TestProductCRUD(BaseTestCase):
         retrieved = pm.get_product(product_id, db_conn=self.conn)
         self.assertIsNone(retrieved['description'])
         self.assertIsNone(retrieved['category_id'])
-        self.assertIsNone(retrieved['unit_of_measure'])
+        self.assertIsNone(retrieved['unit_of_measure_id'])
 
 
 class TestCategoryManagement(BaseTestCase):
@@ -261,7 +261,8 @@ class TestPricingEngine(BaseTestCase):
         self.assertIsNotNone(self.price1_id)
         # Test fetching specific price type
         prices = pm.get_product_prices(self.product_id, 'USD', price_type='SALE', db_conn=self.conn)
-        self.assertTrue(any(p['id'] == self.price1_id and p['price_type'] == 'SALE' for p in prices))
+        print(prices)
+        self.assertTrue(any(p['id'] == self.price1_id and p['price_type'] == 'SALE' for p in prices), "The initial SALE price was not found.")
 
         cost_prices = pm.get_product_prices(self.product_id, 'USD', price_type='COST', db_conn=self.conn)
         self.assertTrue(any(p['id'] == self.cost_price_id and p['price_type'] == 'COST' for p in cost_prices))
@@ -273,6 +274,7 @@ class TestPricingEngine(BaseTestCase):
             'price': 9.99, 'currency': 'USD', 'valid_from': '2023-01-01', 'price_type': 'SALE' # Ensure price_type
         }, db_conn=self.conn)
         prices = pm.get_product_prices(self.product_id, 'USD', price_type='SALE', db_conn=self.conn)
+        print(prices)
         updated_price = next(p for p in prices if p['id'] == self.price1_id)
         self.assertEqual(updated_price['price'], 9.99)
 
@@ -291,6 +293,7 @@ class TestPricingEngine(BaseTestCase):
         # Test for SALE prices (default price_type for get_effective_price)
         self.assertIsNone(pm.get_effective_price(self.product_id, '2022-12-31', 'USD', price_type='SALE', db_conn=self.conn))
         eff_price = pm.get_effective_price(self.product_id, '2023-03-01', 'USD', price_type='SALE', db_conn=self.conn)
+        self.assertIsNotNone(eff_price)
         self.assertEqual(eff_price['id'], self.price1_id)
         eff_price = pm.get_effective_price(self.product_id, '2023-06-15', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price2_id)
@@ -301,6 +304,7 @@ class TestPricingEngine(BaseTestCase):
         eff_price = pm.get_effective_price(self.product_id, '2023-09-01', 'USD', price_type='SALE', db_conn=self.conn)
         self.assertEqual(eff_price['id'], self.price1_id)
         eff_price_eur = pm.get_effective_price(self.product_id, '2023-03-01', 'EUR', price_type='SALE', db_conn=self.conn)
+        self.assertIsNotNone(eff_price_eur)
         self.assertEqual(eff_price_eur['id'], self.price3_id)
 
         # Test for COST price

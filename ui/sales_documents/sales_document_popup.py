@@ -239,7 +239,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         try:
             file_prefix = "quote" if doc_type == SalesDocumentType.QUOTE else "invoice"
-            output_filename = f"{file_prefix}_{self.doc_number_var.get().replace('/', '_')}.pdf"
+            output_filename = f"{file_prefix}_{self.doc_number_var.get()}.pdf"
             # TODO: Use filedialog.asksaveasfilename for better UX
 
             generator_module(self.document_id, output_path=output_filename) # Call the specific generator

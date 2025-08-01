@@ -7,6 +7,9 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from core.company_service import CompanyService
+from shared.structs import Address
+
 class PDF(FPDF):
     def __init__(self, document_number=None, company_name="Your Company Name", company_billing_address_lines=None, document_type="Purchase Order"):
         super().__init__()
@@ -62,3 +65,45 @@ class PDF(FPDF):
         self.set_y(-15)
         self.set_font("Arial", "I", 8)
         self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", 0, 0, "C")
+
+
+def _format_address_lines(address: Address | None) -> list[str]:
+    """Return printable lines for an address."""
+    if not address:
+        return ["Address not found."]
+    lines = [
+        address.street or "",
+        f"{address.city or ''}, {address.state or ''} {address.zip_code or ''}",
+        address.country or "",
+    ]
+    lines = [line for line in lines if line.strip()]
+    return lines if lines else ["Address details missing."]
+
+
+def get_company_pdf_context(service: CompanyService):
+    """Fetch company details via the service layer for PDF headers.
+
+    Returns a tuple of:
+        (company_name, company_phone, shipping_lines, billing_lines)
+    """
+    company = service.load_company_information()
+    company_name = company.name or "Your Company Name"
+    company_phone = company.phone or ""
+
+    billing_addr = next(
+        (a for a in company.addresses if a.address_type == "Billing" and getattr(a, "is_primary", False)),
+        None,
+    )
+    shipping_addr = next(
+        (a for a in company.addresses if a.address_type == "Shipping" and getattr(a, "is_primary", False)),
+        None,
+    )
+
+    if not shipping_addr and billing_addr:
+        shipping_lines = ["Shipping address not set, using Billing Address:"] + _format_address_lines(billing_addr)
+    else:
+        shipping_lines = _format_address_lines(shipping_addr)
+
+    billing_lines = _format_address_lines(billing_addr)
+
+    return company_name, company_phone, shipping_lines, billing_lines

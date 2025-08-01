@@ -13,6 +13,10 @@ from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
 from core.sales_logic import SalesLogic # Import SalesLogic
 from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import SalesDocumentTab
 from ui.company_info_tab import CompanyInfoTab # Import the new tab
+from core.company_repository import CompanyRepository
+from core.company_service import CompanyService
+from core.address_service import AddressService
+from core.repositories import AddressRepository, AccountRepository
 from ui.pricing.pricing_rule_tab import PricingRuleTab
 
 
@@ -30,6 +34,12 @@ class AddressBookView:
         self.purchase_logic = PurchaseLogic(self.db_handler) # Initialize PurchaseLogic
         self.sales_logic = SalesLogic(self.db_handler) # Initialize SalesLogic
 
+        # Initialize services for company info
+        address_repo = AddressRepository(self.db_handler)
+        account_repo = AccountRepository(self.db_handler)
+        self.address_service = AddressService(address_repo, account_repo)
+        company_repo = CompanyRepository(self.db_handler)
+        self.company_service = CompanyService(company_repo, self.address_service)
 
         # Track the currently selected contact's ID and account's ID
         self.selected_contact_id = None
@@ -50,7 +60,7 @@ class AddressBookView:
         self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic) # Pass product_logic here too
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
         self.sales_document_tab = SalesDocumentTab(self.notebook, self.sales_logic, self.address_book_logic, self.product_logic) # Add SalesDocumentTab
-        self.company_info_tab = CompanyInfoTab(self.notebook, self.db_handler) # Add CompanyInfoTab
+        self.company_info_tab = CompanyInfoTab(self.notebook, self.company_service) # Add CompanyInfoTab
         self.pricing_rule_tab = PricingRuleTab(self.notebook, self.address_book_logic)
 
 

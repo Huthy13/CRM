@@ -14,7 +14,11 @@ from .database import DatabaseHandler # Relative import for modules within the s
 from .purchase_logic import PurchaseLogic # Relative import
 from .address_book_logic import AddressBookLogic # Relative import
 from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
-from .pdf_generator import PDF
+from .pdf_generator import PDF, get_company_pdf_context
+from .company_repository import CompanyRepository
+from .company_service import CompanyService
+from .address_service import AddressService
+from .repositories import AddressRepository, AccountRepository
 
 def generate_po_pdf(purchase_document_id: int, output_path: str = None):
     """
@@ -35,77 +39,22 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             print(f"Error: Purchase document with ID {purchase_document_id} not found.")
             return
 
+        
         # 2. Fetch Company Information
-        company_info_dict = db_handler.get_company_information()
-        company_name_for_header = "Your Company Name" # For PDF Header
-        company_phone_pdf = "" # For display under shipping address if available
-        company_shipping_address_pdf_lines = ["Shipping address not found."]
-        company_billing_address_pdf_lines = ["Billing address not found."]
-
-        if company_info_dict:
-            company_name_for_header = company_info_dict.get('name', company_name_for_header)
-            company_phone_pdf = company_info_dict.get('phone', "")
-
-            # Fetch Shipping Address
-            company_shipping_address_id = company_info_dict.get('shipping_address_id')
-            if company_shipping_address_id:
-                addr_tuple = db_handler.get_address(company_shipping_address_id)
-                if addr_tuple:
-                    company_shipping_address_pdf_lines = [
-                        addr_tuple[0] or "",
-                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                        addr_tuple[4] or ""
-                    ]
-                    company_shipping_address_pdf_lines = [line for line in company_shipping_address_pdf_lines if line.strip()]
-                    if not company_shipping_address_pdf_lines:
-                         company_shipping_address_pdf_lines = ["Shipping address details missing."]
-                else:
-                    company_shipping_address_pdf_lines = ["Shipping address not found in DB (ID existed)."]
-            else:
-                # Fallback for Shipping Address to Billing Address if shipping_id is missing
-                temp_billing_id_for_shipping = company_info_dict.get('billing_address_id')
-                if temp_billing_id_for_shipping:
-                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"]
-                    addr_tuple = db_handler.get_address(temp_billing_id_for_shipping)
-                    if addr_tuple:
-                        shipping_fallback_lines = [
-                            addr_tuple[0] or "",
-                            f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                            addr_tuple[4] or ""
-                        ]
-                        shipping_fallback_lines = [line for line in shipping_fallback_lines if line.strip()]
-                        if not shipping_fallback_lines:
-                            company_shipping_address_pdf_lines = ["Shipping address not set, billing address details missing."]
-                        else:
-                            company_shipping_address_pdf_lines.extend(shipping_fallback_lines)
-                    else:
-                         company_shipping_address_pdf_lines = ["Shipping address not set, billing address not found."]
-                else:
-                    company_shipping_address_pdf_lines = ["No shipping or billing address configured for company."]
-
-            # Fetch Billing Address (for Header)
-            company_billing_address_id = company_info_dict.get('billing_address_id')
-            if company_billing_address_id:
-                addr_tuple = db_handler.get_address(company_billing_address_id)
-                if addr_tuple:
-                    company_billing_address_pdf_lines = [
-                        addr_tuple[0] or "",
-                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                        addr_tuple[4] or ""
-                    ]
-                    company_billing_address_pdf_lines = [line for line in company_billing_address_pdf_lines if line.strip()]
-                    if not company_billing_address_pdf_lines:
-                        company_billing_address_pdf_lines = ["Billing address details missing."]
-                else:
-                    company_billing_address_pdf_lines = ["Billing address not found in DB (ID existed)."]
-            else:
-                company_billing_address_pdf_lines = ["Billing address ID not configured for company."]
-        else:
-            company_shipping_address_pdf_lines = ["Company information not found in database."]
-            company_billing_address_pdf_lines = ["Company information not found in database."]
-
-
+        address_repo = AddressRepository(db_handler)
+        account_repo = AccountRepository(db_handler)
+        address_service = AddressService(address_repo, account_repo)
+        company_repo = CompanyRepository(db_handler)
+        company_service = CompanyService(company_repo, address_service)
+        (
+            company_name_for_header,
+            company_phone_pdf,
+            company_shipping_address_pdf_lines,
+            company_billing_address_pdf_lines,
+        ) = get_company_pdf_context(company_service)
+        
         # 3. Fetch Vendor details
+
         vendor: Account = None
         vendor_address: Address = None
         if doc.vendor_id:

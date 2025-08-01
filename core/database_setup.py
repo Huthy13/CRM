@@ -450,7 +450,7 @@ def initialize_database(db_conn=None):
     Initializes the database by creating the tables and seeding essential data.
     Accepts an optional database connection to pass to create_tables.
     """
-    print(f"Initializing database '{DB_NAME if not db_conn else "provided connection"}'...")
+    print(f"Initializing database '{DB_NAME if not db_conn else 'provided connection'}'...")
     create_tables(db_conn=db_conn)
 
     # Seed essential data

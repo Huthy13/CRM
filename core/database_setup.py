@@ -70,6 +70,19 @@ def create_tables(db_conn=None):
         # """)
 
 
+        # Pricing Rules Table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pricing_rules (
+            rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_name TEXT UNIQUE NOT NULL,
+            markup_percentage FLOAT,
+            fixed_price FLOAT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT either_markup_or_fixed CHECK (markup_percentage IS NOT NULL OR fixed_price IS NOT NULL)
+        )
+        """)
+
+
         # Accounts Table (Referenced by SalesDocuments and potentially others)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS accounts (
@@ -80,8 +93,10 @@ def create_tables(db_conn=None):
             email TEXT, -- Removed UNIQUE from email for now, matches old DB handler
             website TEXT,
             description TEXT,
+            pricing_rule_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Added
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Added
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Added
+            FOREIGN KEY (pricing_rule_id) REFERENCES pricing_rules (rule_id) ON DELETE SET NULL
         )
         """)
         # Account Addresses Table

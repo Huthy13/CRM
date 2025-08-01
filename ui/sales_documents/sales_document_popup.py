@@ -474,7 +474,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             return
 
         from .sales_document_item_popup import SalesDocumentItemPopup # Import sales version
-        item_popup = SalesDocumentItemPopup(self, self.sales_logic, self.product_logic, self.document_data.id)
+        item_popup = SalesDocumentItemPopup(self, self.sales_logic, self.account_logic, self.product_logic, self.document_data.id)
         self.wait_window(item_popup)
         if hasattr(item_popup, 'item_saved') and item_popup.item_saved:
             self.load_document_and_items()
@@ -503,7 +503,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         from .sales_document_item_popup import SalesDocumentItemPopup # Import sales version
         item_data_dict = item_to_edit_obj.to_dict()
-        edit_item_popup = SalesDocumentItemPopup(self, self.sales_logic, self.product_logic, self.document_data.id, item_data=item_data_dict)
+        edit_item_popup = SalesDocumentItemPopup(self, self.sales_logic, self.account_logic, self.product_logic, self.document_data.id, item_data=item_data_dict)
         self.wait_window(edit_item_popup)
         if hasattr(edit_item_popup, 'item_saved') and edit_item_popup.item_saved:
             self.load_document_and_items() # Full reload to refresh doc status/totals potentially changed by item edit

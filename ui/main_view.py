@@ -13,6 +13,7 @@ from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
 from core.sales_logic import SalesLogic # Import SalesLogic
 from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import SalesDocumentTab
 from ui.company_info_tab import CompanyInfoTab # Import the new tab
+from ui.pricing.pricing_rule_tab import PricingRuleTab
 
 
 class AddressBookView:
@@ -50,6 +51,7 @@ class AddressBookView:
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
         self.sales_document_tab = SalesDocumentTab(self.notebook, self.sales_logic, self.address_book_logic, self.product_logic) # Add SalesDocumentTab
         self.company_info_tab = CompanyInfoTab(self.notebook, self.db_handler) # Add CompanyInfoTab
+        self.pricing_rule_tab = PricingRuleTab(self.notebook, self.address_book_logic)
 
 
         # Add frames from tabs to Notebook
@@ -61,3 +63,4 @@ class AddressBookView:
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase Documents")
         self.notebook.add(self.sales_document_tab.frame, text="Sales Documents") # Add Sales Documents tab
         self.notebook.add(self.company_info_tab.frame, text="Company Information") # Add the new tab to the notebook
+        self.notebook.add(self.pricing_rule_tab.frame, text="Pricing Rules")

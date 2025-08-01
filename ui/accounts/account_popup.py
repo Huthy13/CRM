@@ -27,12 +27,22 @@ class AccountDetailsPopup(tk.Toplevel):
             self.account_type_dropdown.set(self.active_account.account_type.value)
         self.account_type_dropdown.grid(row=3, column=1, padx=5, pady=5)
 
+        self.account_type_dropdown.bind("<<ComboboxSelected>>", self.toggle_pricing_rule_dropdown)
+
         self.description_entry = self._create_entry("Description:", 4, self.active_account.description)
+
+        # Pricing Rule Dropdown
+        tk.Label(self, text="Pricing Rule:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        self.pricing_rule_var = tk.StringVar(self)
+        self.pricing_rule_dropdown = ttk.Combobox(self, textvariable=self.pricing_rule_var, state="disabled", width=37)
+        self.pricing_rule_dropdown.grid(row=5, column=1, padx=5, pady=5)
+        self.load_pricing_rules()
+        self.toggle_pricing_rule_dropdown()
 
 
         # Addresses Frame
         addresses_frame = tk.LabelFrame(self, text="Addresses")
-        addresses_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+        addresses_frame.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
         self.address_tree = ttk.Treeview(addresses_frame, columns=("type", "primary", "address"), show="headings", height=5)
         self.address_tree.heading("type", text="Type")
@@ -51,6 +61,23 @@ class AccountDetailsPopup(tk.Toplevel):
         # Save Button
         save_button = tk.Button(self, text="Save", command=self.save_account)
         save_button.grid(row=18, column=0, columnspan=2, pady=10)
+
+    def load_pricing_rules(self):
+        self.pricing_rules = self.logic.list_pricing_rules()
+        rule_names = [rule.rule_name for rule in self.pricing_rules]
+        self.pricing_rule_dropdown['values'] = [""] + rule_names # Add empty option for no rule
+        if self.active_account.pricing_rule_id:
+            for rule in self.pricing_rules:
+                if rule.rule_id == self.active_account.pricing_rule_id:
+                    self.pricing_rule_dropdown.set(rule.rule_name)
+                    break
+
+    def toggle_pricing_rule_dropdown(self, event=None):
+        if self.account_type_var.get() == AccountType.CUSTOMER.value:
+            self.pricing_rule_dropdown['state'] = 'readonly'
+        else:
+            self.pricing_rule_dropdown['state'] = 'disabled'
+            self.pricing_rule_var.set("") # Clear selection
 
     def populate_address_tree(self):
         for i in self.address_tree.get_children():
@@ -119,6 +146,16 @@ class AccountDetailsPopup(tk.Toplevel):
                 return
         else:
             self.active_account.account_type = None
+
+        selected_rule_name = self.pricing_rule_var.get()
+        if selected_rule_name:
+            selected_rule = next((rule for rule in self.pricing_rules if rule.rule_name == selected_rule_name), None)
+            if selected_rule:
+                self.active_account.pricing_rule_id = selected_rule.rule_id
+            else:
+                self.active_account.pricing_rule_id = None
+        else:
+            self.active_account.pricing_rule_id = None
 
         # The addresses are already in self.active_account.addresses
         # so we just need to save the account

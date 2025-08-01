@@ -35,7 +35,7 @@ class Address:
         }
 
 class Account:
-    def __init__(self, account_id=None, name="", phone="", addresses=None, website="", description="", account_type: AccountType = None):
+    def __init__(self, account_id=None, name="", phone="", addresses=None, website="", description="", account_type: AccountType = None, pricing_rule_id: int | None = None):
         self.account_id = account_id
         self.name = name
         self.phone = phone
@@ -43,6 +43,7 @@ class Account:
         self.website = website
         self.description = description
         self.account_type = account_type
+        self.pricing_rule_id = pricing_rule_id
 
     def __str__(self):
         addresses_str = "\n".join([str(addr) for addr in self.addresses])
@@ -52,7 +53,8 @@ class Account:
                 f"Addresses:\n{addresses_str}\n"
                 f"Website: {self.website}\n"
                 f"Description: {self.description}\n"
-                f"Account Type: {self.account_type.value if self.account_type else 'N/A'}")
+                f"Account Type: {self.account_type.value if self.account_type else 'N/A'}\n"
+                f"Pricing Rule ID: {self.pricing_rule_id}")
 
     def to_dict(self):
         """Returns the account as a dictionary."""
@@ -63,7 +65,8 @@ class Account:
             "addresses": [addr.to_dict() for addr in self.addresses],
             "website": self.website,
             "description": self.description,
-            "account_type": self.account_type.value if self.account_type else None
+            "account_type": self.account_type.value if self.account_type else None,
+            "pricing_rule_id": self.pricing_rule_id
         }
 
     @classmethod
@@ -71,7 +74,13 @@ class Account:
         """
         Creates an Account object from a database row.
         """
-        account_id, name, phone, description, account_type_str = row
+        # Accomodate the new pricing_rule_id field, making it optional for backward compatibility
+        if len(row) == 6:
+            account_id, name, phone, description, account_type_str, pricing_rule_id = row
+        else:
+            account_id, name, phone, description, account_type_str = row
+            pricing_rule_id = None
+
         account_type_enum = None
         if account_type_str:
             try:
@@ -84,7 +93,8 @@ class Account:
             name=name,
             phone=phone,
             description=description,
-            account_type=account_type_enum
+            account_type=account_type_enum,
+            pricing_rule_id=pricing_rule_id
         )
 
 
@@ -305,6 +315,21 @@ class Task:
             created_at=created_at,
             updated_at=updated_at
         )
+
+class PricingRule:
+    def __init__(self, rule_id: int | None = None, rule_name: str = "", markup_percentage: float | None = None, fixed_price: float | None = None):
+        self.rule_id = rule_id
+        self.rule_name = rule_name
+        self.markup_percentage = markup_percentage
+        self.fixed_price = fixed_price
+
+    def to_dict(self) -> dict:
+        return {
+            "rule_id": self.rule_id,
+            "rule_name": self.rule_name,
+            "markup_percentage": self.markup_percentage,
+            "fixed_price": self.fixed_price,
+        }
 
 class Product:
     def __init__(self, product_id=None, name="", description="", cost=0.0, sale_price: Optional[float] = None, is_active=True, category="", unit_of_measure=""):

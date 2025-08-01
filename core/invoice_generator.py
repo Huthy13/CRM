@@ -83,8 +83,13 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
         pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
 
         temp_x_offset = pdf.get_x()
-        pdf.multi_cell(col_width_half, line_height, "
-".join(company_shipping_address_pdf_lines), 0, "L")
+        pdf.multi_cell(
+            col_width_half,
+            line_height,
+            "\n".join(company_shipping_address_pdf_lines),
+            0,
+            "L",
+        )
         y_after_company_address = pdf.get_y()
         pdf.set_xy(temp_x_offset, y_after_company_address)
 
@@ -107,14 +112,15 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
 
             if customer_address:
                 pdf.set_x(right_column_x)
+                address_lines = [
+                    customer_address.street or "",
+                    f"{customer_address.city or ''}, {customer_address.state or ''} {customer_address.zip_code or ''}",
+                    (customer_address.country or "").strip(),
+                ]
                 pdf.multi_cell(
                     col_width_half,
                     line_height,
-                    f"{customer_address.street or ''}
-"
-                    f"{customer_address.city or ''}, {customer_address.state or ''} {customer_address.zip_code or ''}
-"
-                    f"{customer_address.country or ''}".strip(),
+                    "\n".join(filter(None, address_lines)),
                     0,
                     "L",
                 )

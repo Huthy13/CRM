@@ -92,8 +92,13 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
 
         temp_x_offset = pdf.get_x()
-        pdf.multi_cell(col_width_half, line_height, "
-".join(company_shipping_address_pdf_lines), 0, "L")
+        pdf.multi_cell(
+            col_width_half,
+            line_height,
+            "\n".join(company_shipping_address_pdf_lines),
+            0,
+            "L",
+        )
         y_after_company_address = pdf.get_y()
         pdf.set_xy(temp_x_offset, y_after_company_address)
 
@@ -116,14 +121,15 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
 
             if customer_billing_address:
                 pdf.set_x(right_column_x)
+                billing_lines = [
+                    customer_billing_address.street or "",
+                    f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}",
+                    (customer_billing_address.country or "").strip(),
+                ]
                 pdf.multi_cell(
                     col_width_half,
                     line_height,
-                    f"{customer_billing_address.street or ''}
-"
-                    f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}
-"
-                    f"{customer_billing_address.country or ''}".strip(),
+                    "\n".join(filter(None, billing_lines)),
                     0,
                     "L",
                 )

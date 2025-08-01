@@ -57,7 +57,16 @@ class AccountDetailsPopup(tk.Toplevel):
             self.address_tree.delete(i)
         for i, addr in enumerate(self.active_account.addresses):
             address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
-            self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=i)
+            self.address_tree.insert(
+                "",
+                "end",
+                values=(
+                    addr.address_type,
+                    "true" if getattr(addr, "is_primary", False) else "false",
+                    address_str,
+                ),
+                iid=i,
+            )
 
     def add_address(self):
         address_popup = AddressPopup(self)
@@ -163,4 +172,8 @@ class AddressPopup(tk.Toplevel):
         self.address.country = self.country_entry.get()
         self.address.address_type = self.type_var.get()
         self.address.is_primary = self.primary_var.get()
+        if self.address.is_primary:
+            for addr in getattr(self.master, "active_account", Account()).addresses:
+                if addr is not self.address and getattr(addr, "address_type", None) == self.address.address_type:
+                    addr.is_primary = False
         self.destroy()

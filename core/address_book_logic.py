@@ -39,6 +39,19 @@ class AddressBookLogic:
             self.interaction_repo = interaction_repo
             self._db = None
 
+# Legacy access to the underlying database handler
+    @property
+    def db(self) -> DatabaseHandler:
+        """Return the underlying DatabaseHandler if available.
+
+        Older parts of the UI still directly access the database handler
+        from the logic layer. This property provides backward compatibility
+        while the remaining modules are refactored to use repositories.
+        """
+        if self._db is None:
+            raise AttributeError("Database handler is not available")
+        return self._db
+
 #Address Methods
     def add_address(self, street, city, state, zip, country):
         """Add a new address and return its ID."""

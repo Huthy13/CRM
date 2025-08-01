@@ -233,12 +233,12 @@ class DatabaseHandler:
         """, (account_id,))
         return self.cursor.fetchall()
 
-    def add_account(self, name, phone, website, description, account_type):
+    def add_account(self, name, phone, website, description, account_type, pricing_rule_id=None):
         """Add a new account."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, website, description, account_type)
-            VALUES (?, ?, ?, ?, ?)
-        """, (name, phone, website, description, account_type))
+            INSERT INTO accounts (name, phone, website, description, account_type, pricing_rule_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, phone, website, description, account_type, pricing_rule_id))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -278,13 +278,13 @@ class DatabaseHandler:
             return account_data
         return None
 
-    def update_account(self, account_id, name, phone, website, description, account_type):
+    def update_account(self, account_id, name, phone, website, description, account_type, pricing_rule_id=None):
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?
+            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?, pricing_rule_id = ?
             WHERE id = ?
-        """, (name, phone, website, description, account_type, account_id))
+        """, (name, phone, website, description, account_type, pricing_rule_id, account_id))
         self.conn.commit()
 
 # Interaction related methods

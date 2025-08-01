@@ -49,7 +49,7 @@ class AddressBookLogic:
 
         if account.account_id is None:
             # Add the account to get an ID
-            new_id = self.db.add_account(account.name, account.phone, account.website, account.description, account_type_value)
+            new_id = self.db.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
             if new_id:
                 account.account_id = new_id
                 # Now, add the addresses
@@ -58,7 +58,7 @@ class AddressBookLogic:
             return None  # Failed to add
         else:
             # Update the account details
-            self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value)
+            self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
             # Clear existing addresses and add the new ones
             self.save_account_addresses(account)
             return account  # Return the updated account object

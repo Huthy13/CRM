@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 import datetime
@@ -23,7 +24,21 @@ class PricingRule:
         }
 
 class Product:
-    def __init__(self, product_id=None, name="", description="", cost=0.0, sale_price: Optional[float] = None, is_active=True, category="", unit_of_measure=""):
+    def __init__(
+        self,
+        product_id=None,
+        name="",
+        description="",
+        cost=0.0,
+        sale_price: Optional[float] = None,
+        is_active=True,
+        category="",
+        unit_of_measure="",
+        quantity_on_hand: float = 0,
+        reorder_point: float = 0,
+        reorder_quantity: float = 0,
+        safety_stock: float = 0,
+    ):
         self.product_id = product_id
         self.name = name
         self.description = description
@@ -32,6 +47,10 @@ class Product:
         self.is_active = is_active
         self.category = category
         self.unit_of_measure = unit_of_measure
+        self.quantity_on_hand = quantity_on_hand
+        self.reorder_point = reorder_point
+        self.reorder_quantity = reorder_quantity
+        self.safety_stock = safety_stock
 
     def __str__(self):
         return (f"Product ID: {self.product_id}\n"
@@ -41,7 +60,11 @@ class Product:
                 f"Sale Price: {self.sale_price if self.sale_price is not None else 'N/A'}\n"  # Display sale_price
                 f"Active: {self.is_active}\n"
                 f"Category: {self.category}\n"
-                f"Unit of Measure: {self.unit_of_measure}")
+                f"Unit of Measure: {self.unit_of_measure}\n"
+                f"Qty On Hand: {self.quantity_on_hand}\n"
+                f"Reorder Point: {self.reorder_point}\n"
+                f"Reorder Qty: {self.reorder_quantity}\n"
+                f"Safety Stock: {self.safety_stock}")
 
     def to_dict(self):
         """Returns the product as a dictionary."""
@@ -54,6 +77,10 @@ class Product:
             "is_active": self.is_active,
             "category": self.category,
             "unit_of_measure": self.unit_of_measure,
+            "quantity_on_hand": self.quantity_on_hand,
+            "reorder_point": self.reorder_point,
+            "reorder_quantity": self.reorder_quantity,
+            "safety_stock": self.safety_stock,
         }
 
 class PurchaseDocumentStatus(Enum):
@@ -251,3 +278,94 @@ class PurchaseDocumentItem:
     def __str__(self) -> str:
         return (f"PurchaseDocumentItem(ID: {self.id}, DocID: {self.purchase_document_id}, "
                 f"Product: {self.product_description}, Qty: {self.quantity}, UnitPrice: {self.unit_price})")
+
+# --- Inventory Management Structures ---
+
+class InventoryTransactionType(Enum):
+    PURCHASE = "Purchase"
+    SALE = "Sale"
+    ADJUSTMENT = "Adjustment"
+
+
+class PurchaseOrderStatus(Enum):
+    OPEN = "Open"
+    RECEIVED = "Received"
+    CLOSED = "Closed"
+
+
+@dataclass
+class InventoryTransaction:
+    id: Optional[int] = None
+    product_id: Optional[int] = None
+    quantity_change: float = 0.0
+    transaction_type: InventoryTransactionType | None = None
+    reference: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "product_id": self.product_id,
+            "quantity_change": self.quantity_change,
+            "transaction_type": self.transaction_type.value if self.transaction_type else None,
+            "reference": self.reference,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class PurchaseOrder:
+    id: Optional[int] = None
+    vendor_id: Optional[int] = None
+    order_date: Optional[str] = None
+    status: PurchaseOrderStatus | None = None
+    expected_date: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "vendor_id": self.vendor_id,
+            "order_date": self.order_date,
+            "status": self.status.value if self.status else None,
+            "expected_date": self.expected_date,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+@dataclass
+class PurchaseOrderLineItem:
+    id: Optional[int] = None
+    purchase_order_id: Optional[int] = None
+    product_id: Optional[int] = None
+    quantity: float = 0.0
+    unit_cost: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "purchase_order_id": self.purchase_order_id,
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "unit_cost": self.unit_cost,
+        }
+
+
+@dataclass
+class ReplenishmentItem:
+    id: Optional[int] = None
+    product_id: Optional[int] = None
+    quantity_needed: float = 0.0
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "product_id": self.product_id,
+            "quantity_needed": self.quantity_needed,
+            "created_at": self.created_at,
+        }
+
+# --- End Inventory Management Structures ---

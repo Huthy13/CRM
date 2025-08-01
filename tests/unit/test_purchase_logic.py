@@ -7,7 +7,13 @@ import datetime
 # For `python -m unittest discover`, it usually works if tests are in a package structure.
 
 from core.purchase_logic import PurchaseLogic
-from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, AccountType
+from shared.structs import (
+    PurchaseDocument,
+    PurchaseDocumentItem,
+    PurchaseDocumentStatus,
+    AccountType,
+    InventoryTransactionType,
+)
 from core.database import DatabaseHandler # Actual import for type hint, but will be mocked
 
 class TestPurchaseLogic(unittest.TestCase):
@@ -376,6 +382,39 @@ class TestPurchaseLogic(unittest.TestCase):
             quantity=7.0, unit_price=4.0, total_price=28.0
         )
         self.mock_db_handler.update_purchase_document_status.assert_not_called() # Status should not change
+
+    def test_receive_purchase_order_updates_inventory_and_status(self):
+        mock_inventory_service = MagicMock()
+        purchase_logic = PurchaseLogic(
+            self.mock_db_handler, inventory_service=mock_inventory_service
+        )
+        doc_id = 5
+        self.mock_db_handler.get_purchase_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "PO-20230101-0001",
+            "vendor_id": 1,
+            "created_date": "2023-01-01",
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "notes": "",
+        }
+        self.mock_db_handler.get_items_for_document.return_value = [
+            {
+                "id": 1,
+                "purchase_document_id": doc_id,
+                "product_id": 10,
+                "product_description": "Item",
+                "quantity": 3,
+                "unit_price": None,
+                "total_price": None,
+            }
+        ]
+        purchase_logic.receive_purchase_order(doc_id)
+        mock_inventory_service.adjust_stock.assert_called_once_with(
+            10, 3, InventoryTransactionType.PURCHASE, reference="PO#PO-20230101-0001"
+        )
+        self.mock_db_handler.update_purchase_document_status.assert_called_with(
+            doc_id, PurchaseDocumentStatus.RECEIVED.value
+        )
 
 if __name__ == '__main__':
     unittest.main()

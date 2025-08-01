@@ -1,15 +1,20 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 from ui.products.product_popup import ProductDetailsPopup
+from ui.products.adjust_inventory_popup import AdjustInventoryPopup
+from ui.products.transaction_history_popup import TransactionHistoryPopup
+from ui.inventory_reports import InventoryReportPopup
 from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 from shared.structs import Product
 # from core.logic.product_management import ProductLogic # For type hinting
 
 class ProductTab:
-    def __init__(self, master, address_book_logic, product_logic): # Changed 'logic' to specific logics
+    def __init__(self, master, address_book_logic, product_logic, inventory_service, purchase_logic): # Changed 'logic' to specific logics
         self.frame = tk.Frame(master)
         self.address_book_logic = address_book_logic # May not be needed by product_tab directly
         self.product_logic = product_logic # Store and use this for product operations
+        self.inventory_service = inventory_service
+        self.purchase_logic = purchase_logic
         self.selected_product_id = None
 
         self.setup_product_tab()
@@ -19,10 +24,12 @@ class ProductTab:
 
     def setup_product_tab(self):
         tk.Label(self.frame, text="Product Management").grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
+        self.stock_summary_label = tk.Label(self.frame, text="Total On Hand: 0")
+        self.stock_summary_label.grid(row=0, column=3, padx=5, pady=5, sticky="e")
 
         button_width = 20
         button_frame = tk.Frame(self.frame)
-        button_frame.grid(row=1, column=0, columnspan=3, pady=5)
+        button_frame.grid(row=1, column=0, columnspan=4, pady=5)
 
         self.add_product_button = tk.Button(
             button_frame, text="Add New Product",
@@ -44,7 +51,38 @@ class ProductTab:
             command=self.view_categories, width=button_width)
         self.view_categories_button.pack(side=tk.LEFT, padx=5)
 
-        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "description", "cost", "active", "category", "unit_of_measure"), show="headings") # "price" -> "cost"
+        self.adjust_inventory_button = tk.Button(
+            button_frame, text="Adjust Inventory",
+            command=self.adjust_inventory, width=button_width)
+        self.adjust_inventory_button.pack(side=tk.LEFT, padx=5)
+
+        self.view_transactions_button = tk.Button(
+            button_frame, text="Transaction History",
+            command=self.view_transactions, width=button_width)
+        self.view_transactions_button.pack(side=tk.LEFT, padx=5)
+
+        self.reports_button = tk.Button(
+            button_frame, text="Inventory Reports",
+            command=self.open_reports, width=button_width)
+        self.reports_button.pack(side=tk.LEFT, padx=5)
+
+        self.tree = ttk.Treeview(
+            self.frame,
+            columns=(
+                "id",
+                "name",
+                "description",
+                "cost",
+                "active",
+                "category",
+                "unit_of_measure",
+                "qty_on_hand",
+                "reorder_point",
+                "reorder_qty",
+                "safety_stock",
+            ),
+            show="headings",
+        )  # "price" -> "cost"
 
         self.tree.column("id", width=0, stretch=False) # Hidden ID column
         self.tree.heading("name", text="Product Name", command=lambda: self.sort_column("name", False))
@@ -53,6 +91,10 @@ class ProductTab:
         self.tree.heading("active", text="Active", command=lambda: self.sort_column("active", False))
         self.tree.heading("category", text="Category", command=lambda: self.sort_column("category", False))
         self.tree.heading("unit_of_measure", text="Unit of Measure", command=lambda: self.sort_column("unit_of_measure", False))
+        self.tree.heading("qty_on_hand", text="On Hand", command=lambda: self.sort_column("qty_on_hand", False))
+        self.tree.heading("reorder_point", text="Reorder Point", command=lambda: self.sort_column("reorder_point", False))
+        self.tree.heading("reorder_qty", text="Reorder Qty", command=lambda: self.sort_column("reorder_qty", False))
+        self.tree.heading("safety_stock", text="Safety Stock", command=lambda: self.sort_column("safety_stock", False))
 
         self.tree.column("name", width=150, anchor=tk.W)
         self.tree.column("description", width=250, anchor=tk.W)
@@ -60,8 +102,12 @@ class ProductTab:
         self.tree.column("active", width=60, anchor=tk.CENTER)
         self.tree.column("category", width=100, anchor=tk.W)
         self.tree.column("unit_of_measure", width=100, anchor=tk.W)
+        self.tree.column("qty_on_hand", width=80, anchor=tk.E)
+        self.tree.column("reorder_point", width=100, anchor=tk.E)
+        self.tree.column("reorder_qty", width=100, anchor=tk.E)
+        self.tree.column("safety_stock", width=100, anchor=tk.E)
 
-        self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.tree.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
         self.frame.grid_rowconfigure(2, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
 
@@ -152,7 +198,9 @@ class ProductTab:
 
         try:
             products = self.product_logic.get_all_products() # Use product_logic
+            total_qty = 0
             for product in products:
+                total_qty += product.quantity_on_hand
                 self.tree.insert("", "end", iid=product.product_id, values=(
                     product.product_id,
                     product.name,
@@ -160,8 +208,13 @@ class ProductTab:
                     f"${product.cost:.2f}", # Format cost with $
                     "Yes" if product.is_active else "No",
                     product.category,
-                    product.unit_of_measure
+                    product.unit_of_measure,
+                    product.quantity_on_hand,
+                    product.reorder_point,
+                    product.reorder_quantity,
+                    product.safety_stock,
                 ))
+            self.stock_summary_label.config(text=f"Total On Hand: {total_qty}")
         except Exception as e:
             import traceback
             detailed_error_message = f"Detailed error in load_products: {type(e).__name__}: {e}"
@@ -176,6 +229,35 @@ class ProductTab:
 
     def view_categories(self):
         popup = CategoryListPopup(self.frame.master, self.product_logic) # Use self.product_logic
+        self.frame.master.wait_window(popup)
+
+    def adjust_inventory(self):
+        if not self.selected_product_id:
+            messagebox.showwarning("No Selection", "Please select a product to adjust.")
+            return
+        product = self.product_logic.get_product_details(int(self.selected_product_id))
+        if not product:
+            messagebox.showerror("Error", "Could not load product details.")
+            return
+        popup = AdjustInventoryPopup(
+            self.frame.master, self.inventory_service, product, self.refresh_products_list
+        )
+        self.frame.master.wait_window(popup)
+        self.load_products()
+
+    def view_transactions(self):
+        if not self.selected_product_id:
+            messagebox.showwarning("No Selection", "Please select a product to view transactions.")
+            return
+        popup = TransactionHistoryPopup(
+            self.frame.master, self.inventory_service, int(self.selected_product_id)
+        )
+        self.frame.master.wait_window(popup)
+
+    def open_reports(self):
+        popup = InventoryReportPopup(
+            self.frame.master, self.product_logic, self.inventory_service, self.purchase_logic
+        )
         self.frame.master.wait_window(popup)
 
 # Example of how to integrate into a main application (for testing)

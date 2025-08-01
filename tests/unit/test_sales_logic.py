@@ -13,8 +13,14 @@ from core.sales_logic import SalesLogic
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
 from shared.structs import (
-    SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
-    Account, AccountType, Product
+    SalesDocument,
+    SalesDocumentItem,
+    SalesDocumentStatus,
+    SalesDocumentType,
+    Account,
+    AccountType,
+    Product,
+    InventoryTransactionType,
 )
 
 class TestSalesLogic(unittest.TestCase):
@@ -425,6 +431,43 @@ class TestSalesLogic(unittest.TestCase):
             self.sales_logic.delete_sales_document(mock_doc_id)
         self.mock_db_handler.delete_sales_document_item.assert_not_called()
         self.mock_db_handler.delete_sales_document.assert_not_called()
+
+    def test_confirm_sales_order_adjusts_inventory_and_updates_status(self):
+        mock_inventory_service = MagicMock()
+        sales_logic = SalesLogic(
+            self.mock_db_handler, inventory_service=mock_inventory_service
+        )
+        doc_id = 1
+        self.mock_db_handler.get_sales_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "SO-20230101-0001",
+            "customer_id": 1,
+            "document_type": SalesDocumentType.SALES_ORDER.value,
+            "status": SalesDocumentStatus.SO_OPEN.value,
+            "created_date": "2023-01-01",
+            "subtotal": 0,
+            "taxes": 0,
+            "total_amount": 0,
+        }
+        self.mock_db_handler.get_items_for_sales_document.return_value = [
+            {
+                "id": 1,
+                "sales_document_id": doc_id,
+                "product_id": 10,
+                "product_description": "Item A",
+                "quantity": 2,
+                "unit_price": 5,
+                "discount_percentage": 0,
+                "line_total": 10,
+            }
+        ]
+        sales_logic.confirm_sales_order(doc_id)
+        mock_inventory_service.adjust_stock.assert_called_once_with(
+            10, -2, InventoryTransactionType.SALE, reference="SO#SO-20230101-0001"
+        )
+        self.mock_db_handler.update_sales_document.assert_called_with(
+            doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
+        )
 
 if __name__ == '__main__':
     unittest.main()

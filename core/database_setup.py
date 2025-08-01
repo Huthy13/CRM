@@ -6,6 +6,7 @@ from .schema import (
     company,
     interactions,
     products,
+    inventory,
     purchase,
     sales,
     tasks,
@@ -36,6 +37,7 @@ def create_tables(db_conn=None):
             tasks,
             sales,
             purchase,
+            inventory,
             company,
         ):
             module.create_schema(cursor)

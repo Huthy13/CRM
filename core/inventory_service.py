@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from typing import Optional
+
+from core.repositories import InventoryRepository, ProductRepository
+from shared.structs import InventoryTransactionType
+
+
+class InventoryService:
+    """Service layer for inventory adjustments and replenishment checks."""
+
+    def __init__(self, inventory_repo: InventoryRepository, product_repo: ProductRepository):
+        self.inventory_repo = inventory_repo
+        self.product_repo = product_repo
+
+    def adjust_stock(
+        self,
+        product_id: int,
+        quantity_change: float,
+        transaction_type: InventoryTransactionType,
+        reference: Optional[str] = None,
+    ) -> float:
+        """Adjust stock, log transaction, and enqueue replenishment if needed.
+
+        Returns the updated stock level.
+        """
+        self.inventory_repo.log_transaction(
+            product_id, quantity_change, transaction_type.value, reference
+        )
+        stock_level = self.inventory_repo.get_stock_level(product_id)
+        product = self.product_repo.get_product_details(product_id)
+        if not product:
+            return stock_level
+
+        reorder_point = product.get("reorder_point") or 0
+        reorder_qty = product.get("reorder_quantity") or 0
+        safety_stock = product.get("safety_stock") or 0
+        if stock_level <= reorder_point or stock_level <= safety_stock:
+            qty_needed = reorder_qty or max(reorder_point - stock_level, 0)
+            self.inventory_repo.add_replenishment_item(product_id, qty_needed)
+        return stock_level
+
+    def record_adjustment(
+        self, product_id: int, quantity_change: float, reference: Optional[str] = None
+    ) -> float:
+        """Manually adjust inventory and log an adjustment transaction."""
+        return self.adjust_stock(
+            product_id, quantity_change, InventoryTransactionType.ADJUSTMENT, reference
+        )

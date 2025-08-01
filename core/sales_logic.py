@@ -334,6 +334,30 @@ class SalesLogic:
         self.db.update_sales_document(doc_id, {"notes": notes})
         return self.get_sales_document_details(doc_id)
 
+    def get_calculated_price(self, customer_id: int, product_id: int) -> float | None:
+        """Calculates the price for a given customer and product, applying pricing rules."""
+        final_unit_price = None
+        address_book_logic = AddressBookLogic(self.db)
+        customer = address_book_logic.get_account_details(customer_id)
+        if customer and customer.pricing_rule_id:
+            rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
+            if rule:
+                if rule.fixed_price is not None:
+                    final_unit_price = rule.fixed_price
+                elif rule.markup_percentage is not None:
+                    product_info = self.db.get_product_details(product_id)
+                    if product_info:
+                        product_cost = product_info.get('cost')
+                        if product_cost is not None:
+                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
+
+        if final_unit_price is None:
+            product_info = self.db.get_product_details(product_id)
+            if product_info:
+                final_unit_price = product_info.get('sale_price')
+
+        return final_unit_price
+
     def get_sales_document_details(self, doc_id: int) -> Optional[SalesDocument]:
         doc_data = self.db.get_sales_document_by_id(doc_id)
         if doc_data:

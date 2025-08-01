@@ -4,11 +4,12 @@ from typing import Optional
 from shared.structs import SalesDocumentItem, Product # Import Sales version
 
 class SalesDocumentItemPopup(Toplevel): # Changed class name
-    def __init__(self, master, sales_logic, product_logic, document_id: int, item_data: Optional[dict] = None):
+    def __init__(self, master, sales_logic, account_logic, product_logic, document_id: int, item_data: Optional[dict] = None):
         super().__init__(master)
-        self.sales_logic = sales_logic # Use sales_logic
+        self.sales_logic = sales_logic
+        self.account_logic = account_logic
         self.product_logic = product_logic
-        self.document_id = document_id # This is the sales_document_id
+        self.document_id = document_id
         self.item_id = item_data.get('id') if item_data else None
 
         self.product_map = {}
@@ -143,15 +144,24 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         product_id = self.product_map.get(selected_product_name)
 
         if product_id:
-            product_details = self.product_logic.get_product_details(product_id) # Expects dict
-            if product_details and product_details.sale_price is not None:
-                self.unit_price_var.set(f"{product_details.sale_price:.2f}")
-            else: # Product found but no sale price
-                self.unit_price_var.set("0.00")
-                messagebox.showwarning("No Sale Price", f"Product '{selected_product_name}' does not have a sale price set.", parent=self)
+            # Get the customer_id from the document
+            doc = self.sales_logic.get_sales_document_details(self.document_id)
+            if doc and doc.customer_id:
+                price = self.sales_logic.get_calculated_price(doc.customer_id, product_id)
+                if price is not None:
+                    self.unit_price_var.set(f"{price:.2f}")
+                else:
+                    self.unit_price_var.set("0.00")
+            else:
+                # Fallback to default sale price if no customer or doc
+                product_details = self.product_logic.get_product_details(product_id) # Expects dict
+                if product_details and product_details.sale_price is not None:
+                    self.unit_price_var.set(f"{product_details.sale_price:.2f}")
+                else: # Product found but no sale price
+                    self.unit_price_var.set("0.00")
+                    messagebox.showwarning("No Sale Price", f"Product '{selected_product_name}' does not have a sale price set.", parent=self)
         else: # "<Select Product>" or error
             self.unit_price_var.set("0.00")
-        # Line total will auto-update due to trace
 
     def save_item(self):
         selected_product_name = self.product_combobox.get()

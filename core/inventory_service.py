@@ -47,3 +47,12 @@ class InventoryService:
         return self.adjust_stock(
             product_id, quantity_change, InventoryTransactionType.ADJUSTMENT, reference
         )
+
+    def record_purchase_order(
+        self, product_id: int, quantity: float, reference: Optional[str] = None
+    ) -> float:
+        """Log a purchase order quantity without affecting on-hand stock."""
+        self.inventory_repo.log_transaction(
+            product_id, quantity, InventoryTransactionType.PURCHASE_ORDER.value, reference
+        )
+        return self.inventory_repo.get_on_order_level(product_id)

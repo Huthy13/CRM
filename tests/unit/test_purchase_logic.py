@@ -20,7 +20,10 @@ class TestPurchaseLogic(unittest.TestCase):
 
     def setUp(self):
         self.mock_db_handler = MagicMock(spec=DatabaseHandler)
-        self.purchase_logic = PurchaseLogic(self.mock_db_handler)
+        self.mock_inventory_service = MagicMock()
+        self.purchase_logic = PurchaseLogic(
+            self.mock_db_handler, inventory_service=self.mock_inventory_service
+        )
 
         # Mock a vendor account that get_account_details might return
         self.mock_vendor_account_dict = {
@@ -211,6 +214,17 @@ class TestPurchaseLogic(unittest.TestCase):
         # First call to get_purchase_document_details (inside convert_rfq_to_po) gets initial state.
         # Second call (at the end of convert_rfq_to_po) should get updated state.
         self.mock_db_handler.get_purchase_document_by_id.side_effect = [initial_doc_state, updated_doc_state]
+        self.mock_db_handler.get_items_for_document.return_value = [
+            {
+                "id": 1,
+                "purchase_document_id": doc_id,
+                "product_id": 101,
+                "product_description": "Item",
+                "quantity": 5,
+                "unit_price": None,
+                "total_price": None,
+            }
+        ]
 
         with patch.object(self.purchase_logic, '_generate_document_number', return_value="PO-20230101-0001") as mock_gen_num:
             updated_doc = self.purchase_logic.convert_rfq_to_po(doc_id)
@@ -221,6 +235,9 @@ class TestPurchaseLogic(unittest.TestCase):
                 "status": PurchaseDocumentStatus.PO_ISSUED.value,
                 "document_number": "PO-20230101-0001"
             })
+            self.mock_inventory_service.record_purchase_order.assert_called_once_with(
+                101, 5, reference="PO#PO-20230101-0001"
+            )
 
     def test_convert_rfq_to_po_wrong_status(self):
         doc_id = 1
@@ -231,6 +248,7 @@ class TestPurchaseLogic(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "Only RFQs with status 'Quoted' can be converted to PO."):
             self.purchase_logic.convert_rfq_to_po(doc_id)
+        self.mock_inventory_service.record_purchase_order.assert_not_called()
 
     def test_mark_document_received_success(self):
         doc_id = 1
@@ -409,6 +427,9 @@ class TestPurchaseLogic(unittest.TestCase):
             }
         ]
         purchase_logic.receive_purchase_order(doc_id)
+        mock_inventory_service.record_purchase_order.assert_called_once_with(
+            10, -3, reference="PO#PO-20230101-0001"
+        )
         mock_inventory_service.adjust_stock.assert_called_once_with(
             10, 3, InventoryTransactionType.PURCHASE, reference="PO#PO-20230101-0001"
         )

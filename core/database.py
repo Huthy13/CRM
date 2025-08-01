@@ -3,6 +3,7 @@ import os
 import datetime # Import datetime
 import logging
 from .database_setup import DB_NAME, initialize_database # Import from database_setup
+from shared.structs import InventoryTransactionType
 
 logger = logging.getLogger(__name__)
 
@@ -1113,10 +1114,11 @@ class DatabaseHandler:
             """,
             (product_id, quantity_change, transaction_type, reference),
         )
-        self.cursor.execute(
-            "UPDATE products SET quantity_on_hand = quantity_on_hand + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (quantity_change, product_id),
-        )
+        if transaction_type != InventoryTransactionType.PURCHASE_ORDER.value:
+            self.cursor.execute(
+                "UPDATE products SET quantity_on_hand = quantity_on_hand + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (quantity_change, product_id),
+            )
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -1137,6 +1139,15 @@ class DatabaseHandler:
         self.cursor.execute("SELECT quantity_on_hand FROM products WHERE id = ?", (product_id,))
         row = self.cursor.fetchone()
         return row["quantity_on_hand"] if row else 0.0
+
+    def get_on_order_quantity(self, product_id: int) -> float:
+        """Return quantity currently on order for a product."""
+        self.cursor.execute(
+            "SELECT COALESCE(SUM(quantity_change), 0) AS qty FROM inventory_transactions WHERE product_id = ? AND transaction_type = ?",
+            (product_id, InventoryTransactionType.PURCHASE_ORDER.value),
+        )
+        row = self.cursor.fetchone()
+        return row[0] if row else 0.0
 
     def add_replenishment_item(self, product_id: int, quantity_needed: float) -> int:
         """Queue a product for replenishment."""

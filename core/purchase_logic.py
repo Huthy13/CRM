@@ -206,6 +206,12 @@ class PurchaseLogic:
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
             "document_number": new_po_number
         })
+        items = self.get_items_for_document(doc_id)
+        for item in items:
+            if item.product_id:
+                self.inventory_service.record_purchase_order(
+                    item.product_id, item.quantity, reference=f"PO#{new_po_number}"
+                )
         return self.get_purchase_document_details(doc_id)
 
     def mark_document_received(self, doc_id: int) -> Optional[PurchaseDocument]:
@@ -352,6 +358,9 @@ class PurchaseLogic:
         items = self.get_items_for_document(doc_id)
         for item in items:
             if item.product_id:
+                self.inventory_service.record_purchase_order(
+                    item.product_id, -item.quantity, reference=f"PO#{doc.document_number}"
+                )
                 self.inventory_service.adjust_stock(
                     item.product_id,
                     item.quantity,

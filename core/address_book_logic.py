@@ -1,5 +1,6 @@
 from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule
 from typing import Optional, List, TYPE_CHECKING
+from enum import Enum
 import logging
 from core.database import DatabaseHandler
 from core.repositories import (
@@ -13,7 +14,7 @@ from core.repositories import (
 from core.address_service import AddressService
 
 if TYPE_CHECKING:
-    from shared.structs import Interaction # For type hinting
+    from shared.structs import Interaction, Task, TaskStatus, TaskPriority
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ class AddressBookLogic:
         Saves an interaction (creates or updates) after validation.
         Returns the interaction ID.
         """
-        from shared.structs import InteractionType, Interaction # Local import
+        from shared.structs import InteractionType  # Local import
         import datetime
 
         # Validation
@@ -850,8 +851,3 @@ class AddressBookLogic:
 
         self.product_repo.remove_pricing_rule_from_customer(customer_id)
 
-from typing import TYPE_CHECKING, Optional, List
-from enum import Enum # Placed here for broader scope within the module if needed
-if TYPE_CHECKING:
-    from shared.structs import Interaction, Task, TaskStatus, TaskPriority, Product # For type hinting
-    # from enum import Enum # No longer needed here if imported above

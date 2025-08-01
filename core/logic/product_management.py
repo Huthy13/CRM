@@ -24,7 +24,11 @@ class ProductLogic:
                 sale_price=getattr(product_struct, 'sale_price', None),
                 is_active=product_struct.is_active,
                 category_name=product_struct.category,
-                unit_of_measure_name=product_struct.unit_of_measure
+                unit_of_measure_name=product_struct.unit_of_measure,
+                quantity_on_hand=getattr(product_struct, 'quantity_on_hand', 0),
+                reorder_point=getattr(product_struct, 'reorder_point', 0),
+                reorder_quantity=getattr(product_struct, 'reorder_quantity', 0),
+                safety_stock=getattr(product_struct, 'safety_stock', 0),
                 # currency and price_valid_from will use defaults in db.add_product
             )
             if new_product_id:
@@ -40,7 +44,11 @@ class ProductLogic:
                 sale_price=getattr(product_struct, 'sale_price', None),
                 is_active=product_struct.is_active,
                 category_name=product_struct.category,
-                unit_of_measure_name=product_struct.unit_of_measure
+                unit_of_measure_name=product_struct.unit_of_measure,
+                quantity_on_hand=getattr(product_struct, 'quantity_on_hand', 0),
+                reorder_point=getattr(product_struct, 'reorder_point', 0),
+                reorder_quantity=getattr(product_struct, 'reorder_quantity', 0),
+                safety_stock=getattr(product_struct, 'safety_stock', 0),
                 # currency and price_valid_from will use defaults in db.update_product
             )
             return product_struct.product_id
@@ -64,7 +72,11 @@ class ProductLogic:
                 sale_price=product_data_dict.get("sale_price"), # From product_prices
                 is_active=product_data_dict.get("is_active", True),
                 category=category_path,
-                unit_of_measure=product_data_dict.get("unit_of_measure_name")
+                unit_of_measure=product_data_dict.get("unit_of_measure_name"),
+                quantity_on_hand=product_data_dict.get("quantity_on_hand", 0),
+                reorder_point=product_data_dict.get("reorder_point", 0),
+                reorder_quantity=product_data_dict.get("reorder_quantity", 0),
+                safety_stock=product_data_dict.get("safety_stock", 0),
             )
         return None
 
@@ -86,7 +98,11 @@ class ProductLogic:
                 sale_price=p_dict.get("sale_price"), # From product_prices
                 is_active=p_dict.get("is_active", True),
                 category=category_path,
-                unit_of_measure=p_dict.get("unit_of_measure_name")
+                unit_of_measure=p_dict.get("unit_of_measure_name"),
+                quantity_on_hand=p_dict.get("quantity_on_hand", 0),
+                reorder_point=p_dict.get("reorder_point", 0),
+                reorder_quantity=p_dict.get("reorder_quantity", 0),
+                safety_stock=p_dict.get("safety_stock", 0),
             ))
         return products_list
 

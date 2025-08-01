@@ -145,6 +145,10 @@ class ProductRepository:
     def remove_pricing_rule_from_customer(self, customer_id):
         self.db.remove_pricing_rule_from_customer(customer_id)
 
+    # Vendor associations
+    def get_default_vendor(self, product_id):
+        return self.db.get_default_vendor_for_product(product_id)
+
 
 class TaskRepository:
     """Repository for task-related operations."""
@@ -270,3 +274,60 @@ class SalesRepository:
 
     def delete_sales_document(self, doc_id: int):
         self.db.delete_sales_document(doc_id)
+
+
+class InventoryRepository:
+    """Repository for inventory management operations."""
+    def __init__(self, db: DatabaseHandler):
+        self.db = db
+
+    def log_transaction(self, product_id: int, quantity_change: float,
+                        transaction_type: str, reference: str = None):
+        return self.db.log_inventory_transaction(
+            product_id, quantity_change, transaction_type, reference
+        )
+
+    def get_transactions(self, product_id: int = None):
+        return self.db.get_inventory_transactions(product_id)
+
+    def get_stock_level(self, product_id: int) -> float:
+        return self.db.get_stock_level(product_id)
+
+    def add_replenishment_item(self, product_id: int, quantity_needed: float):
+        return self.db.add_replenishment_item(product_id, quantity_needed)
+
+    def get_replenishment_queue(self):
+        return self.db.get_replenishment_queue()
+
+    def remove_replenishment_item(self, item_id: int):
+        self.db.remove_replenishment_item(item_id)
+
+
+class PurchaseOrderRepository:
+    """Repository for purchase order operations."""
+    def __init__(self, db: DatabaseHandler):
+        self.db = db
+
+    def add_purchase_order(self, **kwargs):
+        return self.db.add_purchase_order(**kwargs)
+
+    def get_purchase_order_by_id(self, order_id: int):
+        return self.db.get_purchase_order_by_id(order_id)
+
+    def get_all_purchase_orders(self, **filters):
+        return self.db.get_all_purchase_orders(**filters)
+
+    def update_purchase_order_status(self, order_id: int, new_status: str):
+        self.db.update_purchase_order_status(order_id, new_status)
+
+    def delete_purchase_order(self, order_id: int):
+        self.db.delete_purchase_order(order_id)
+
+    def add_line_item(self, **kwargs):
+        return self.db.add_purchase_order_line_item(**kwargs)
+
+    def get_line_items_for_order(self, order_id: int):
+        return self.db.get_purchase_order_line_items(order_id)
+
+    def delete_line_item(self, item_id: int):
+        self.db.delete_purchase_order_line_item(item_id)

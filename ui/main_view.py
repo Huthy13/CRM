@@ -16,7 +16,8 @@ from ui.company_info_tab import CompanyInfoTab # Import the new tab
 from core.company_repository import CompanyRepository
 from core.company_service import CompanyService
 from core.address_service import AddressService
-from core.repositories import AddressRepository, AccountRepository
+from core.repositories import AddressRepository, AccountRepository, InventoryRepository, ProductRepository
+from core.inventory_service import InventoryService
 from ui.pricing.pricing_rule_tab import PricingRuleTab
 
 
@@ -30,9 +31,12 @@ class AddressBookView:
 
         # Initialize other logic handlers
         self.db_handler = self.address_book_logic.db # Get the shared DB handler
+        product_repo = ProductRepository(self.db_handler)
+        inventory_repo = InventoryRepository(self.db_handler)
+        self.inventory_service = InventoryService(inventory_repo, product_repo)
         self.product_logic = ProductLogic(self.db_handler) # Initialize ProductLogic
-        self.purchase_logic = PurchaseLogic(self.db_handler) # Initialize PurchaseLogic
-        self.sales_logic = SalesLogic(self.db_handler) # Initialize SalesLogic
+        self.purchase_logic = PurchaseLogic(self.db_handler, inventory_service=self.inventory_service) # Initialize PurchaseLogic
+        self.sales_logic = SalesLogic(self.db_handler, inventory_service=self.inventory_service) # Initialize SalesLogic
 
         # Initialize services for company info
         address_repo = AddressRepository(self.db_handler)
@@ -57,7 +61,7 @@ class AddressBookView:
         self.contact_tab = ContactTab(self.notebook, self.address_book_logic)
         self.interaction_log_tab = InteractionLogTab(self.notebook, self.address_book_logic)
         self.task_tab = TaskTab(self.notebook, self.address_book_logic)
-        self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic) # Pass product_logic here too
+        self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic, self.inventory_service, self.purchase_logic) # Pass product_logic here too
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
         self.sales_document_tab = SalesDocumentTab(self.notebook, self.sales_logic, self.address_book_logic, self.product_logic) # Add SalesDocumentTab
         self.company_info_tab = CompanyInfoTab(self.notebook, self.company_service) # Add CompanyInfoTab

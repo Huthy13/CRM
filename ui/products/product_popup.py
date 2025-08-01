@@ -12,7 +12,7 @@ class ProductDetailsPopup(tk.Toplevel):
         self.product_logic = product_logic # Store and use ProductLogic
         self.product_id = product_id
         self.title(f"{'Edit' if product_id else 'Add'} Product")
-        self.geometry("400x320")
+        self.geometry("400x480")
 
         self.product_data = None # To store loaded product data if editing
         self.is_active_var = tk.BooleanVar(value=True) # Variable for Checkbutton
@@ -51,18 +51,39 @@ class ProductDetailsPopup(tk.Toplevel):
         self.active_checkbutton = tk.Checkbutton(self, variable=self.is_active_var)
         self.active_checkbutton.grid(row=5, column=1, padx=5, pady=5, sticky="w")
 
+        tk.Label(self, text="Quantity On Hand:").grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        self.qoh_var = tk.StringVar(value="0")
+        self.qoh_entry = tk.Entry(self, width=40, textvariable=self.qoh_var, state="readonly")
+        self.qoh_entry.grid(row=6, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self, text="Reorder Point:").grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        self.reorder_point_entry = tk.Entry(self, width=40)
+        self.reorder_point_entry.grid(row=7, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self, text="Reorder Quantity:").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+        self.reorder_qty_entry = tk.Entry(self, width=40)
+        self.reorder_qty_entry.grid(row=8, column=1, padx=5, pady=5, sticky="w")
+
+        tk.Label(self, text="Safety Stock:").grid(row=9, column=0, padx=5, pady=5, sticky="w")
+        self.safety_stock_entry = tk.Entry(self, width=40)
+        self.safety_stock_entry.grid(row=9, column=1, padx=5, pady=5, sticky="w")
+
         # Save and Cancel Buttons
         self.save_button = tk.Button(self, text="Save", command=self.save_product)
-        self.save_button.grid(row=6, column=0, padx=5, pady=10, sticky="e")
+        self.save_button.grid(row=10, column=0, padx=5, pady=10, sticky="e")
 
         self.cancel_button = tk.Button(self, text="Cancel", command=self.destroy)
-        self.cancel_button.grid(row=6, column=1, padx=5, pady=10, sticky="w")
+        self.cancel_button.grid(row=10, column=1, padx=5, pady=10, sticky="w")
 
         if self.product_id:
             self.load_product_details()
         else: # For new product, still populate lists but don't set specific values
             self.category_combobox.set("")
             self.unit_of_measure_combobox.set("")
+            self.qoh_var.set("0")
+            self.reorder_point_entry.insert(0, "0")
+            self.reorder_qty_entry.insert(0, "0")
+            self.safety_stock_entry.insert(0, "0")
 
 
     def populate_category_combobox(self):
@@ -152,6 +173,10 @@ class ProductDetailsPopup(tk.Toplevel):
             self.unit_of_measure_combobox.set(current_unit)
 
             self.is_active_var.set(product_details.is_active)
+            self.qoh_var.set(str(product_details.quantity_on_hand))
+            self.reorder_point_entry.insert(0, str(product_details.reorder_point))
+            self.reorder_qty_entry.insert(0, str(product_details.reorder_quantity))
+            self.safety_stock_entry.insert(0, str(product_details.safety_stock))
         else:
             messagebox.showerror("Error", f"Could not load details for product ID: {self.product_id}")
             self.destroy()
@@ -189,6 +214,19 @@ class ProductDetailsPopup(tk.Toplevel):
             messagebox.showerror("Validation Error", "Cost must be a valid number (e.g., 123.45).")
             return
 
+        qoh = float(self.qoh_var.get() or 0)
+        reorder_point_str = self.reorder_point_entry.get().strip()
+        reorder_qty_str = self.reorder_qty_entry.get().strip()
+        safety_stock_str = self.safety_stock_entry.get().strip()
+
+        try:
+            reorder_point = float(reorder_point_str or 0)
+            reorder_qty = float(reorder_qty_str or 0)
+            safety_stock = float(safety_stock_str or 0)
+        except ValueError:
+            messagebox.showerror("Validation Error", "Inventory fields must be valid numbers.")
+            return
+
         product_obj = Product(
             product_id=self.product_id,
             name=name,
@@ -196,7 +234,11 @@ class ProductDetailsPopup(tk.Toplevel):
             cost=cost,
             category=leaf_category_name, # Save only the leaf name
             unit_of_measure=unit_of_measure,
-            is_active=is_active
+            is_active=is_active,
+            quantity_on_hand=qoh,
+            reorder_point=reorder_point,
+            reorder_quantity=reorder_qty,
+            safety_stock=safety_stock,
         )
 
         try:

@@ -3,26 +3,51 @@ from typing import Optional, List
 import logging
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
-from core.repositories import SalesRepository, AccountRepository, ProductRepository
+from core.inventory_service import InventoryService
+from core.repositories import (
+    SalesRepository,
+    AccountRepository,
+    ProductRepository,
+    InventoryRepository,
+)
 from shared.structs import (
-    SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
-    Account, AccountType, Product
+    SalesDocument,
+    SalesDocumentItem,
+    SalesDocumentStatus,
+    SalesDocumentType,
+    Account,
+    AccountType,
+    Product,
+    InventoryTransactionType,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class SalesLogic:
-    def __init__(self, repo_or_db, account_repo=None, product_repo=None):
+    def __init__(
+        self,
+        repo_or_db,
+        account_repo=None,
+        product_repo=None,
+        inventory_service: InventoryService | None = None,
+    ):
         if isinstance(repo_or_db, SalesRepository):
             self.sales_repo = repo_or_db
-            self.account_repo = account_repo
-            self.product_repo = product_repo
+            db_handler = self.sales_repo.db
+            self.account_repo = account_repo or AccountRepository(db_handler)
+            self.product_repo = product_repo or ProductRepository(db_handler)
         else:
             db_handler = repo_or_db
             self.sales_repo = SalesRepository(db_handler)
             self.account_repo = account_repo or AccountRepository(db_handler)
             self.product_repo = product_repo or ProductRepository(db_handler)
+
+        inv_repo = InventoryRepository(db_handler)
+        self.inventory_service = inventory_service or InventoryService(
+            inv_repo, self.product_repo
+        )
+
         self._db = self.account_repo.db if self.account_repo else None
 
     def _generate_sales_document_number(self, doc_type: SalesDocumentType) -> str:
@@ -488,6 +513,31 @@ class SalesLogic:
         self.sales_repo.delete_sales_document_item(item_id)
         self._recalculate_sales_document_totals(doc.id)
 
+
+    def confirm_sales_order(self, doc_id: int) -> SalesDocument:
+        """Deduct inventory for a sales order and mark it fulfilled."""
+        doc = self.get_sales_document_details(doc_id)
+        if not doc:
+            raise ValueError(f"Sales document with ID {doc_id} not found.")
+        if doc.document_type != SalesDocumentType.SALES_ORDER:
+            raise ValueError("Only sales orders can be confirmed.")
+        if doc.status != SalesDocumentStatus.SO_OPEN:
+            raise ValueError(
+                f"Sales order must be in status '{SalesDocumentStatus.SO_OPEN.value}' to confirm."
+            )
+        items = self.get_items_for_sales_document(doc_id)
+        for item in items:
+            if item.product_id:
+                self.inventory_service.adjust_stock(
+                    item.product_id,
+                    -item.quantity,
+                    InventoryTransactionType.SALE,
+                    reference=f"SO#{doc.document_number}",
+                )
+        self.sales_repo.update_sales_document(
+            doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
+        )
+        return self.get_sales_document_details(doc_id)
 
     def delete_sales_document(self, doc_id: int):
         doc = self.get_sales_document_details(doc_id)

@@ -2,23 +2,48 @@ import datetime
 from typing import Optional, List
 import logging
 from core.database import DatabaseHandler
-from core.repositories import PurchaseRepository, AccountRepository, ProductRepository
-from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, Account, AccountType
+from core.inventory_service import InventoryService
+from core.repositories import (
+    PurchaseRepository,
+    AccountRepository,
+    ProductRepository,
+    InventoryRepository,
+)
+from shared.structs import (
+    PurchaseDocument,
+    PurchaseDocumentItem,
+    PurchaseDocumentStatus,
+    Account,
+    AccountType,
+    InventoryTransactionType,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class PurchaseLogic:
-    def __init__(self, repo_or_db, account_repo=None, product_repo=None):
+    def __init__(
+        self,
+        repo_or_db,
+        account_repo=None,
+        product_repo=None,
+        inventory_service: InventoryService | None = None,
+    ):
         if isinstance(repo_or_db, PurchaseRepository):
             self.purchase_repo = repo_or_db
-            self.account_repo = account_repo
-            self.product_repo = product_repo
+            db_handler = self.purchase_repo.db
+            self.account_repo = account_repo or AccountRepository(db_handler)
+            self.product_repo = product_repo or ProductRepository(db_handler)
         else:
             db_handler = repo_or_db
             self.purchase_repo = PurchaseRepository(db_handler)
             self.account_repo = account_repo or AccountRepository(db_handler)
             self.product_repo = product_repo or ProductRepository(db_handler)
+
+        inv_repo = InventoryRepository(db_handler)
+        self.inventory_service = inventory_service or InventoryService(
+            inv_repo, self.product_repo
+        )
 
     def _generate_document_number(self, prefix: str) -> str:
         """
@@ -314,6 +339,29 @@ class PurchaseLogic:
             )
 
         self.purchase_repo.delete_purchase_document_item(item_id)
+
+    def receive_purchase_order(self, doc_id: int) -> PurchaseDocument:
+        """Increment inventory for a received purchase order."""
+        doc = self.get_purchase_document_details(doc_id)
+        if not doc:
+            raise ValueError(f"Purchase document with ID {doc_id} not found.")
+        if doc.status != PurchaseDocumentStatus.PO_ISSUED:
+            raise ValueError(
+                "Cannot receive a document that is not an issued purchase order."
+            )
+        items = self.get_items_for_document(doc_id)
+        for item in items:
+            if item.product_id:
+                self.inventory_service.adjust_stock(
+                    item.product_id,
+                    item.quantity,
+                    InventoryTransactionType.PURCHASE,
+                    reference=f"PO#{doc.document_number}",
+                )
+        self.purchase_repo.update_purchase_document_status(
+            doc_id, PurchaseDocumentStatus.RECEIVED.value
+        )
+        return self.get_purchase_document_details(doc_id)
 
     def delete_purchase_document(self, doc_id: int):
         """Deletes a purchase document and all of its items."""

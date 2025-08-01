@@ -529,8 +529,10 @@ class DatabaseHandler:
             """, (product_id, price_type, price_value, currency, valid_from))
         self.conn.commit()
 
-    def add_product(self, sku: str, name: str, description: str, cost: float, sale_price: float, # This 'cost' is for product_prices
+    def add_product(self, sku: str, name: str, description: str, cost: float, sale_price: float,
                     is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
+                    quantity_on_hand: float = 0, reorder_point: float = 0,
+                    reorder_quantity: float = 0, safety_stock: float = 0,
                     currency: str = 'USD', price_valid_from: str = None):
         """Add a new product and its cost and sale price."""
         # Diagnostic print moved after this line in previous step, should be fine.
@@ -557,10 +559,18 @@ class DatabaseHandler:
 
         # SQL for inserting into the 'products' table. This must not include 'cost' or 'sale_price' columns.
         sql_insert_product = """
-            INSERT INTO products (sku, name, description, category_id, unit_of_measure_id, is_active)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO products (
+                sku, name, description, category_id, unit_of_measure_id,
+                quantity_on_hand, reorder_point, reorder_quantity, safety_stock,
+                is_active
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        params_insert_product = (sku, name, description, category_id, unit_of_measure_id, is_active)
+        params_insert_product = (
+            sku, name, description, category_id, unit_of_measure_id,
+            quantity_on_hand, reorder_point, reorder_quantity, safety_stock,
+            is_active,
+        )
 
         try:
             self.cursor.execute(sql_insert_product, params_insert_product)
@@ -597,6 +607,7 @@ class DatabaseHandler:
         self.cursor.execute("""
             SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
                    p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.quantity_on_hand, p.reorder_point, p.reorder_quantity, p.safety_stock,
                    p.is_active, cat.name as category_name
             FROM products p
             LEFT JOIN product_categories cat ON p.category_id = cat.id
@@ -634,6 +645,7 @@ class DatabaseHandler:
         self.cursor.execute("""
             SELECT p.id as product_id, p.sku, p.name, p.description, p.category_id,
                    p.unit_of_measure_id, uom.name as unit_of_measure_name,
+                   p.quantity_on_hand, p.reorder_point, p.reorder_quantity, p.safety_stock,
                    p.is_active, cat.name as category_name
             FROM products p
             LEFT JOIN product_categories cat ON p.category_id = cat.id
@@ -664,7 +676,9 @@ class DatabaseHandler:
 
     def update_product(self, product_db_id: int, sku: str, name: str, description: str, cost: float, sale_price: float,
                        is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
-                       currency: str = 'USD', price_valid_from: str = None): # Renamed parameter
+                       quantity_on_hand: float = 0, reorder_point: float = 0,
+                       reorder_quantity: float = 0, safety_stock: float = 0,
+                       currency: str = 'USD', price_valid_from: str = None):
         """Update product details and its cost and sale price, by its DB ID."""
         logger.debug("DB.update_product entered. ID: %s, SKU: %s", product_db_id, sku)
         # --- Add PRAGMA here ---
@@ -688,11 +702,16 @@ class DatabaseHandler:
 
         sql_update_product = """
             UPDATE products
-            SET sku = ?, name = ?, description = ?, category_id = ?, unit_of_measure_id = ?, is_active = ?,
-                updated_at = CURRENT_TIMESTAMP
+            SET sku = ?, name = ?, description = ?, category_id = ?, unit_of_measure_id = ?,
+                quantity_on_hand = ?, reorder_point = ?, reorder_quantity = ?, safety_stock = ?,
+                is_active = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """
-        params_update_product = (sku, name, description, category_id, unit_of_measure_id, is_active, product_db_id)
+        params_update_product = (
+            sku, name, description, category_id, unit_of_measure_id,
+            quantity_on_hand, reorder_point, reorder_quantity, safety_stock,
+            is_active, product_db_id,
+        )
 
         try:
             self.cursor.execute(sql_update_product, params_update_product)
@@ -1082,6 +1101,146 @@ class DatabaseHandler:
     #     """Deletes all items for a given purchase document ID."""
     #     self.cursor.execute("DELETE FROM purchase_document_items WHERE purchase_document_id = ?", (doc_id,))
     #     self.conn.commit()
+
+# --- Inventory management methods ---
+    def log_inventory_transaction(self, product_id: int, quantity_change: float,
+                                  transaction_type: str, reference: str = None) -> int:
+        """Log an inventory transaction and update product stock."""
+        self.cursor.execute(
+            """
+            INSERT INTO inventory_transactions (product_id, quantity_change, transaction_type, reference)
+            VALUES (?, ?, ?, ?)
+            """,
+            (product_id, quantity_change, transaction_type, reference),
+        )
+        self.cursor.execute(
+            "UPDATE products SET quantity_on_hand = quantity_on_hand + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (quantity_change, product_id),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_inventory_transactions(self, product_id: int = None) -> list[dict]:
+        """Retrieve inventory transactions, optionally filtered by product."""
+        query = "SELECT * FROM inventory_transactions"
+        params: list = []
+        if product_id is not None:
+            query += " WHERE product_id = ?"
+            params.append(product_id)
+        query += " ORDER BY created_at DESC"
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def get_stock_level(self, product_id: int) -> float:
+        """Return current on-hand quantity for a product."""
+        self.cursor.execute("SELECT quantity_on_hand FROM products WHERE id = ?", (product_id,))
+        row = self.cursor.fetchone()
+        return row["quantity_on_hand"] if row else 0.0
+
+    def add_replenishment_item(self, product_id: int, quantity_needed: float) -> int:
+        """Queue a product for replenishment."""
+        self.cursor.execute(
+            "INSERT INTO replenishment_queue (product_id, quantity_needed) VALUES (?, ?)",
+            (product_id, quantity_needed),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_replenishment_queue(self) -> list[dict]:
+        """Fetch all pending replenishment items."""
+        self.cursor.execute("SELECT * FROM replenishment_queue ORDER BY created_at")
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def remove_replenishment_item(self, item_id: int) -> None:
+        """Delete a replenishment queue entry."""
+        self.cursor.execute("DELETE FROM replenishment_queue WHERE id = ?", (item_id,))
+        self.conn.commit()
+
+    def get_default_vendor_for_product(self, product_id: int) -> int | None:
+        """Return the default vendor ID for a product, if one exists."""
+        self.cursor.execute(
+            "SELECT vendor_id FROM product_vendors WHERE product_id = ? ORDER BY id LIMIT 1",
+            (product_id,),
+        )
+        row = self.cursor.fetchone()
+        return row["vendor_id"] if row else None
+
+# Purchase order related methods
+    def add_purchase_order(self, vendor_id: int, order_date: str, status: str,
+                           expected_date: str = None) -> int:
+        """Create a purchase order and return its ID."""
+        self.cursor.execute(
+            """
+            INSERT INTO purchase_orders (vendor_id, order_date, status, expected_date)
+            VALUES (?, ?, ?, ?)
+            """,
+            (vendor_id, order_date, status, expected_date),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_purchase_order_by_id(self, order_id: int) -> dict | None:
+        """Retrieve a purchase order by ID."""
+        self.cursor.execute("SELECT * FROM purchase_orders WHERE id = ?", (order_id,))
+        row = self.cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_all_purchase_orders(self, status: str = None) -> list[dict]:
+        """Retrieve purchase orders, optionally filtered by status."""
+        query = "SELECT * FROM purchase_orders"
+        params: list = []
+        if status is not None:
+            query += " WHERE status = ?"
+            params.append(status)
+        query += " ORDER BY order_date DESC"
+        self.cursor.execute(query, params)
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def update_purchase_order_status(self, order_id: int, new_status: str) -> None:
+        """Update status for a purchase order."""
+        self.cursor.execute(
+            "UPDATE purchase_orders SET status = ? WHERE id = ?",
+            (new_status, order_id),
+        )
+        self.conn.commit()
+
+    def delete_purchase_order(self, order_id: int) -> None:
+        """Delete a purchase order and associated line items."""
+        self.cursor.execute("DELETE FROM purchase_orders WHERE id = ?", (order_id,))
+        self.conn.commit()
+
+    def add_purchase_order_line_item(self, purchase_order_id: int, product_id: int,
+                                     quantity: float, unit_cost: float = None) -> int:
+        """Add a line item to a purchase order."""
+        self.cursor.execute(
+            """
+            INSERT INTO purchase_order_line_items (purchase_order_id, product_id, quantity, unit_cost)
+            VALUES (?, ?, ?, ?)
+            """,
+            (purchase_order_id, product_id, quantity, unit_cost),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_purchase_order_line_items(self, purchase_order_id: int) -> list[dict]:
+        """Retrieve line items for a purchase order."""
+        self.cursor.execute(
+            "SELECT * FROM purchase_order_line_items WHERE purchase_order_id = ?",
+            (purchase_order_id,),
+        )
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def delete_purchase_order_line_item(self, item_id: int) -> None:
+        """Delete a purchase order line item."""
+        self.cursor.execute(
+            "DELETE FROM purchase_order_line_items WHERE id = ?",
+            (item_id,),
+        )
+        self.conn.commit()
 
 # Company Information related methods
     def add_company_address(self, company_id, address_id, address_type, is_primary):

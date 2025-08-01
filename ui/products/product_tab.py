@@ -77,6 +77,7 @@ class ProductTab:
                 "category",
                 "unit_of_measure",
                 "qty_on_hand",
+                "on_order",
                 "reorder_point",
                 "reorder_qty",
                 "safety_stock",
@@ -92,6 +93,7 @@ class ProductTab:
         self.tree.heading("category", text="Category", command=lambda: self.sort_column("category", False))
         self.tree.heading("unit_of_measure", text="Unit of Measure", command=lambda: self.sort_column("unit_of_measure", False))
         self.tree.heading("qty_on_hand", text="On Hand", command=lambda: self.sort_column("qty_on_hand", False))
+        self.tree.heading("on_order", text="On Order", command=lambda: self.sort_column("on_order", False))
         self.tree.heading("reorder_point", text="Reorder Point", command=lambda: self.sort_column("reorder_point", False))
         self.tree.heading("reorder_qty", text="Reorder Qty", command=lambda: self.sort_column("reorder_qty", False))
         self.tree.heading("safety_stock", text="Safety Stock", command=lambda: self.sort_column("safety_stock", False))
@@ -103,6 +105,7 @@ class ProductTab:
         self.tree.column("category", width=100, anchor=tk.W)
         self.tree.column("unit_of_measure", width=100, anchor=tk.W)
         self.tree.column("qty_on_hand", width=80, anchor=tk.E)
+        self.tree.column("on_order", width=80, anchor=tk.E)
         self.tree.column("reorder_point", width=100, anchor=tk.E)
         self.tree.column("reorder_qty", width=100, anchor=tk.E)
         self.tree.column("safety_stock", width=100, anchor=tk.E)
@@ -210,6 +213,7 @@ class ProductTab:
                     product.category,
                     product.unit_of_measure,
                     product.quantity_on_hand,
+                    self.inventory_service.get_on_order_level(product.product_id),
                     product.reorder_point,
                     product.reorder_quantity,
                     product.safety_stock,

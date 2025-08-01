@@ -56,3 +56,7 @@ class InventoryService:
             product_id, quantity, InventoryTransactionType.PURCHASE_ORDER.value, reference
         )
         return self.inventory_repo.get_on_order_level(product_id)
+
+    def get_on_order_level(self, product_id: int) -> float:
+        """Return the quantity currently on order for a product."""
+        return self.inventory_repo.get_on_order_level(product_id)

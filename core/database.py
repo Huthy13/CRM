@@ -1,7 +1,10 @@
 import sqlite3
 import os
 import datetime # Import datetime
+import logging
 from .database_setup import DB_NAME, initialize_database # Import from database_setup
+
+logger = logging.getLogger(__name__)
 
 # --- Custom Adapters and Converters for datetime ---
 def adapt_datetime_iso(val):
@@ -85,7 +88,8 @@ class DatabaseHandler:
         try:
             self.conn.execute("PRAGMA foreign_keys = ON;")
         except sqlite3.Error as e:
-            print(f"Error enabling PRAGMA foreign_keys: {e}")
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error enabling PRAGMA foreign_keys: {e}")
             # Depending on SQLite version/compilation, this might not be strictly necessary
             # or might even error if the connection is already in a transaction from :memory:?cache=shared
             # For now, let's keep it but be aware.
@@ -146,9 +150,9 @@ class DatabaseHandler:
 #Contact related methods
     def get_contact_details(self, contact_id):
         """Retrieve a single contact's details by their ID."""
-        print(f"DEBUG DB.get_contact_details: received contact_id type: {type(contact_id)}, value: {contact_id}")
+        logger.debug("DB.get_contact_details: received contact_id type %s value %s", type(contact_id), contact_id)
         if not isinstance(contact_id, int):
-            print(f"ERROR DB.get_contact_details: contact_id is NOT an int!")
+            logger.error("DB.get_contact_details: contact_id is NOT an int!")
             # raise TypeError("contact_id must be an integer") # Or handle appropriately
         self.cursor.execute("""
             SELECT id, name, phone, email, role, account_id
@@ -207,9 +211,9 @@ class DatabaseHandler:
 
     def delete_contact(self, contact_id):
         """Delete a specific contact."""
-        print(f"DEBUG DB.delete_contact: received contact_id type: {type(contact_id)}, value: {contact_id}")
+        logger.debug("DB.delete_contact: received contact_id type %s value %s", type(contact_id), contact_id)
         if not isinstance(contact_id, int):
-            print(f"ERROR DB.delete_contact: contact_id is NOT an int!")
+            logger.error("DB.delete_contact: contact_id is NOT an int!")
             # raise TypeError("contact_id must be an integer")
         self.cursor.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
         self.conn.commit()
@@ -562,20 +566,20 @@ class DatabaseHandler:
             self.cursor.execute(sql_insert_product, params_insert_product)
         except sqlite3.OperationalError as e:
             # This is where the "no column named cost" error would be caught IF the SQL was wrong.
-            print(f"FATAL ERROR during INSERT INTO products: {e}")
-            print(f"SQL attempted: {sql_insert_product}")
-            print(f"Parameters: {params_insert_product}")
-            # Also print current schema from inside this error to be absolutely sure
-            print("\n--- DB.add_product: Products table schema ON ERROR ---")
+            logger.exception("Error during INSERT INTO products. SQL: %s Params: %s", sql_insert_product, params_insert_product)
+            logger.debug("\n--- DB.add_product: Products table schema ON ERROR ---")
             error_pragma_cursor = self.conn.cursor()
             try:
                 error_pragma_cursor.execute("PRAGMA table_info(products);")
                 error_columns = error_pragma_cursor.fetchall()
                 if error_columns:
-                    for ecol in error_columns: print(f"ErrCol: {ecol[1]} ({ecol[2]})")
-                else: print("PRAGMA on error returned no data.")
-            except Exception as ep_pragma: print(f"Error executing PRAGMA on error: {ep_pragma}")
-            print("--- End Products table schema ON ERROR ---\n")
+                    for ecol in error_columns:
+                        logger.debug("ErrCol: %s (%s)", ecol[1], ecol[2])
+                else:
+                    logger.debug("PRAGMA on error returned no data.")
+            except Exception as ep_pragma:
+                logger.exception("Error executing PRAGMA on error: %s", ep_pragma)
+            logger.debug("--- End Products table schema ON ERROR ---")
             raise
 
         inserted_product_id = self.cursor.lastrowid
@@ -662,21 +666,21 @@ class DatabaseHandler:
                        is_active: bool, category_name: str = None, unit_of_measure_name: str = None,
                        currency: str = 'USD', price_valid_from: str = None): # Renamed parameter
         """Update product details and its cost and sale price, by its DB ID."""
-        print(f"DEBUG DB.update_product entered. ID: {product_db_id}, SKU: {sku}")
+        logger.debug("DB.update_product entered. ID: %s, SKU: %s", product_db_id, sku)
         # --- Add PRAGMA here ---
-        print("\n--- DB.update_product: Products table schema BEFORE update ---")
+        logger.debug("\n--- DB.update_product: Products table schema BEFORE update ---")
         pragma_cursor = self.conn.cursor()
         try:
             pragma_cursor.execute("PRAGMA table_info(products);")
             columns = pragma_cursor.fetchall()
             if columns:
-                for col_row in columns:
-                    print(f"Col: {col_row[1]} ({col_row[2]})") # name, type
+                    for col_row in columns:
+                        logger.debug("Col: %s (%s)", col_row[1], col_row[2])
             else:
-                print("PRAGMA table_info(products) returned no data.")
+                logger.debug("PRAGMA table_info(products) returned no data.")
         except Exception as e_pragma:
-            print(f"Error executing PRAGMA in update_product: {e_pragma}")
-        print("--- End Products table schema in DB.update_product ---\n")
+            logger.exception("Error executing PRAGMA in update_product: %s", e_pragma)
+        logger.debug("--- End Products table schema in DB.update_product ---")
         # --- End PRAGMA ---
 
         category_id = self.add_product_category(category_name) if category_name else None
@@ -693,9 +697,7 @@ class DatabaseHandler:
         try:
             self.cursor.execute(sql_update_product, params_update_product)
         except sqlite3.OperationalError as e:
-            print(f"Error during UPDATE products: {e}")
-            print(f"SQL: {sql_update_product}")
-            print(f"Params: {params_update_product}")
+            logger.exception("Error during UPDATE products. SQL: %s Params: %s", sql_update_product, params_update_product)
             raise
 
         self.conn.commit() # Commit product update

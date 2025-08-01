@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
 from shared.structs import PricingRule
+from ui.base.popup_base import PopupBase
 
-class PricingRulePopup(tk.Toplevel):
+class PricingRulePopup(PopupBase):
     def __init__(self, master, logic, rule_id=None):
         super().__init__(master)
         self.logic = logic
@@ -22,23 +23,12 @@ class PricingRulePopup(tk.Toplevel):
         save_button = tk.Button(self, text="Save", command=self.save_rule)
         save_button.grid(row=3, column=0, columnspan=2, pady=10)
 
-    def _create_entry(self, label_text, row, initial_value=""):
-        label = tk.Label(self, text=label_text)
-        label.grid(row=row, column=0, padx=5, pady=5, sticky="e")
-        entry = tk.Entry(self, width=40)
-        if initial_value is not None:
-            entry.insert(0, initial_value)
-        entry.grid(row=row, column=1, padx=5, pady=5)
-        return entry
-
     def save_rule(self):
         rule_name = self.name_entry.get()
+        if not self.validate_not_empty(rule_name, "Rule name"):
+            return
         markup_str = self.markup_entry.get()
         fixed_price_str = self.fixed_price_entry.get()
-
-        if not rule_name:
-            messagebox.showerror("Error", "Rule name cannot be empty.")
-            return
 
         markup = None
         if markup_str:

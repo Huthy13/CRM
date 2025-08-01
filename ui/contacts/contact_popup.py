@@ -1,11 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import Contact  # Import Contact
-from core.address_book_logic import AddressBookLogic # Assuming this is how logic is passed
+from core.address_book_logic import AddressBookLogic  # Assuming this is how logic is passed
+from ui.base.popup_base import PopupBase
 
 NO_ACCOUNT_LABEL = "<No Account>"
 
-class ContactDetailsPopup(tk.Toplevel):
+class ContactDetailsPopup(PopupBase):
     def __init__(self, master_window, contact_tab_controller, logic: AddressBookLogic, contact_id=None):
         self.contact_tab_controller = contact_tab_controller
         super().__init__(master_window)
@@ -116,13 +117,11 @@ class ContactDetailsPopup(tk.Toplevel):
 
     def save_contact(self):
         name = self.name_entry.get().strip()
+        if not self.validate_not_empty(name, "Name"):
+            return
         phone = self.phone_entry.get().strip()
         email = self.email_entry.get().strip()
         role = self.role_entry.get().strip()
-
-        if not name:
-            messagebox.showerror("Validation Error", "Name cannot be empty.")
-            return
 
         selected_account_display_name = self.account_combobox.get() # Get current value from combobox
 

@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import messagebox, ttk # Import ttk
-from shared.structs import Address, Account, AccountType # Import AccountType
+from tkinter import messagebox, ttk  # Import ttk
+from shared.structs import Address, Account, AccountType  # Import AccountType
+from ui.base.popup_base import PopupBase
 
-class AccountDetailsPopup(tk.Toplevel):
+class AccountDetailsPopup(PopupBase):
     def __init__(self, master, logic, account_id=None):
         super().__init__(master)
         self.logic = logic
@@ -163,15 +164,7 @@ class AccountDetailsPopup(tk.Toplevel):
 
         self.destroy()
 
-    def _create_entry(self, label_text, row, initial_value=""):
-        label = tk.Label(self, text=label_text)
-        label.grid(row=row, column=0, padx=5, pady=5, sticky="e")
-        entry = tk.Entry(self, width=40)
-        entry.insert(0, initial_value if initial_value is not None else "")
-        entry.grid(row=row, column=1, padx=5, pady=5)
-        return entry
-
-class AddressPopup(tk.Toplevel):
+class AddressPopup(PopupBase):
     def __init__(self, master, address=None):
         super().__init__(master)
         self.address = address if address else Address()
@@ -192,14 +185,6 @@ class AddressPopup(tk.Toplevel):
         self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
         self.primary_check.grid(row=6, column=0, columnspan=2)
         tk.Button(self, text="Save", command=self.save).grid(row=7, column=0, columnspan=2)
-
-    def _create_entry(self, label_text, row, initial_value=""):
-        label = tk.Label(self, text=label_text)
-        label.grid(row=row, column=0, padx=5, pady=5, sticky="e")
-        entry = tk.Entry(self, width=40)
-        entry.insert(0, initial_value if initial_value is not None else "")
-        entry.grid(row=row, column=1, padx=5, pady=5)
-        return entry
 
     def save(self):
         self.address.street = self.street_entry.get()

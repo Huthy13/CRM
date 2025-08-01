@@ -135,6 +135,39 @@ class TestPurchaseLogic(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Quantity must be positive."):
             self.purchase_logic.add_item_to_document(doc_id=1, product_id=101, quantity=0) # Use product_id and provide a placeholder
 
+    def test_add_item_to_document_invalid_status(self):
+        doc_id = 1
+        self.mock_db_handler.get_purchase_document_by_id.return_value = {
+            "id": doc_id, "document_number": "PO-001", "vendor_id": 1,
+            "created_date": "date", "status": PurchaseDocumentStatus.RECEIVED.value, "notes": ""
+        }
+        with self.assertRaisesRegex(ValueError, "RFQ, Quoted, or PO-Issued"):
+            self.purchase_logic.add_item_to_document(doc_id, product_id=101, quantity=1.0)
+
+    def test_delete_document_item_invalid_status(self):
+        item_id = 10
+        doc_id = 1
+        # Mock item details
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
+            "id": item_id,
+            "purchase_document_id": doc_id,
+            "product_id": 101,
+            "product_description": "Item",
+            "quantity": 1.0,
+        }
+        # Mock parent document with non-editable status
+        self.mock_db_handler.get_purchase_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "PO-001",
+            "vendor_id": 1,
+            "created_date": "date",
+            "status": PurchaseDocumentStatus.RECEIVED.value,
+            "notes": "",
+        }
+        with self.assertRaisesRegex(ValueError, "RFQ, Quoted, or PO-Issued"):
+            self.purchase_logic.delete_document_item(item_id)
+        self.mock_db_handler.delete_purchase_document_item.assert_not_called()
+
     # Removed test_update_item_quote_success as its functionality is covered by
     # test_update_document_item_success_price_change_rfq_to_quoted
 

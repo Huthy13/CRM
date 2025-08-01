@@ -83,9 +83,15 @@ class PurchaseLogic:
         if not doc:
             raise ValueError(f"Purchase document with ID {doc_id} not found.")
 
-        if doc.status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.PO_ISSUED, PurchaseDocumentStatus.QUOTED]:
-             # Allow adding items to RFQ, Quoted (e.g. vendor adds more options), or PO_ISSUED (e.g. change order)
-             pass
+        if doc.status not in [
+            PurchaseDocumentStatus.RFQ,
+            PurchaseDocumentStatus.QUOTED,
+            PurchaseDocumentStatus.PO_ISSUED,
+        ]:
+            # Only editable in these statuses
+            raise ValueError(
+                "Cannot add items unless document status is RFQ, Quoted, or PO-Issued."
+            )
 
         if quantity <= 0:
             raise ValueError("Quantity must be positive.")
@@ -298,8 +304,14 @@ class PurchaseLogic:
             raise ValueError(f"Item with ID {item_id} not found.")
 
         doc = self.get_purchase_document_details(item.purchase_document_id)
-        if doc and doc.status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
-            pass
+        if doc and doc.status not in [
+            PurchaseDocumentStatus.RFQ,
+            PurchaseDocumentStatus.QUOTED,
+            PurchaseDocumentStatus.PO_ISSUED,
+        ]:
+            raise ValueError(
+                "Cannot delete items unless document status is RFQ, Quoted, or PO-Issued."
+            )
 
         self.purchase_repo.delete_purchase_document_item(item_id)
 

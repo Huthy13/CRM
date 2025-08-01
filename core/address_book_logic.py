@@ -1,34 +1,25 @@
 from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule
 from typing import Optional, List, TYPE_CHECKING
+from .address_service import AddressService
 
 if TYPE_CHECKING:
     from shared.structs import Interaction # For type hinting
 
-class AddressBookLogic:
-    def __init__(self, db_handler):
-        self.db = db_handler
 
-#Address Methods
+class AddressBookLogic:
+    def __init__(self, db_handler, address_service: AddressService | None = None):
+        self.db = db_handler
+        self.address_service = address_service or AddressService(db_handler)
+
+    # Address Methods delegated to service
     def add_address(self, street, city, state, zip, country):
-        """Add a new address and return its ID."""
-        return self.db.add_address(street, city, state, zip, country)
+        return self.address_service.add_address(street, city, state, zip, country)
 
     def update_address(self, address_id, street, city, state, zip, country):
-        """Update an existing address."""
-        self.db.update_address(address_id, street, city, state, zip, country)
+        self.address_service.update_address(address_id, street, city, state, zip, country)
 
     def get_address_obj(self, address_id):
-        data = self.db.get_address(address_id)
-        if data: # Ensure data is not None
-            return Address(
-                address_id=address_id,
-                street=data[0],
-                city=data[1],
-                state=data[2],
-                zip_code=data[3],
-                country=data[4]
-            )
-        return None # Or raise an error
+        return self.address_service.get_address_obj(address_id)
 
 #Account Methods
     def save_account(self, account: Account) -> Account | None:
@@ -48,51 +39,31 @@ class AddressBookLogic:
             raise ValueError("Account type cannot be None due to NOT NULL database constraint.")
 
         if account.account_id is None:
-            # Add the account to get an ID
-            new_id = self.db.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
+            new_id = self.db.add_account(
+                account.name,
+                account.phone,
+                account.website,
+                account.description,
+                account_type_value,
+                account.pricing_rule_id,
+            )
             if new_id:
                 account.account_id = new_id
-                # Now, add the addresses
-                self.save_account_addresses(account)
+                self.address_service.save_account_addresses(account)
                 return account
-            return None  # Failed to add
+            return None
         else:
-            # Update the account details
-            self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
-            # Clear existing addresses and add the new ones
-            self.save_account_addresses(account)
-            return account  # Return the updated account object
-
-    def save_account_addresses(self, account: Account):
-        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
-
-        primary_billing_found = False
-        primary_shipping_found = False
-
-        # Ensure there's only one primary billing and one primary shipping address
-        primary_billing_found = False
-        primary_shipping_found = False
-        for address in reversed(account.addresses):
-            if address.is_primary:
-                if address.address_type == 'Billing':
-                    if primary_billing_found:
-                        address.is_primary = False
-                    else:
-                        primary_billing_found = True
-                elif address.address_type == 'Shipping':
-                    if primary_shipping_found:
-                        address.is_primary = False
-                    else:
-                        primary_shipping_found = True
-
-        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
-        for address in account.addresses:
-            if address.address_id:
-                self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
-            else:
-                address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
+            self.db.update_account(
+                account.account_id,
+                account.name,
+                account.phone,
+                account.website,
+                account.description,
+                account_type_value,
+                account.pricing_rule_id,
+            )
+            self.address_service.save_account_addresses(account)
+            return account
 
 
     def get_all_accounts(self) -> List[Account]:

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import CompanyInformation, Address
 from core.database import DatabaseHandler # Required for type hinting if logic layer is not fully fleshed out yet.
+from shared.utils import ensure_single_primary
 
 class CompanyInfoTab:
     def __init__(self, master, db_handler: DatabaseHandler):
@@ -140,22 +141,7 @@ class CompanyInfoTab:
         self.company_info.phone = self.phone_entry.get()
 
         # Enforce single primary address
-        primary_billing_address_id = None
-        primary_shipping_address_id = None
-
-        # Find the last primary address of each type
-        for address in self.company_info.addresses:
-            if address.is_primary:
-                if address.address_type == 'Billing':
-                    primary_billing_address_id = address.address_id
-                elif address.address_type == 'Shipping':
-                    primary_shipping_address_id = address.address_id
-
-        # Update the addresses
-        for address in self.company_info.addresses:
-            is_primary = (address.address_type == 'Billing' and address.address_id == primary_billing_address_id) or \
-                         (address.address_type == 'Shipping' and address.address_id == primary_shipping_address_id)
-            address.is_primary = is_primary
+        ensure_single_primary(self.company_info.addresses)
 
         # Clear existing addresses and add the new ones
         self.db_handler.cursor.execute("DELETE FROM company_addresses WHERE company_id = ?", (self.company_info.company_id,))

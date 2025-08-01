@@ -4,6 +4,25 @@ import unicodedata
 # This file will contain common utility functions, constants, enums, etc.
 # Placeholder for now.
 
+
+def ensure_single_primary(addresses):
+    """Ensure only one address per type remains marked as primary.
+
+    The last address in the list marked as primary for a given type
+    (e.g., "Billing" or "Shipping") is kept as primary and earlier
+    ones are demoted. The list is modified in place.
+    """
+    seen = {}
+    for address in reversed(addresses):
+        if getattr(address, "is_primary", False):
+            addr_type = getattr(address, "address_type", None)
+            if addr_type is None:
+                continue
+            if seen.get(addr_type):
+                address.is_primary = False
+            else:
+                seen[addr_type] = True
+
 def sanitize_filename(filename: str) -> str:
     """
     Sanitizes a string to be a valid filename.

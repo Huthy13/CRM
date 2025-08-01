@@ -3,6 +3,7 @@ import os
 import sqlite3 # Import for PRAGMA
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
+from core.address_service import AddressService
 from shared.structs import Product, AccountType, Account # Added AccountType for product tests if needed
 
 class TestAddressBookLogic(unittest.TestCase):
@@ -11,7 +12,8 @@ class TestAddressBookLogic(unittest.TestCase):
         # Create a fresh in-memory DB and initialize schema for EACH test method
         self.db_handler = DatabaseHandler(db_name=':memory:')
         # initialize_database is already called in DatabaseHandler's __init__
-        self.logic = AddressBookLogic(self.db_handler)
+        self.address_service = AddressService(self.db_handler)
+        self.logic = AddressBookLogic(self.db_handler, self.address_service)
 
         # Diagnostic: Print products table schema
         print("\n--- test_address_book_logic.py setUp: Products table schema ---")
@@ -161,7 +163,7 @@ class TestAddressBookLogic(unittest.TestCase):
         billing_address2.is_primary = True
         account.addresses.append(billing_address1)
         account.addresses.append(billing_address2)
-        self.logic.save_account_addresses(account)
+        self.address_service.save_account_addresses(account)
 
         # Verify that only one is primary
         addresses = self.db_handler.get_account_addresses(account.account_id)
@@ -177,7 +179,7 @@ class TestAddressBookLogic(unittest.TestCase):
         shipping_address2.is_primary = True
         account.addresses.append(shipping_address1)
         account.addresses.append(shipping_address2)
-        self.logic.save_account_addresses(account)
+        self.address_service.save_account_addresses(account)
 
         # Verify that only one is primary
         addresses = self.db_handler.get_account_addresses(account.account_id)

@@ -1,11 +1,24 @@
 import datetime
 from typing import Optional, List
-from core.database import DatabaseHandler # Assuming DatabaseHandler is in core.database
-from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, Account, AccountType # Import Account and AccountType
+import logging
+from core.database import DatabaseHandler
+from core.repositories import PurchaseRepository, AccountRepository, ProductRepository
+from shared.structs import PurchaseDocument, PurchaseDocumentItem, PurchaseDocumentStatus, Account, AccountType
+
+logger = logging.getLogger(__name__)
+
 
 class PurchaseLogic:
-    def __init__(self, db_handler: DatabaseHandler):
-        self.db = db_handler
+    def __init__(self, repo_or_db, account_repo=None, product_repo=None):
+        if isinstance(repo_or_db, PurchaseRepository):
+            self.purchase_repo = repo_or_db
+            self.account_repo = account_repo
+            self.product_repo = product_repo
+        else:
+            db_handler = repo_or_db
+            self.purchase_repo = PurchaseRepository(db_handler)
+            self.account_repo = account_repo or AccountRepository(db_handler)
+            self.product_repo = product_repo or ProductRepository(db_handler)
 
     def _generate_document_number(self, prefix: str) -> str:
         """
@@ -19,7 +32,7 @@ class PurchaseLogic:
         today_str = datetime.date.today().strftime("%Y%m%d")
         full_prefix = f"{prefix}-{today_str}-"
 
-        all_docs_raw = self.db.get_all_purchase_documents()
+        all_docs_raw = self.purchase_repo.get_all_purchase_documents()
         max_seq_today = 0
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
@@ -40,7 +53,7 @@ class PurchaseLogic:
 
     def create_rfq(self, vendor_id: int, notes: str = None) -> Optional[PurchaseDocument]:
         """Creates a new Request for Quote (RFQ)."""
-        vendor_account_dict = self.db.get_account_details(vendor_id)
+        vendor_account_dict = self.account_repo.get_account_details(vendor_id)
         if not vendor_account_dict:
             raise ValueError(f"Vendor with ID {vendor_id} not found.")
 
@@ -50,7 +63,7 @@ class PurchaseLogic:
         doc_number = self._generate_document_number("RFQ")
         created_date_str = datetime.datetime.now().isoformat()
 
-        new_doc_id = self.db.add_purchase_document(
+        new_doc_id = self.purchase_repo.add_purchase_document(
             doc_number=doc_number,
             vendor_id=vendor_id,
             created_date=created_date_str,
@@ -79,7 +92,7 @@ class PurchaseLogic:
 
         final_description = product_description_override
         if not final_description:
-            product_info = self.db.get_product_details(product_id)
+            product_info = self.product_repo.get_product_details(product_id)
             if product_info and product_info.get('name'):
                 final_description = product_info.get('name')
             else:
@@ -89,7 +102,7 @@ class PurchaseLogic:
         if unit_price is not None and total_price is None: # total_price might be pre-calculated by UI
             total_price = quantity * unit_price
 
-        new_item_id = self.db.add_purchase_document_item(
+        new_item_id = self.purchase_repo.add_purchase_document_item(
             doc_id=doc_id,
             product_id=product_id,
             product_description=final_description,
@@ -117,7 +130,7 @@ class PurchaseLogic:
         final_description = product_description_override
         if not final_description:
             if item_to_update.product_id != product_id or not item_to_update.product_description:
-                 product_info = self.db.get_product_details(product_id)
+                 product_info = self.product_repo.get_product_details(product_id)
                  if product_info and product_info.get('name'):
                      final_description = product_info.get('name')
                  else:
@@ -131,7 +144,7 @@ class PurchaseLogic:
         item_to_update.unit_price = unit_price
         item_to_update.calculate_total_price()
 
-        self.db.update_purchase_document_item(
+        self.purchase_repo.update_purchase_document_item(
             item_id=item_to_update.id,
             product_id=item_to_update.product_id,
             product_description=item_to_update.product_description,
@@ -143,7 +156,7 @@ class PurchaseLogic:
         if unit_price is not None:
             parent_doc = self.get_purchase_document_details(item_to_update.purchase_document_id)
             if parent_doc and parent_doc.status == PurchaseDocumentStatus.RFQ:
-                self.db.update_purchase_document_status(parent_doc.id, PurchaseDocumentStatus.QUOTED.value)
+                self.purchase_repo.update_purchase_document_status(parent_doc.id, PurchaseDocumentStatus.QUOTED.value)
 
         return self.get_purchase_document_item_details(item_id)
 
@@ -158,7 +171,7 @@ class PurchaseLogic:
         # When converting, we can either update the status and keep the number,
         # or generate a new PO number. Generating a new PO number is often cleaner.
         new_po_number = self._generate_document_number("PO")
-        self.db.update_purchase_document(doc_id, {
+        self.purchase_repo.update_purchase_document(doc_id, {
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
             "document_number": new_po_number
         })
@@ -172,7 +185,7 @@ class PurchaseLogic:
         if doc.status != PurchaseDocumentStatus.PO_ISSUED:
             raise ValueError(f"Only POs with status 'PO-Issued' can be marked as Received. Current status: {doc.status.value}")
 
-        self.db.update_purchase_document_status(doc_id, PurchaseDocumentStatus.RECEIVED.value)
+        self.purchase_repo.update_purchase_document_status(doc_id, PurchaseDocumentStatus.RECEIVED.value)
         return self.get_purchase_document_details(doc_id)
 
     def close_purchase_document(self, doc_id: int) -> Optional[PurchaseDocument]:
@@ -183,14 +196,14 @@ class PurchaseLogic:
         if doc.status != PurchaseDocumentStatus.RECEIVED:
             raise ValueError(f"Only documents with status 'Received' can be closed. Current status: {doc.status.value}")
 
-        self.db.update_purchase_document_status(doc_id, PurchaseDocumentStatus.CLOSED.value)
+        self.purchase_repo.update_purchase_document_status(doc_id, PurchaseDocumentStatus.CLOSED.value)
         return self.get_purchase_document_details(doc_id)
 
     def update_document_notes(self, doc_id: int, notes: str) -> Optional[PurchaseDocument]:
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found.")
-        self.db.update_purchase_document_notes(doc_id, notes)
+        self.purchase_repo.update_purchase_document_notes(doc_id, notes)
         return self.get_purchase_document_details(doc_id)
 
     def update_document_status(self, doc_id: int, new_status: PurchaseDocumentStatus) -> Optional[PurchaseDocument]:
@@ -205,18 +218,18 @@ class PurchaseLogic:
         if doc.status == PurchaseDocumentStatus.CLOSED and new_status != PurchaseDocumentStatus.CLOSED:
             raise ValueError("Cannot change status of a closed document.")
 
-        self.db.update_purchase_document_status(doc_id, new_status.value)
+        self.purchase_repo.update_purchase_document_status(doc_id, new_status.value)
         return self.get_purchase_document_details(doc_id) # Return updated document
 
     def get_purchase_document_details(self, doc_id: int) -> Optional[PurchaseDocument]:
-        doc_data = self.db.get_purchase_document_by_id(doc_id)
+        doc_data = self.purchase_repo.get_purchase_document_by_id(doc_id)
         if doc_data:
             status_enum = None
             if doc_data.get('status'):
                 try:
                     status_enum = PurchaseDocumentStatus(doc_data['status'])
                 except ValueError:
-                     print(f"Warning: Invalid status '{doc_data['status']}' in DB for doc ID {doc_id}")
+                    logger.warning("Invalid status '%s' in DB for doc ID %s", doc_data['status'], doc_id)
 
             return PurchaseDocument(
                 doc_id=doc_data['id'],
@@ -230,7 +243,7 @@ class PurchaseLogic:
 
     def get_all_documents_by_criteria(self, vendor_id: int = None, status: PurchaseDocumentStatus = None) -> List[PurchaseDocument]:
         status_value = status.value if status else None
-        docs_data = self.db.get_all_purchase_documents(vendor_id=vendor_id, status=status_value)
+        docs_data = self.purchase_repo.get_all_purchase_documents(vendor_id=vendor_id, status=status_value)
         result_list = []
         for doc_data in docs_data:
             status_enum = None
@@ -238,7 +251,7 @@ class PurchaseLogic:
                 try:
                     status_enum = PurchaseDocumentStatus(doc_data['status'])
                 except ValueError:
-                    print(f"Warning: Invalid status '{doc_data['status']}' in DB for doc ID {doc_data['id']}")
+                    logger.warning("Invalid status '%s' in DB for doc ID %s", doc_data['status'], doc_data['id'])
 
             result_list.append(PurchaseDocument(
                 doc_id=doc_data['id'],
@@ -251,7 +264,7 @@ class PurchaseLogic:
         return result_list
 
     def get_items_for_document(self, doc_id: int) -> List[PurchaseDocumentItem]:
-        items_data = self.db.get_items_for_document(doc_id)
+        items_data = self.purchase_repo.get_items_for_document(doc_id)
         result_list = []
         for item_data in items_data:
             result_list.append(PurchaseDocumentItem(
@@ -266,7 +279,7 @@ class PurchaseLogic:
         return result_list
 
     def get_purchase_document_item_details(self, item_id: int) -> Optional[PurchaseDocumentItem]:
-        item_data = self.db.get_purchase_document_item_by_id(item_id)
+        item_data = self.purchase_repo.get_purchase_document_item_by_id(item_id)
         if item_data:
             return PurchaseDocumentItem(
                 item_id=item_data['id'],
@@ -288,7 +301,7 @@ class PurchaseLogic:
         if doc and doc.status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
             pass
 
-        self.db.delete_purchase_document_item(item_id)
+        self.purchase_repo.delete_purchase_document_item(item_id)
 
     def delete_purchase_document(self, doc_id: int):
         """Deletes a purchase document and all of its items."""
@@ -299,9 +312,9 @@ class PurchaseLogic:
         # Manually delete items first since ON DELETE CASCADE is not used
         items = self.get_items_for_document(doc_id)
         for item in items:
-            self.db.delete_purchase_document_item(item.id)
+            self.purchase_repo.delete_purchase_document_item(item.id)
 
-        self.db.delete_purchase_document(doc_id)
+        self.purchase_repo.delete_purchase_document(doc_id)
 
 # Remove the old update_item_quote method as its functionality is merged into update_document_item
 # def update_item_quote(self, item_id: int, unit_price: float) -> Optional[PurchaseDocumentItem]:

@@ -1,24 +1,55 @@
 from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule
 from typing import Optional, List, TYPE_CHECKING
+import logging
+from core.database import DatabaseHandler
+from core.repositories import (
+    AddressRepository,
+    AccountRepository,
+    ContactRepository,
+    ProductRepository,
+    TaskRepository,
+    InteractionRepository,
+)
 
 if TYPE_CHECKING:
     from shared.structs import Interaction # For type hinting
 
+logger = logging.getLogger(__name__)
+
+
 class AddressBookLogic:
-    def __init__(self, db_handler):
-        self.db = db_handler
+    def __init__(self, db_or_address_repo, account_repo=None, contact_repo=None,
+                 product_repo=None, task_repo=None, interaction_repo=None):
+        """Initialize logic with repositories or a DatabaseHandler."""
+        if isinstance(db_or_address_repo, DatabaseHandler):
+            db_handler = db_or_address_repo
+            self._db = db_handler
+            self.address_repo = AddressRepository(db_handler)
+            self.account_repo = account_repo or AccountRepository(db_handler)
+            self.contact_repo = contact_repo or ContactRepository(db_handler)
+            self.product_repo = product_repo or ProductRepository(db_handler)
+            self.task_repo = task_repo or TaskRepository(db_handler)
+            self.interaction_repo = interaction_repo or InteractionRepository(db_handler)
+        else:
+            self.address_repo = db_or_address_repo
+            self.account_repo = account_repo
+            self.contact_repo = contact_repo
+            self.product_repo = product_repo
+            self.task_repo = task_repo
+            self.interaction_repo = interaction_repo
+            self._db = None
 
 #Address Methods
     def add_address(self, street, city, state, zip, country):
         """Add a new address and return its ID."""
-        return self.db.add_address(street, city, state, zip, country)
+        return self.address_repo.add_address(street, city, state, zip, country)
 
     def update_address(self, address_id, street, city, state, zip, country):
         """Update an existing address."""
-        self.db.update_address(address_id, street, city, state, zip, country)
+        self.address_repo.update_address(address_id, street, city, state, zip, country)
 
     def get_address_obj(self, address_id):
-        data = self.db.get_address(address_id)
+        data = self.address_repo.get_address(address_id)
         if data: # Ensure data is not None
             return Address(
                 address_id=address_id,
@@ -49,7 +80,7 @@ class AddressBookLogic:
 
         if account.account_id is None:
             # Add the account to get an ID
-            new_id = self.db.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
+            new_id = self.account_repo.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
             if new_id:
                 account.account_id = new_id
                 # Now, add the addresses
@@ -58,13 +89,13 @@ class AddressBookLogic:
             return None  # Failed to add
         else:
             # Update the account details
-            self.db.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
+            self.account_repo.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
             # Clear existing addresses and add the new ones
             self.save_account_addresses(account)
             return account  # Return the updated account object
 
     def save_account_addresses(self, account: Account):
-        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
+        self.account_repo.clear_account_addresses(account.account_id)
 
         primary_billing_found = False
         primary_shipping_found = False
@@ -85,14 +116,14 @@ class AddressBookLogic:
                     else:
                         primary_shipping_found = True
 
-        self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account.account_id,))
+        self.account_repo.clear_account_addresses(account.account_id)
         for address in account.addresses:
             if address.address_id:
-                self.db.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
+                self.address_repo.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
+                self.account_repo.add_account_address(account.account_id, address.address_id, address.address_type, address.is_primary)
             else:
-                address_id = self.db.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                self.db.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
+                address_id = self.address_repo.add_address(address.street, address.city, address.state, address.zip_code, address.country)
+                self.account_repo.add_account_address(account.account_id, address_id, address.address_type, address.is_primary)
 
 
     def get_all_accounts(self) -> List[Account]:
@@ -101,7 +132,7 @@ class AddressBookLogic:
         This method is intended for use cases where the full Account object is needed, for example,
         in UI dropdowns that need to filter by account type.
         """
-        accounts_data = self.db.get_all_accounts()
+        accounts_data = self.account_repo.get_all_accounts()
         accounts_list = []
         for acc_data in accounts_data:
             try:
@@ -109,12 +140,12 @@ class AddressBookLogic:
                 accounts_list.append(account)
             except (ValueError, KeyError) as e:
                 # Log an error if a record is malformed or has an invalid account_type
-                print(f"Warning: Could not process account record: {acc_data}. Error: {e}")
+                logger.warning("Could not process account record %s. Error: %s", acc_data, e)
         return accounts_list
 
     def get_account_details(self, account_id) -> Account | None:
         """Retrieve full account details, including new fields."""
-        data = self.db.get_account_details(account_id)  # db returns a dict
+        data = self.account_repo.get_account_details(account_id)
         if data:
             account_type_enum = None
             account_type_str = data.get("account_type")
@@ -122,7 +153,7 @@ class AddressBookLogic:
                 try:
                     account_type_enum = AccountType(account_type_str)
                 except ValueError:
-                    print(f"Warning: Invalid account type string '{account_type_str}' in DB for account ID {data.get('id')}.")
+                    logger.warning("Invalid account type string '%s' in DB for account ID %s", account_type_str, data.get('id'))
 
             addresses = []
             for addr_data in data.get('addresses', []):
@@ -152,16 +183,16 @@ class AddressBookLogic:
 
     def get_accounts(self): # This likely returns tuples (id, name)
         """Retrieve all accounts (typically for dropdowns)."""
-        return self.db.get_accounts()
+        return self.account_repo.get_accounts()
 
     def delete_account(self, account_id):
         """Delete an account and its associated contacts."""
-        self.db.delete_account(account_id) # The DB handler should also handle deleting related contacts.
+        self.account_repo.delete_account(account_id)
 
 #Contacts Methods
     def get_contact_details(self, contact_id: int) -> Contact | None:
         """Retrieve full contact details and return a Contact object."""
-        contact_data = self.db.get_contact_details(contact_id) # db returns a dict
+        contact_data = self.contact_repo.get_contact_details(contact_id)
         if contact_data:
             return Contact(
                 contact_id=contact_data["id"], # Ensure key matches db output
@@ -177,7 +208,7 @@ class AddressBookLogic:
         """Add a new contact or update an existing one. Returns the Contact object."""
         if contact.contact_id is None:
             # Call db.add_contact with all required arguments, including role
-            new_contact_id = self.db.add_contact(
+            new_contact_id = self.contact_repo.add_contact(
                 name=contact.name,
                 phone=contact.phone,
                 email=contact.email,
@@ -190,7 +221,7 @@ class AddressBookLogic:
             return None # Failed to add
         else:
             # Call db.update_contact with all required arguments, including role
-            self.db.update_contact(
+            self.contact_repo.update_contact(
                 contact_id=contact.contact_id,
                 name=contact.name,
                 phone=contact.phone,
@@ -202,7 +233,7 @@ class AddressBookLogic:
 
     def get_contacts_by_account(self, account_id: int) -> list[Contact]:
         """Retrieve contacts associated with a specific account as Contact objects."""
-        contacts_data = self.db.get_contacts_by_account(account_id) # db returns list of dicts
+        contacts_data = self.contact_repo.get_contacts_by_account(account_id)
         contact_list = []
         for row_data in contacts_data:
             contact_list.append(Contact(
@@ -217,7 +248,7 @@ class AddressBookLogic:
 
     def get_all_contacts(self) -> list[Contact]:
         """Retrieve all contacts as Contact objects."""
-        contacts_data = self.db.get_all_contacts() # db returns list of dicts
+        contacts_data = self.contact_repo.get_all_contacts()
         contact_list = []
         for row_data in contacts_data:
             contact_list.append(Contact(
@@ -232,7 +263,7 @@ class AddressBookLogic:
 
     def delete_contact(self, contact_id: int):
         """Delete a specific contact."""
-        self.db.delete_contact(contact_id)
+        self.contact_repo.delete_contact(contact_id)
 
     # Interaction Methods
     def save_interaction(self, interaction: 'Interaction') -> Optional[int]:
@@ -275,7 +306,7 @@ class AddressBookLogic:
         # Ensure created_by_user_id is set (e.g., from a logged-in user or default)
         # For now, using a default system user if not provided.
         if interaction.created_by_user_id is None:
-            system_user_id = self.db.get_user_id_by_username('system_user')
+            system_user_id = self._db.get_user_id_by_username('system_user') if self._db else None
             if not system_user_id: # Should not happen if DB setup is correct
                 raise Exception("Default system user not found. Please initialize the database correctly.")
             interaction.created_by_user_id = system_user_id
@@ -285,7 +316,7 @@ class AddressBookLogic:
 
         if interaction.interaction_id is None:
             # Add new interaction
-            new_id = self.db.add_interaction(
+            new_id = self.interaction_repo.add_interaction(
                 company_id=interaction.company_id,
                 contact_id=interaction.contact_id,
                 interaction_type=interaction.interaction_type.value, # Store enum value
@@ -299,7 +330,7 @@ class AddressBookLogic:
             return new_id
         else:
             # Update existing interaction
-            self.db.update_interaction(
+            self.interaction_repo.update_interaction(
                 interaction_id=interaction.interaction_id,
                 company_id=interaction.company_id,
                 contact_id=interaction.contact_id,
@@ -317,7 +348,7 @@ class AddressBookLogic:
         from shared.structs import Interaction, InteractionType # Local import
         import datetime
 
-        data = self.db.get_interaction(interaction_id) # db returns a dict
+        data = self.interaction_repo.get_interaction(interaction_id)
         if data:
             # Convert interaction_type string from DB back to Enum member
             interaction_type_enum = None
@@ -327,7 +358,7 @@ class AddressBookLogic:
                 except ValueError:
                     # Handle cases where the value from DB might not be a valid enum member
                     # This could be due to data corruption or if values were inserted bypassing enum checks
-                    print(f"Warning: Invalid interaction type '{data['interaction_type']}' found in database for interaction ID {interaction_id}.")
+                    logger.warning("Invalid interaction type '%s' found in database for interaction ID %s", data['interaction_type'], interaction_id)
                     interaction_type_enum = InteractionType.OTHER # Fallback or handle as error
 
             # Convert ISO string date_time back to datetime object
@@ -336,7 +367,7 @@ class AddressBookLogic:
                 try:
                     date_time_obj = datetime.datetime.fromisoformat(data["date_time"])
                 except ValueError:
-                    print(f"Warning: Invalid date format '{data['date_time']}' found in database for interaction ID {interaction_id}.")
+                    logger.warning("Invalid date format '%s' found in database for interaction ID %s", data['date_time'], interaction_id)
 
 
             return Interaction(
@@ -357,7 +388,7 @@ class AddressBookLogic:
         from shared.structs import Interaction, InteractionType # Local import
         import datetime
 
-        interactions_data = self.db.get_interactions(company_id=company_id, contact_id=contact_id) # db returns list of dicts
+        interactions_data = self.interaction_repo.get_interactions(company_id=company_id, contact_id=contact_id)
         interaction_list = []
         for row_data in interactions_data:
             interaction_type_enum = None
@@ -365,7 +396,7 @@ class AddressBookLogic:
                 try:
                     interaction_type_enum = InteractionType(row_data["interaction_type"])
                 except ValueError:
-                    print(f"Warning: Invalid interaction type '{row_data['interaction_type']}' found for interaction ID {row_data.get('interaction_id')}.")
+                    logger.warning("Invalid interaction type '%s' found for interaction ID %s", row_data['interaction_type'], row_data.get('interaction_id'))
                     interaction_type_enum = InteractionType.OTHER
 
             date_time_obj = None
@@ -373,7 +404,7 @@ class AddressBookLogic:
                 try:
                     date_time_obj = datetime.datetime.fromisoformat(row_data["date_time"])
                 except ValueError:
-                     print(f"Warning: Invalid date format '{row_data['date_time']}' found for interaction ID {row_data.get('interaction_id')}.")
+                    logger.warning("Invalid date format '%s' found for interaction ID %s", row_data['date_time'], row_data.get('interaction_id'))
 
             interaction_list.append(Interaction(
                 interaction_id=row_data.get("interaction_id"),
@@ -390,7 +421,7 @@ class AddressBookLogic:
 
     def delete_interaction(self, interaction_id: int):
         """Delete a specific interaction."""
-        self.db.delete_interaction(interaction_id)
+        self.interaction_repo.delete_interaction(interaction_id)
 
     # Task Methods
     def create_task(self, task: 'Task') -> 'Task':
@@ -416,7 +447,7 @@ class AddressBookLogic:
 
         # Ensure created_by_user_id is set (e.g., from a logged-in user or default)
         if task.created_by_user_id is None:
-            system_user_id = self.db.get_user_id_by_username('system_user')
+            system_user_id = self._db.get_user_id_by_username('system_user') if self._db else None
             if not system_user_id: # Should not happen if DB setup is correct
                 raise Exception("Default system user not found. Please initialize the database correctly.")
             task.created_by_user_id = system_user_id
@@ -433,7 +464,7 @@ class AddressBookLogic:
              task_data_dict['priority'] = task_data_dict['priority'].value
 
 
-        new_task_id = self.db.add_task(task_data_dict)
+        new_task_id = self.task_repo.add_task(task_data_dict)
         task.task_id = new_task_id
 
         # Fetch from DB to confirm all fields, especially auto-generated ones like created_at from DB trigger (if any)
@@ -443,7 +474,7 @@ class AddressBookLogic:
     def get_task_details(self, task_id: int) -> Optional['Task']:
         """Retrieve a task by ID and return a Task object."""
         from shared.structs import Task # Local import
-        task_data = self.db.get_task(task_id)
+        task_data = self.task_repo.get_task(task_id)
         if task_data:
             return Task.from_dict(task_data)
         return None
@@ -462,7 +493,7 @@ class AddressBookLogic:
         status_str = status.value if status else None
         priority_str = priority.value if priority else None
 
-        tasks_data = self.db.get_tasks(
+        tasks_data = self.task_repo.get_tasks(
             company_id=company_id,
             contact_id=contact_id,
             status=status_str,
@@ -505,7 +536,7 @@ class AddressBookLogic:
              task_data_dict['priority'] = task_data_dict['priority'].value
 
 
-        self.db.update_task(task_id, task_data_dict)
+        self.task_repo.update_task(task_id, task_data_dict)
 
         # Fetch from DB to ensure the returned object is consistent with DB state
         # return self.get_task_details(task_id)
@@ -515,7 +546,7 @@ class AddressBookLogic:
 
     def delete_task_by_id(self, task_id: int, soft_delete: bool = True) -> None:
         """Deletes a task by its ID. Uses soft delete by default."""
-        self.db.delete_task(task_id, soft_delete=soft_delete)
+        self.task_repo.delete_task(task_id, soft_delete=soft_delete)
 
     def mark_task_completed(self, task_id: int) -> Optional['Task']:
         """Updates task status to COMPLETED and sets updated_at."""
@@ -529,7 +560,7 @@ class AddressBookLogic:
         task.status = TaskStatus.COMPLETED
         task.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
-        self.db.update_task_status(task.task_id, task.status.value, task.updated_at.isoformat())
+        self.task_repo.update_task_status(task.task_id, task.status.value, task.updated_at.isoformat())
         return task
 
     def check_and_update_overdue_tasks(self) -> int:
@@ -551,14 +582,14 @@ class AddressBookLogic:
         # So, it's overdue if current_date is already YYYY-MM-(DD+1).
 
         current_day_iso_date_str = now.date().isoformat()
-        overdue_tasks_data = self.db.get_overdue_tasks(current_day_iso_date_str)
+        overdue_tasks_data = self.task_repo.get_overdue_tasks(current_day_iso_date_str)
 
         updated_count = 0
         for task_data in overdue_tasks_data:
             task = Task.from_dict(task_data) # Convert to Task object to easily manage status
             if task.status != TaskStatus.COMPLETED and task.status != TaskStatus.OVERDUE:
                 updated_at_ts = datetime.datetime.now(datetime.timezone.utc)
-                self.db.update_task_status(task.task_id, TaskStatus.OVERDUE.value, updated_at_ts.isoformat())
+                self.task_repo.update_task_status(task.task_id, TaskStatus.OVERDUE.value, updated_at_ts.isoformat())
                 updated_count += 1
         return updated_count
 
@@ -568,7 +599,7 @@ class AddressBookLogic:
         Retrieve all users from the database.
         Returns a list of tuples, where each tuple is (user_id, username).
         """
-        return self.db.get_all_users()
+        return self.contact_repo.get_all_users()
 
     # Product Methods
     def save_product(self, product: 'Product') -> Optional[int]:
@@ -581,7 +612,7 @@ class AddressBookLogic:
         sku = f"SKU_{product.name[:10].replace(' ','_').upper()}" if product.name else "SKU_UNKNOWN"
 
         if product.product_id is None: # Adding a new product
-            new_product_id = self.db.add_product(
+            new_product_id = self.product_repo.add_product(
                 sku=sku, # Pass SKU
                 name=product.name,
                 description=product.description,
@@ -599,7 +630,7 @@ class AddressBookLogic:
             # For update, SKU might be part of the update or fixed.
             # Assuming SKU can be updated or is derived similarly.
             # The db.update_product expects product_db_id.
-            self.db.update_product(
+            self.product_repo.update_product(
                 product_db_id=product.product_id, # Correct parameter name for DB method
                 sku=sku, # Pass SKU
                 name=product.name,
@@ -615,7 +646,7 @@ class AddressBookLogic:
 
     def get_product_details(self, product_id: int) -> Optional['Product']:
         """Retrieve full product details and return a Product object."""
-        product_data_from_db = self.db.get_product_details(product_id)
+        product_data_from_db = self.product_repo.get_product_details(product_id)
         if product_data_from_db:
             return Product(
                 product_id=product_data_from_db.get("product_id"),
@@ -631,7 +662,7 @@ class AddressBookLogic:
 
     def get_all_products(self) -> list['Product']:
         """Retrieve all products as Product objects."""
-        products_data_from_db = self.db.get_all_products()
+        products_data_from_db = self.product_repo.get_all_products()
         product_list = []
 
         for row_data in products_data_from_db:
@@ -649,12 +680,12 @@ class AddressBookLogic:
 
     def delete_product(self, product_id: int):
         """Delete a specific product."""
-        self.db.delete_product(product_id)
+        self.product_repo.delete_product(product_id)
 
     def get_all_product_categories(self) -> list[str]: # Renamed this back or re-added for tests/old UI
         """Retrieve a flat, unique, sorted list of all product category names."""
         # Fetches (id, name, parent_id)
-        categories_data = self.db.get_all_product_categories_from_table()
+        categories_data = self.product_repo.get_all_product_categories_from_table()
         if not categories_data:
             return []
         # Get unique names and sort them
@@ -666,7 +697,7 @@ class AddressBookLogic:
         Retrieves all categories and processes them into a hierarchical structure
         suitable for a Treeview (e.g., list of dicts with 'id', 'name', 'parent_id', 'children').
         """
-        all_categories_raw = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+        all_categories_raw = self.product_repo.get_all_product_categories_from_table() # (id, name, parent_id)
 
         categories_map = {cat_id: {'id': cat_id, 'name': name, 'parent_id': parent_id, 'children': []}
                           for cat_id, name, parent_id in all_categories_raw}
@@ -713,13 +744,13 @@ class AddressBookLogic:
             raise ValueError("Category name cannot be empty.")
         # Consider adding validation for cyclical dependencies if parent_id is provided,
         # though basic check (cat_id != parent_id) is in DB layer.
-        return self.db.add_product_category(name.strip(), parent_id)
+        return self.product_repo.add_product_category(name.strip(), parent_id)
 
     def update_category_name(self, category_id: int, new_name: str):
         """Updates an existing category's name."""
         if not new_name.strip():
             raise ValueError("New category name cannot be empty.")
-        self.db.update_product_category_name(category_id, new_name.strip())
+        self.product_repo.update_product_category_name(category_id, new_name.strip())
 
     def update_category_parent(self, category_id: int, new_parent_id: int | None):
         """Updates an existing category's parent."""
@@ -736,19 +767,19 @@ class AddressBookLogic:
                 raise ValueError("Cannot set parent to a descendant category (creates a cycle).")
             _name, current_ancestor_id = all_cats_map.get(current_ancestor_id, (None, None))
 
-        self.db.update_product_category_parent(category_id, new_parent_id)
+        self.product_repo.update_product_category_parent(category_id, new_parent_id)
 
     def delete_category(self, category_id: int):
         """Deletes a category."""
         # Add any pre-deletion business logic here if needed.
         # E.g., check if category is in use by non-product entities if that becomes a feature.
         # The DB handles setting product.category_id to NULL and child categories' parent_id to NULL.
-        self.db.delete_product_category(category_id)
+        self.product_repo.delete_product_category(category_id)
 
 
     def get_all_product_units_of_measure(self) -> list[str]:
         """Retrieve a list of all product unit of measure names from the dedicated table."""
-        units_tuples = self.db.get_all_product_units_of_measure_from_table() # Returns list of (id, name)
+        units_tuples = self.product_repo.get_all_product_units_of_measure_from_table() # Returns list of (id, name)
         return [name for id, name in units_tuples] # Extract just the names
 
     def _get_category_path_string(self, category_id: int, all_categories_map: dict[int, tuple[str, int | None]]) -> str:
@@ -768,7 +799,7 @@ class AddressBookLogic:
 
     def _get_all_categories_map(self) -> dict[int, tuple[str, int | None]]:
         """Helper to fetch all categories and put them into a map for easy lookup."""
-        categories_data = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
+        categories_data = self.product_repo.get_all_product_categories_from_table() # (id, name, parent_id)
         return {cat_id: (name, parent_id) for cat_id, name, parent_id in categories_data}
 
     # --- Pricing Rule Methods ---
@@ -781,11 +812,11 @@ class AddressBookLogic:
         if markup_percentage is not None and fixed_price is not None:
             raise ValueError("Provide either markup_percentage or fixed_price, not both.")
 
-        return self.db.add_pricing_rule(rule_name, markup_percentage, fixed_price)
+        return self.product_repo.add_pricing_rule(rule_name, markup_percentage, fixed_price)
 
     def get_pricing_rule(self, rule_id: int) -> Optional[PricingRule]:
         """Retrieves a pricing rule by its ID."""
-        rule_data = self.db.get_pricing_rule(rule_id)
+        rule_data = self.product_repo.get_pricing_rule(rule_id)
         if rule_data:
             return PricingRule(
                 rule_id=rule_data['rule_id'],
@@ -797,7 +828,7 @@ class AddressBookLogic:
 
     def list_pricing_rules(self) -> List[PricingRule]:
         """Lists all pricing rules."""
-        rules_data = self.db.get_all_pricing_rules()
+        rules_data = self.product_repo.get_all_pricing_rules()
         return [PricingRule(
             rule_id=rule_data['rule_id'],
             rule_name=rule_data['rule_name'],
@@ -814,11 +845,11 @@ class AddressBookLogic:
         if markup_percentage is not None and fixed_price is not None:
             raise ValueError("Provide either markup_percentage or fixed_price, not both.")
 
-        self.db.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_price)
+        self.product_repo.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_price)
 
     def delete_pricing_rule(self, rule_id: int):
         """Deletes a pricing rule."""
-        self.db.delete_pricing_rule(rule_id)
+        self.product_repo.delete_pricing_rule(rule_id)
 
     def assign_pricing_rule(self, customer_id: int, rule_id: int):
         """Assigns a pricing rule to a customer."""
@@ -832,7 +863,7 @@ class AddressBookLogic:
         if not rule:
             raise ValueError(f"Pricing rule with ID {rule_id} not found.")
 
-        self.db.assign_pricing_rule_to_customer(customer_id, rule_id)
+        self.product_repo.assign_pricing_rule_to_customer(customer_id, rule_id)
 
     def remove_pricing_rule(self, customer_id: int):
         """Removes a pricing rule from a customer."""
@@ -840,7 +871,7 @@ class AddressBookLogic:
         if not customer:
             raise ValueError(f"Customer with ID {customer_id} not found.")
 
-        self.db.remove_pricing_rule_from_customer(customer_id)
+        self.product_repo.remove_pricing_rule_from_customer(customer_id)
 
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed

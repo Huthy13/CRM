@@ -1,15 +1,29 @@
 import datetime
 from typing import Optional, List
+import logging
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
+from core.repositories import SalesRepository, AccountRepository, ProductRepository
 from shared.structs import (
     SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
     Account, AccountType, Product
 )
 
+logger = logging.getLogger(__name__)
+
+
 class SalesLogic:
-    def __init__(self, db_handler: DatabaseHandler):
-        self.db = db_handler
+    def __init__(self, repo_or_db, account_repo=None, product_repo=None):
+        if isinstance(repo_or_db, SalesRepository):
+            self.sales_repo = repo_or_db
+            self.account_repo = account_repo
+            self.product_repo = product_repo
+        else:
+            db_handler = repo_or_db
+            self.sales_repo = SalesRepository(db_handler)
+            self.account_repo = account_repo or AccountRepository(db_handler)
+            self.product_repo = product_repo or ProductRepository(db_handler)
+        self._db = self.account_repo.db if self.account_repo else None
 
     def _generate_sales_document_number(self, doc_type: SalesDocumentType) -> str:
         """
@@ -29,7 +43,7 @@ class SalesLogic:
         # Query existing documents of the same type for today to find the max sequence
         # This is a simplified approach; a more robust one might involve a dedicated sequence table
         # or more complex query if performance for very high volume is a concern.
-        all_docs_raw = self.db.get_all_sales_documents(document_type=doc_type.value)
+        all_docs_raw = self.sales_repo.get_all_sales_documents(document_type=doc_type.value)
         max_seq_today = 0
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
@@ -46,7 +60,7 @@ class SalesLogic:
 
     def create_quote(self, customer_id: int, notes: str = None, expiry_date_iso: Optional[str] = None) -> Optional[SalesDocument]:
         """Creates a new Quote."""
-        customer_account_dict = self.db.get_account_details(customer_id)
+        customer_account_dict = self.account_repo.get_account_details(customer_id)
         if not customer_account_dict:
             raise ValueError(f"Customer with ID {customer_id} not found.")
         if customer_account_dict.get('account_type') != AccountType.CUSTOMER.value:
@@ -59,7 +73,7 @@ class SalesLogic:
             expiry_date_iso = (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat()
 
 
-        new_doc_id = self.db.add_sales_document(
+        new_doc_id = self.sales_repo.add_sales_document(
             doc_number=doc_number,
             customer_id=customer_id,
             document_type=SalesDocumentType.QUOTE.value,
@@ -96,7 +110,7 @@ class SalesLogic:
         if discount_percentage is not None and not (0 <= discount_percentage <= 100):
             raise ValueError("Discount percentage must be between 0 and 100.")
 
-        product_info = self.db.get_product_details(product_id) # Fetches dict with 'name', 'sale_price' etc.
+        product_info = self.product_repo.get_product_details(product_id)
         if not product_info:
             raise ValueError(f"Product with ID {product_id} not found.")
 
@@ -105,7 +119,7 @@ class SalesLogic:
         # Use override if provided, otherwise product's sale_price, else error or default (e.g. 0)
         final_unit_price = unit_price_override
         if final_unit_price is None:
-            address_book_logic = AddressBookLogic(self.db)
+            address_book_logic = AddressBookLogic(self._db)
             customer = address_book_logic.get_account_details(doc.customer_id)
             if customer and customer.pricing_rule_id:
                 rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
@@ -131,7 +145,7 @@ class SalesLogic:
         effective_discount = discount_percentage if discount_percentage is not None else 0.0
         line_total = quantity * final_unit_price * (1 - (effective_discount / 100.0))
 
-        new_item_id = self.db.add_sales_document_item(
+        new_item_id = self.sales_repo.add_sales_document_item(
             sales_doc_id=doc_id,
             product_id=product_id,
             product_description=final_description,
@@ -164,7 +178,7 @@ class SalesLogic:
         if discount_percentage is not None and not (0 <= discount_percentage <= 100):
             raise ValueError("Discount percentage must be between 0 and 100.")
 
-        product_info = self.db.get_product_details(product_id)
+        product_info = self.product_repo.get_product_details(product_id)
         if not product_info:
             raise ValueError(f"Product with ID {product_id} not found.")
 
@@ -177,7 +191,7 @@ class SalesLogic:
 
         final_unit_price = unit_price_override
         if final_unit_price is None:
-            address_book_logic = AddressBookLogic(self.db)
+            address_book_logic = AddressBookLogic(self._db)
             customer = address_book_logic.get_account_details(doc.customer_id)
             if customer and customer.pricing_rule_id:
                 rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
@@ -210,7 +224,7 @@ class SalesLogic:
             "discount_percentage": effective_discount,
             "line_total": new_line_total
         }
-        self.db.update_sales_document_item(item_id, updates)
+        self.sales_repo.update_sales_document_item(item_id, updates)
         self._recalculate_sales_document_totals(doc.id)
         return self.get_sales_document_item_details(item_id)
 
@@ -229,7 +243,7 @@ class SalesLogic:
             "taxes": taxes,
             "total_amount": total_amount
         }
-        self.db.update_sales_document(doc_id, updates)
+        self.sales_repo.update_sales_document(doc_id, updates)
 
     def convert_quote_to_sales_order(self, quote_id: int) -> Optional[SalesDocument]:
         quote_doc = self.get_sales_document_details(quote_id)
@@ -242,7 +256,7 @@ class SalesLogic:
             "document_type": SalesDocumentType.SALES_ORDER.value,
             "status": SalesDocumentStatus.SO_OPEN.value
         }
-        self.db.update_sales_document(quote_id, updates)
+        self.sales_repo.update_sales_document(quote_id, updates)
 
         return self.get_sales_document_details(quote_id)
 
@@ -263,7 +277,7 @@ class SalesLogic:
         if not final_due_date_iso:
             final_due_date_iso = (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat()
 
-        new_invoice_id = self.db.add_sales_document(
+        new_invoice_id = self.sales_repo.add_sales_document(
             doc_number=invoice_number,
             customer_id=so_doc.customer_id,
             document_type=SalesDocumentType.INVOICE.value,
@@ -283,7 +297,7 @@ class SalesLogic:
         # Copy items from sales order to invoice
         so_items = self.get_items_for_sales_document(sales_order_id)
         for item in so_items:
-            self.db.add_sales_document_item(
+            self.sales_repo.add_sales_document_item(
                 sales_doc_id=new_invoice_id,
                 product_id=item.product_id,
                 product_description=item.product_description,
@@ -324,20 +338,20 @@ class SalesLogic:
                 raise ValueError(f"Invalid status '{new_status.value}' for an Invoice.")
 
 
-        self.db.update_sales_document(doc_id, {"status": new_status.value})
+        self.sales_repo.update_sales_document(doc_id, {"status": new_status.value})
         return self.get_sales_document_details(doc_id)
 
     def update_document_notes(self, doc_id: int, notes: str) -> Optional[SalesDocument]:
         doc = self.get_sales_document_details(doc_id)
         if not doc:
             raise ValueError(f"Sales document with ID {doc_id} not found.")
-        self.db.update_sales_document(doc_id, {"notes": notes})
+        self.sales_repo.update_sales_document(doc_id, {"notes": notes})
         return self.get_sales_document_details(doc_id)
 
     def get_calculated_price(self, customer_id: int, product_id: int) -> float | None:
         """Calculates the price for a given customer and product, applying pricing rules."""
         final_unit_price = None
-        address_book_logic = AddressBookLogic(self.db)
+        address_book_logic = AddressBookLogic(self._db)
         customer = address_book_logic.get_account_details(customer_id)
         if customer and customer.pricing_rule_id:
             rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
@@ -345,35 +359,35 @@ class SalesLogic:
                 if rule.fixed_price is not None:
                     final_unit_price = rule.fixed_price
                 elif rule.markup_percentage is not None:
-                    product_info = self.db.get_product_details(product_id)
+                    product_info = self.product_repo.get_product_details(product_id)
                     if product_info:
                         product_cost = product_info.get('cost')
                         if product_cost is not None:
                             final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
 
         if final_unit_price is None:
-            product_info = self.db.get_product_details(product_id)
+            product_info = self.product_repo.get_product_details(product_id)
             if product_info:
                 final_unit_price = product_info.get('sale_price')
 
         return final_unit_price
 
     def get_sales_document_details(self, doc_id: int) -> Optional[SalesDocument]:
-        doc_data = self.db.get_sales_document_by_id(doc_id)
+        doc_data = self.sales_repo.get_sales_document_by_id(doc_id)
         if doc_data:
             status_enum = None
             if doc_data.get('status'):
                 try:
                     status_enum = SalesDocumentStatus(doc_data['status'])
                 except ValueError:
-                     print(f"Warning: Invalid sales status '{doc_data['status']}' in DB for doc ID {doc_id}")
+                    logger.warning("Invalid sales status '%s' in DB for doc ID %s", doc_data['status'], doc_id)
 
             doc_type_enum = None
             if doc_data.get('document_type'):
                 try:
                     doc_type_enum = SalesDocumentType(doc_data['document_type'])
                 except ValueError:
-                    print(f"Warning: Invalid sales document type '{doc_data['document_type']}' in DB for doc ID {doc_id}")
+                    logger.warning("Invalid sales document type '%s' in DB for doc ID %s", doc_data['document_type'], doc_id)
 
             return SalesDocument(
                 doc_id=doc_data['id'],
@@ -396,7 +410,7 @@ class SalesLogic:
         doc_type_value = doc_type.value if doc_type else None
         status_value = status.value if status else None
 
-        docs_data = self.db.get_all_sales_documents(customer_id=customer_id, document_type=doc_type_value, status=status_value)
+        docs_data = self.sales_repo.get_all_sales_documents(customer_id=customer_id, document_type=doc_type_value, status=status_value)
         result_list = []
         for doc_data in docs_data:
             status_enum = None
@@ -404,14 +418,14 @@ class SalesLogic:
                 try:
                     status_enum = SalesDocumentStatus(doc_data['status'])
                 except ValueError:
-                    print(f"Warning: Invalid sales status '{doc_data['status']}' in DB for doc ID {doc_data['id']}")
+                    logger.warning("Invalid sales status '%s' in DB for doc ID %s", doc_data['status'], doc_data['id'])
 
             doc_type_enum = None
             if doc_data.get('document_type'):
                 try:
                     doc_type_enum = SalesDocumentType(doc_data['document_type'])
                 except ValueError:
-                    print(f"Warning: Invalid sales document type '{doc_data['document_type']}' in DB for doc ID {doc_data['id']}")
+                    logger.warning("Invalid sales document type '%s' in DB for doc ID %s", doc_data['document_type'], doc_data['id'])
 
             result_list.append(SalesDocument(
                 doc_id=doc_data['id'],
@@ -431,7 +445,7 @@ class SalesLogic:
         return result_list
 
     def get_items_for_sales_document(self, doc_id: int) -> List[SalesDocumentItem]:
-        items_data = self.db.get_items_for_sales_document(doc_id)
+        items_data = self.sales_repo.get_items_for_sales_document(doc_id)
         result_list = []
         for item_data in items_data:
             result_list.append(SalesDocumentItem(
@@ -447,7 +461,7 @@ class SalesLogic:
         return result_list
 
     def get_sales_document_item_details(self, item_id: int) -> Optional[SalesDocumentItem]:
-        item_data = self.db.get_sales_document_item_by_id(item_id)
+        item_data = self.sales_repo.get_sales_document_item_by_id(item_id)
         if item_data:
             return SalesDocumentItem(
                 item_id=item_data['id'],
@@ -471,7 +485,7 @@ class SalesLogic:
         if doc.status not in editable_statuses:
             raise ValueError(f"Items cannot be deleted from a document with status '{doc.status.value}'.")
 
-        self.db.delete_sales_document_item(item_id)
+        self.sales_repo.delete_sales_document_item(item_id)
         self._recalculate_sales_document_totals(doc.id)
 
 
@@ -498,6 +512,6 @@ class SalesLogic:
                  raise ValueError(f"Cannot delete document with status '{doc.status.value}' that has items. Consider voiding first.")
 
             for item in items:
-                self.db.delete_sales_document_item(item.id) # Use the item's own ID
+                self.sales_repo.delete_sales_document_item(item.id) # Use the item's own ID
 
-        self.db.delete_sales_document(doc_id)
+        self.sales_repo.delete_sales_document(doc_id)

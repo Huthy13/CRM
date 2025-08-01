@@ -60,7 +60,11 @@ class AccountDetailsPopup(tk.Toplevel):
             self.address_tree.insert(
                 "",
                 "end",
-                values=(addr.address_type, 1 if getattr(addr, "is_primary", False) else 0, address_str),
+                values=(
+                    addr.address_type,
+                    "true" if getattr(addr, "is_primary", False) else "false",
+                    address_str,
+                ),
                 iid=i,
             )
 

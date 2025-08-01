@@ -1,4 +1,4 @@
-from shared.structs import Address, Account, Contact, Product, AccountType # Import Product and AccountType
+from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule
 from typing import Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -145,7 +145,8 @@ class AddressBookLogic:
                 addresses=addresses,
                 website=data.get("website"),
                 description=data.get("description"),
-                account_type=account_type_enum
+                account_type=account_type_enum,
+                pricing_rule_id=data.get("pricing_rule_id")
             )
         return None
 
@@ -769,6 +770,77 @@ class AddressBookLogic:
         """Helper to fetch all categories and put them into a map for easy lookup."""
         categories_data = self.db.get_all_product_categories_from_table() # (id, name, parent_id)
         return {cat_id: (name, parent_id) for cat_id, name, parent_id in categories_data}
+
+    # --- Pricing Rule Methods ---
+    def create_pricing_rule(self, rule_name: str, markup_percentage: float = None, fixed_price: float = None) -> Optional[int]:
+        """Creates a new pricing rule."""
+        if not rule_name:
+            raise ValueError("Rule name cannot be empty.")
+        if markup_percentage is None and fixed_price is None:
+            raise ValueError("Either markup_percentage or fixed_price must be provided.")
+        if markup_percentage is not None and fixed_price is not None:
+            raise ValueError("Provide either markup_percentage or fixed_price, not both.")
+
+        return self.db.add_pricing_rule(rule_name, markup_percentage, fixed_price)
+
+    def get_pricing_rule(self, rule_id: int) -> Optional[PricingRule]:
+        """Retrieves a pricing rule by its ID."""
+        rule_data = self.db.get_pricing_rule(rule_id)
+        if rule_data:
+            return PricingRule(
+                rule_id=rule_data['rule_id'],
+                rule_name=rule_data['rule_name'],
+                markup_percentage=rule_data['markup_percentage'],
+                fixed_price=rule_data['fixed_price']
+            )
+        return None
+
+    def list_pricing_rules(self) -> List[PricingRule]:
+        """Lists all pricing rules."""
+        rules_data = self.db.get_all_pricing_rules()
+        return [PricingRule(
+            rule_id=rule_data['rule_id'],
+            rule_name=rule_data['rule_name'],
+            markup_percentage=rule_data['markup_percentage'],
+            fixed_price=rule_data['fixed_price']
+        ) for rule_data in rules_data]
+
+    def update_pricing_rule(self, rule_id: int, rule_name: str = None, markup_percentage: float = None, fixed_price: float = None):
+        """Updates a pricing rule."""
+        if not rule_name:
+            raise ValueError("Rule name cannot be empty.")
+        if markup_percentage is None and fixed_price is None:
+            raise ValueError("Either markup_percentage or fixed_price must be provided.")
+        if markup_percentage is not None and fixed_price is not None:
+            raise ValueError("Provide either markup_percentage or fixed_price, not both.")
+
+        self.db.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_price)
+
+    def delete_pricing_rule(self, rule_id: int):
+        """Deletes a pricing rule."""
+        self.db.delete_pricing_rule(rule_id)
+
+    def assign_pricing_rule(self, customer_id: int, rule_id: int):
+        """Assigns a pricing rule to a customer."""
+        customer = self.get_account_details(customer_id)
+        if not customer:
+            raise ValueError(f"Customer with ID {customer_id} not found.")
+        if customer.account_type != AccountType.CUSTOMER:
+            raise ValueError(f"Account with ID {customer_id} is not a customer.")
+
+        rule = self.get_pricing_rule(rule_id)
+        if not rule:
+            raise ValueError(f"Pricing rule with ID {rule_id} not found.")
+
+        self.db.assign_pricing_rule_to_customer(customer_id, rule_id)
+
+    def remove_pricing_rule(self, customer_id: int):
+        """Removes a pricing rule from a customer."""
+        customer = self.get_account_details(customer_id)
+        if not customer:
+            raise ValueError(f"Customer with ID {customer_id} not found.")
+
+        self.db.remove_pricing_rule_from_customer(customer_id)
 
 from typing import TYPE_CHECKING, Optional, List
 from enum import Enum # Placed here for broader scope within the module if needed

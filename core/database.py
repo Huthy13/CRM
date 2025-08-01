@@ -267,7 +267,7 @@ class DatabaseHandler:
     def get_account_details(self, account_id):
         """Retrieve full account details, including all associated addresses."""
         self.cursor.execute("""
-            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type
+            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type, a.pricing_rule_id
             FROM accounts AS a
             WHERE a.id = ?
         """, (account_id,))
@@ -919,6 +919,51 @@ class DatabaseHandler:
         # The following line was a bug, fetching categories instead of UoMs and overwriting the result.
         # self.cursor.execute("SELECT category_id, name FROM product_categories ORDER BY name")
         return self.cursor.fetchall()
+
+# --- Pricing Rule CRUD Methods ---
+    def add_pricing_rule(self, rule_name: str, markup_percentage: float | None, fixed_price: float | None) -> int:
+        """Adds a new pricing rule and returns its ID."""
+        self.cursor.execute("""
+            INSERT INTO pricing_rules (rule_name, markup_percentage, fixed_price)
+            VALUES (?, ?, ?)
+        """, (rule_name, markup_percentage, fixed_price))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_pricing_rule(self, rule_id: int) -> dict | None:
+        """Retrieves a pricing rule by its ID."""
+        self.cursor.execute("SELECT * FROM pricing_rules WHERE rule_id = ?", (rule_id,))
+        row = self.cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_all_pricing_rules(self) -> list[dict]:
+        """Retrieves all pricing rules."""
+        self.cursor.execute("SELECT * FROM pricing_rules ORDER BY rule_name")
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    def update_pricing_rule(self, rule_id: int, rule_name: str, markup_percentage: float | None, fixed_price: float | None):
+        """Updates a pricing rule."""
+        self.cursor.execute("""
+            UPDATE pricing_rules
+            SET rule_name = ?, markup_percentage = ?, fixed_price = ?
+            WHERE rule_id = ?
+        """, (rule_name, markup_percentage, fixed_price, rule_id))
+        self.conn.commit()
+
+    def delete_pricing_rule(self, rule_id: int):
+        """Deletes a pricing rule."""
+        self.cursor.execute("DELETE FROM pricing_rules WHERE rule_id = ?", (rule_id,))
+        self.conn.commit()
+
+    def assign_pricing_rule_to_customer(self, customer_id: int, rule_id: int):
+        """Assigns a pricing rule to a customer."""
+        self.cursor.execute("UPDATE accounts SET pricing_rule_id = ? WHERE id = ?", (rule_id, customer_id))
+        self.conn.commit()
+
+    def remove_pricing_rule_from_customer(self, customer_id: int):
+        """Removes a pricing rule from a customer."""
+        self.cursor.execute("UPDATE accounts SET pricing_rule_id = NULL WHERE id = ?", (customer_id,))
+        self.conn.commit()
 
 # Purchase Document related methods
     def add_purchase_document(self, doc_number: str, vendor_id: int, created_date: str, status: str, notes: str = None) -> int:

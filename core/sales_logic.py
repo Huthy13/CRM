@@ -1,6 +1,7 @@
 import datetime
 from typing import Optional, List
 from core.database import DatabaseHandler
+from core.address_book_logic import AddressBookLogic
 from shared.structs import (
     SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
     Account, AccountType, Product
@@ -104,9 +105,24 @@ class SalesLogic:
         # Use override if provided, otherwise product's sale_price, else error or default (e.g. 0)
         final_unit_price = unit_price_override
         if final_unit_price is None:
-            final_unit_price = product_info.get('sale_price') # Assumes get_product_details fetches this
-            if final_unit_price is None:
-                raise ValueError(f"Sale price for product ID {product_id} not found and no override provided.")
+            address_book_logic = AddressBookLogic(self.db)
+            customer = address_book_logic.get_account_details(doc.customer_id)
+            if customer and customer.pricing_rule_id:
+                rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
+                if rule:
+                    if rule.fixed_price is not None:
+                        final_unit_price = rule.fixed_price
+                    elif rule.markup_percentage is not None:
+                        product_cost = product_info.get('cost')
+                        if product_cost is not None:
+                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
+                        else:
+                            raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply markup rule.")
+
+            if final_unit_price is None: # If no rule was applied or customer/rule not found
+                final_unit_price = product_info.get('sale_price')
+                if final_unit_price is None:
+                    raise ValueError(f"Sale price for product ID {product_id} not found and no override provided.")
 
         if final_unit_price < 0:
             raise ValueError("Unit price cannot be negative.")
@@ -161,9 +177,24 @@ class SalesLogic:
 
         final_unit_price = unit_price_override
         if final_unit_price is None:
-            final_unit_price = product_info.get('sale_price')
-            if final_unit_price is None:
-                 raise ValueError(f"Sale price for product ID {product_id} not found and no override provided.")
+            address_book_logic = AddressBookLogic(self.db)
+            customer = address_book_logic.get_account_details(doc.customer_id)
+            if customer and customer.pricing_rule_id:
+                rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
+                if rule:
+                    if rule.fixed_price is not None:
+                        final_unit_price = rule.fixed_price
+                    elif rule.markup_percentage is not None:
+                        product_cost = product_info.get('cost')
+                        if product_cost is not None:
+                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
+                        else:
+                            raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply markup rule.")
+
+            if final_unit_price is None: # If no rule was applied or customer/rule not found
+                final_unit_price = product_info.get('sale_price')
+                if final_unit_price is None:
+                    raise ValueError(f"Sale price for product ID {product_id} not found and no override provided.")
 
         if final_unit_price < 0:
             raise ValueError("Unit price cannot be negative.")

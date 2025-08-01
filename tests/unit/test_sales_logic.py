@@ -10,6 +10,8 @@ import datetime
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from core.sales_logic import SalesLogic
+from core.database import DatabaseHandler
+from core.address_book_logic import AddressBookLogic
 from shared.structs import (
     SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
     Account, AccountType, Product
@@ -92,7 +94,7 @@ class TestSalesLogic(unittest.TestCase):
             "subtotal":0, "taxes":0, "total_amount":0
         }
         self.mock_db_handler.get_product_details.return_value = {
-            "product_id": mock_product_id, "name": "Test Product", "sale_price": 100.00
+            "product_id": mock_product_id, "name": "Test Product", "sale_price": 100.00, "cost": 80.0
         }
         new_item_id = 50
         self.mock_db_handler.add_sales_document_item.return_value = new_item_id
@@ -106,8 +108,14 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_item_by_id.return_value = mock_item_dict
         self.mock_db_handler.get_items_for_sales_document.return_value = [mock_item_dict.copy()]
 
-        item = self.sales_logic.add_item_to_sales_document(
-            doc_id=mock_doc_id, product_id=mock_product_id, quantity=mock_quantity, discount_percentage=mock_discount)
+        mock_address_book_logic_instance = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.pricing_rule_id = None
+        mock_address_book_logic_instance.get_account_details.return_value = mock_customer
+
+        with patch('core.sales_logic.AddressBookLogic', return_value=mock_address_book_logic_instance):
+            item = self.sales_logic.add_item_to_sales_document(
+                doc_id=mock_doc_id, product_id=mock_product_id, quantity=mock_quantity, discount_percentage=mock_discount)
 
         self.assertIsNotNone(item)
         self.assertEqual(item.id, new_item_id)
@@ -154,7 +162,7 @@ class TestSalesLogic(unittest.TestCase):
             "subtotal":0, "taxes":0, "total_amount":0
         }
         self.mock_db_handler.get_product_details.return_value = {
-            "product_id": mock_product_id, "name": "Test Product", "sale_price": 100.00
+            "product_id": mock_product_id, "name": "Test Product", "sale_price": 100.00, "cost": 80.0
         }
         new_item_id = 50
         self.mock_db_handler.add_sales_document_item.return_value = new_item_id
@@ -168,8 +176,14 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_item_by_id.return_value = mock_item_dict
         self.mock_db_handler.get_items_for_sales_document.return_value = [mock_item_dict.copy()]
 
-        item = self.sales_logic.add_item_to_sales_document(
-            doc_id=mock_doc_id, product_id=mock_product_id, quantity=mock_quantity, discount_percentage=mock_discount)
+        mock_address_book_logic_instance = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.pricing_rule_id = None
+        mock_address_book_logic_instance.get_account_details.return_value = mock_customer
+
+        with patch('core.sales_logic.AddressBookLogic', return_value=mock_address_book_logic_instance):
+            item = self.sales_logic.add_item_to_sales_document(
+                doc_id=mock_doc_id, product_id=mock_product_id, quantity=mock_quantity, discount_percentage=mock_discount)
 
         self.assertIsNotNone(item)
         self.assertEqual(item.id, new_item_id)
@@ -185,9 +199,16 @@ class TestSalesLogic(unittest.TestCase):
             "id": 1, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value,
             "document_number": "QUO-TEST-001", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
             "subtotal":0, "taxes":0, "total_amount":0}
-        self.mock_db_handler.get_product_details.return_value = {"product_id": 1, "name": "Test Product", "sale_price": None}
-        with self.assertRaisesRegex(ValueError, "Sale price for product ID 1 not found and no override provided."):
-            self.sales_logic.add_item_to_sales_document(doc_id=1, product_id=1, quantity=1)
+        self.mock_db_handler.get_product_details.return_value = {"product_id": 1, "name": "Test Product", "sale_price": None, "cost": None}
+
+        mock_address_book_logic_instance = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.pricing_rule_id = None
+        mock_address_book_logic_instance.get_account_details.return_value = mock_customer
+
+        with patch('core.sales_logic.AddressBookLogic', return_value=mock_address_book_logic_instance):
+            with self.assertRaisesRegex(ValueError, "Sale price for product ID 1 not found and no override provided."):
+                self.sales_logic.add_item_to_sales_document(doc_id=1, product_id=1, quantity=1)
 
     def test_update_sales_document_item_success(self):
         mock_item_id = 10
@@ -407,3 +428,62 @@ class TestSalesLogic(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class TestSalesLogicWithPricingRules(unittest.TestCase):
+    def setUp(self):
+        self.db_handler = DatabaseHandler(db_name=':memory:')
+        self.sales_logic = SalesLogic(self.db_handler)
+        self.address_book_logic = AddressBookLogic(self.db_handler)
+
+        # Create a customer
+        self.customer = self.address_book_logic.save_account(Account(name="Test Customer", account_type=AccountType.CUSTOMER))
+
+        # Create a product
+        self.product = Product(name="Test Product", cost=100.0, sale_price=150.0)
+        self.product.product_id = self.address_book_logic.save_product(self.product)
+
+        # Create a quote
+        self.quote = self.sales_logic.create_quote(customer_id=self.customer.account_id)
+
+
+    def tearDown(self):
+        self.db_handler.close()
+
+    def test_add_item_with_fixed_price_rule(self):
+        """Test adding an item for a customer with a fixed price rule."""
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Price Rule", fixed_price=120.0)
+        self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
+
+        item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
+
+        self.assertEqual(item.unit_price, 120.0)
+
+    def test_add_item_with_markup_rule(self):
+        """Test adding an item for a customer with a markup rule."""
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Markup Rule", markup_percentage=25.0)
+        self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
+
+        item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
+
+        # cost is 100.0, markup is 25%, so price should be 125.0
+        self.assertEqual(item.unit_price, 125.0)
+
+    def test_add_item_with_no_rule(self):
+        """Test adding an item for a customer with no pricing rule."""
+        item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
+
+        # Should use the product's sale_price
+        self.assertEqual(item.unit_price, 150.0)
+
+    def test_update_item_with_pricing_rule(self):
+        """Test that updating an item still respects the pricing rule."""
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Price Rule", fixed_price=110.0)
+        self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
+
+        item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
+        self.assertEqual(item.unit_price, 110.0)
+
+        updated_item = self.sales_logic.update_sales_document_item(item.id, self.product.product_id, 2, unit_price_override=None)
+
+        self.assertEqual(updated_item.unit_price, 110.0)
+        self.assertEqual(updated_item.quantity, 2)

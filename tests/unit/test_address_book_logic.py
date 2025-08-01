@@ -3,7 +3,7 @@ import os
 import sqlite3 # Import for PRAGMA
 from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
-from shared.structs import Product, AccountType # Added AccountType for product tests if needed
+from shared.structs import Product, AccountType, Account # Added AccountType for product tests if needed
 
 class TestAddressBookLogic(unittest.TestCase):
 
@@ -186,3 +186,74 @@ class TestAddressBookLogic(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class TestPricingRules(unittest.TestCase):
+    def setUp(self):
+        self.db_handler = DatabaseHandler(db_name=':memory:')
+        self.logic = AddressBookLogic(self.db_handler)
+
+    def tearDown(self):
+        self.db_handler.close()
+
+    def test_create_and_get_pricing_rule(self):
+        """Test creating and retrieving a pricing rule."""
+        rule_id = self.logic.create_pricing_rule(rule_name="20% Markup", markup_percentage=20.0)
+        self.assertIsNotNone(rule_id)
+
+        retrieved_rule = self.logic.get_pricing_rule(rule_id)
+        self.assertIsNotNone(retrieved_rule)
+        self.assertEqual(retrieved_rule.rule_name, "20% Markup")
+        self.assertEqual(retrieved_rule.markup_percentage, 20.0)
+        self.assertIsNone(retrieved_rule.fixed_price)
+
+    def test_list_pricing_rules(self):
+        """Test listing all pricing rules."""
+        self.logic.create_pricing_rule(rule_name="Rule 1", fixed_price=10.0)
+        self.logic.create_pricing_rule(rule_name="Rule 2", markup_percentage=5.0)
+
+        rules = self.logic.list_pricing_rules()
+        self.assertEqual(len(rules), 2)
+        self.assertEqual(rules[0].rule_name, "Rule 1")
+        self.assertEqual(rules[1].rule_name, "Rule 2")
+
+    def test_update_pricing_rule(self):
+        """Test updating a pricing rule."""
+        rule_id = self.logic.create_pricing_rule(rule_name="Old Name", fixed_price=9.99)
+
+        self.logic.update_pricing_rule(rule_id, "New Name", fixed_price=None, markup_percentage=15.0)
+
+        updated_rule = self.logic.get_pricing_rule(rule_id)
+        self.assertEqual(updated_rule.rule_name, "New Name")
+        self.assertEqual(updated_rule.markup_percentage, 15.0)
+        self.assertIsNone(updated_rule.fixed_price)
+
+    def test_delete_pricing_rule(self):
+        """Test deleting a pricing rule."""
+        rule_id = self.logic.create_pricing_rule(rule_name="To Be Deleted", fixed_price=1.0)
+        self.logic.delete_pricing_rule(rule_id)
+        retrieved_rule = self.logic.get_pricing_rule(rule_id)
+        self.assertIsNone(retrieved_rule)
+
+    def test_assign_and_remove_pricing_rule(self):
+        """Test assigning a pricing rule to a customer and removing it."""
+        customer = self.logic.save_account(Account(name="Test Customer", account_type=AccountType.CUSTOMER))
+        rule_id = self.logic.create_pricing_rule(rule_name="Customer Rule", fixed_price=50.0)
+
+        # Assign
+        self.logic.assign_pricing_rule(customer.account_id, rule_id)
+        customer_details = self.logic.get_account_details(customer.account_id)
+        self.assertEqual(customer_details.pricing_rule_id, rule_id)
+
+        # Remove
+        self.logic.remove_pricing_rule(customer.account_id)
+        customer_details_after_removal = self.logic.get_account_details(customer.account_id)
+        self.assertIsNone(customer_details_after_removal.pricing_rule_id)
+
+    def test_pricing_rule_validation(self):
+        """Test validation logic for creating/updating pricing rules."""
+        with self.assertRaisesRegex(ValueError, "Rule name cannot be empty."):
+            self.logic.create_pricing_rule(rule_name="")
+        with self.assertRaisesRegex(ValueError, "Either markup_percentage or fixed_price must be provided."):
+            self.logic.create_pricing_rule(rule_name="No price")
+        with self.assertRaisesRegex(ValueError, "Provide either markup_percentage or fixed_price, not both."):
+            self.logic.create_pricing_rule(rule_name="Both prices", markup_percentage=10.0, fixed_price=10.0)

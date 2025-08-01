@@ -1,46 +1,19 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from shared.structs import CompanyInformation, Address
-from core.address_service import AddressService
-from core.database import DatabaseHandler # Required for type hinting if logic layer is not fully fleshed out yet.
+from core.company_service import CompanyService
 
 class CompanyInfoTab:
-    def __init__(self, master, db_handler: DatabaseHandler):
+    def __init__(self, master, service: CompanyService):
         self.frame = ttk.Frame(master)
-        self.db_handler = db_handler
+        self.service = service
         self.company_info: CompanyInformation | None = None
         self.load_company_data()
         self.setup_ui()
 
     def load_company_data(self):
-        """Loads company information and associated addresses from the database."""
-        company_data_dict = self.db_handler.get_company_information()
-        if company_data_dict:
-            self.company_info = CompanyInformation(
-                company_id=company_data_dict.get('company_id'),
-                name=company_data_dict.get('name'),
-                phone=company_data_dict.get('phone'),
-                addresses=[]
-            )
-            addresses_data = self.db_handler.get_company_addresses(self.company_info.company_id)
-            for addr_data in addresses_data:
-                address = Address(
-                    address_id=addr_data['address_id'],
-                    street=addr_data['street'],
-                    city=addr_data['city'],
-                    state=addr_data['state'],
-                    zip_code=addr_data['zip'],
-                    country=addr_data['country']
-                )
-                address.address_type = addr_data['address_type']
-                address.is_primary = addr_data['is_primary']
-                self.company_info.addresses.append(address)
-        else:
-            # Initialize with default empty objects if no data found
-            self.company_info = CompanyInformation(name="My Company", addresses=[]) # Default name
-            self.db_handler.add_company_information(self.company_info.name, "")
-            # Reload to get the ID
-            self.load_company_data()
+        """Loads company information using the service layer."""
+        self.company_info = self.service.load_company_information()
 
 
     def setup_ui(self):
@@ -140,26 +113,9 @@ class CompanyInfoTab:
         self.company_info.name = self.name_entry.get()
         self.company_info.phone = self.phone_entry.get()
 
-        # Enforce single primary address using shared helper
-        AddressService.enforce_single_primary(self.company_info.addresses)
-
-        # Clear existing addresses and add the new ones
-        self.db_handler.cursor.execute("DELETE FROM company_addresses WHERE company_id = ?", (self.company_info.company_id,))
-        for address in self.company_info.addresses:
-            if address.address_id:
-                self.db_handler.update_address(address.address_id, address.street, address.city, address.state, address.zip_code, address.country)
-                self.db_handler.add_company_address(self.company_info.company_id, address.address_id, address.address_type, address.is_primary)
-            else:
-                address_id = self.db_handler.add_address(address.street, address.city, address.state, address.zip_code, address.country)
-                self.db_handler.add_company_address(self.company_info.company_id, address_id, address.address_type, address.is_primary)
-
-        self.db_handler.update_company_information(
-            self.company_info.company_id,
-            self.company_info.name,
-            self.company_info.phone
-        )
+        self.service.save_company_information(self.company_info)
         messagebox.showinfo("Success", "Company information updated successfully.")
-        self.load_company_data() # Reload to reflect changes and get fresh address objects
+        self.load_company_data()  # Reload to reflect changes and get fresh address objects
         self.refresh_ui_fields()
 
     def refresh_ui_fields(self):
@@ -216,25 +172,25 @@ if __name__ == '__main__':
     root = tk.Tk()
     root.title("Company Info Tab Test")
 
-    # Create a dummy db_handler for testing
-    # In a real app, this would be your actual DatabaseHandler instance
-    # For simplicity, we might mock it or use a real one if setup is easy
-    try:
-        db_handler = DatabaseHandler("test_company_info.db") # Use a test DB
-    except Exception as e:
-        print(f"Failed to initialize DB Handler for test: {e}")
-        db_handler = None # Or a mock object
+    # Create dummy services for testing
+    from core.database import DatabaseHandler
+    from core.repositories import AddressRepository, AccountRepository
+    from core.address_service import AddressService
+    from core.company_repository import CompanyRepository
 
-    if db_handler:
-        tab = CompanyInfoTab(root, db_handler)
+    try:
+        db_handler = DatabaseHandler("test_company_info.db")  # Use a test DB
+        address_service = AddressService(AddressRepository(db_handler), AccountRepository(db_handler))
+        company_service = CompanyService(CompanyRepository(db_handler), address_service)
+        tab = CompanyInfoTab(root, company_service)
         tab.frame.pack(expand=True, fill="both")
-        root.geometry("600x650") # Adjusted size
-    else:
-        tk.Label(root, text="Could not initialize DatabaseHandler for testing.").pack()
+        root.geometry("600x650")  # Adjusted size
+    except Exception as e:
+        tk.Label(root, text=f"Could not initialize services: {e}").pack()
+        db_handler = None
 
     root.mainloop()
     if db_handler:
         db_handler.close()
         import os
-        # os.remove("test_company_info.db") # Clean up test DB
         print("Test DB closed. Consider removing test_company_info.db manually if needed.")

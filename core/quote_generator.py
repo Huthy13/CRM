@@ -13,7 +13,12 @@ from core.sales_logic import SalesLogic
 from core.address_book_logic import AddressBookLogic
 from shared.structs import SalesDocument, SalesDocumentItem, Account, Address
 from shared.utils import sanitize_filename
-from core.pdf_generator import PDF
+from core.pdf_generator import PDF, get_company_pdf_context
+from core.company_repository import CompanyRepository
+from core.company_service import CompanyService
+from core.address_service import AddressService
+from core.repositories import AddressRepository, AccountRepository
+
 
 def generate_quote_pdf(sales_document_id: int, output_path: str = None):
     db_handler = None
@@ -22,75 +27,23 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         sales_logic = SalesLogic(db_handler)
         address_book_logic = AddressBookLogic(db_handler)
 
+        address_repo = AddressRepository(db_handler)
+        account_repo = AccountRepository(db_handler)
+        address_service = AddressService(address_repo, account_repo)
+        company_repo = CompanyRepository(db_handler)
+        company_service = CompanyService(company_repo, address_service)
+
         doc: SalesDocument = sales_logic.get_sales_document_details(sales_document_id)
         if not doc:
             print(f"Error: Sales document with ID {sales_document_id} not found.")
             return
 
-        company_info_dict = db_handler.get_company_information()
-        company_name_for_header = "Your Company Name"
-        company_phone_pdf = ""
-        company_shipping_address_pdf_lines = ["Shipping address not found."]
-        company_billing_address_pdf_lines = ["Billing address not found."]
-
-        if company_info_dict:
-            company_name_for_header = company_info_dict.get('name', company_name_for_header)
-            company_phone_pdf = company_info_dict.get('phone', "")
-
-            company_shipping_address_id = company_info_dict.get('shipping_address_id')
-            if company_shipping_address_id:
-                addr_tuple = db_handler.get_address(company_shipping_address_id)
-                if addr_tuple:
-                    company_shipping_address_pdf_lines = [
-                        addr_tuple[0] or "",
-                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                        addr_tuple[4] or ""
-                    ]
-                    company_shipping_address_pdf_lines = [line for line in company_shipping_address_pdf_lines if line.strip()]
-                    if not company_shipping_address_pdf_lines:
-                         company_shipping_address_pdf_lines = ["Shipping address details missing."]
-                else:
-                    company_shipping_address_pdf_lines = ["Shipping address not found in DB (ID existed)."]
-            else:
-                temp_billing_id_for_shipping = company_info_dict.get('billing_address_id')
-                if temp_billing_id_for_shipping:
-                    company_shipping_address_pdf_lines = ["Shipping address not set, using Billing Address:"]
-                    addr_tuple = db_handler.get_address(temp_billing_id_for_shipping)
-                    if addr_tuple:
-                        shipping_fallback_lines = [
-                            addr_tuple[0] or "",
-                            f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                            addr_tuple[4] or ""
-                        ]
-                        shipping_fallback_lines = [line for line in shipping_fallback_lines if line.strip()]
-                        if not shipping_fallback_lines:
-                            company_shipping_address_pdf_lines = ["Shipping address not set, billing address details missing."]
-                        else:
-                            company_shipping_address_pdf_lines.extend(shipping_fallback_lines)
-                    else:
-                         company_shipping_address_pdf_lines = ["Shipping address not set, billing address not found."]
-                else:
-                    company_shipping_address_pdf_lines = ["No shipping or billing address configured for company."]
-
-            company_billing_address_id = company_info_dict.get('billing_address_id')
-            if company_billing_address_id:
-                addr_tuple = db_handler.get_address(company_billing_address_id)
-                if addr_tuple:
-                    company_billing_address_pdf_lines = [
-                        addr_tuple[0] or "",
-                        f"{addr_tuple[1] or ""}, {addr_tuple[2] or ""} {addr_tuple[3] or ""}",
-                        addr_tuple[4] or ""
-                    ]
-                    company_billing_address_pdf_lines = [line for line in company_billing_address_pdf_lines if line.strip()]
-                    if not company_billing_address_pdf_lines:
-                        company_billing_address_pdf_lines = ["Billing address details missing."]
-                else:
-                    company_billing_address_pdf_lines = ["Billing address not found in DB (ID existed)."]
-            else:
-                company_billing_address_pdf_lines = ["Billing address ID not configured for company."]
-        else:
-            company_shipping_address_pdf_lines = ["Company information not found in database."]
-            company_billing_address_pdf_lines = ["Company information not found in database."]
+        (
+            company_name_for_header,
+            company_phone_pdf,
+            company_shipping_address_pdf_lines,
+            company_billing_address_pdf_lines,
+        ) = get_company_pdf_context(company_service)
 
         customer: Account = None
         customer_billing_address: Address = None
@@ -103,12 +56,10 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
                         customer_billing_address = address
                     if address.address_type == 'Shipping' and address.is_primary:
                         customer_shipping_address = address
-                # Fallback if no primary is set
                 if not customer_billing_address and any(addr.address_type == 'Billing' for addr in customer.addresses):
                     customer_billing_address = next(addr for addr in customer.addresses if addr.address_type == 'Billing')
                 if not customer_shipping_address and any(addr.address_type == 'Shipping' for addr in customer.addresses):
                     customer_shipping_address = next(addr for addr in customer.addresses if addr.address_type == 'Shipping')
-
 
         items: list[SalesDocumentItem] = sales_logic.get_items_for_sales_document(doc.id)
 
@@ -116,7 +67,7 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             document_number=doc.document_number,
             company_name=company_name_for_header,
             company_billing_address_lines=company_billing_address_pdf_lines,
-            document_type="Quote"
+            document_type="Quote",
         )
         pdf.alias_nb_pages()
         pdf.add_page()
@@ -141,7 +92,13 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
 
         temp_x_offset = pdf.get_x()
-        pdf.multi_cell(col_width_half, line_height, "\n".join(company_shipping_address_pdf_lines), 0, "L")
+        pdf.multi_cell(
+            col_width_half,
+            line_height,
+            "\n".join(company_shipping_address_pdf_lines),
+            0,
+            "L",
+        )
         y_after_company_address = pdf.get_y()
         pdf.set_xy(temp_x_offset, y_after_company_address)
 
@@ -164,11 +121,18 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
 
             if customer_billing_address:
                 pdf.set_x(right_column_x)
-                pdf.multi_cell(col_width_half, line_height,
-                               f"{customer_billing_address.street or ''}\n"
-                               f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}\n"
-                               f"{customer_billing_address.country or ''}".strip(),
-                               0, "L")
+                billing_lines = [
+                    customer_billing_address.street or "",
+                    f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}",
+                    (customer_billing_address.country or "").strip(),
+                ]
+                pdf.multi_cell(
+                    col_width_half,
+                    line_height,
+                    "\n".join(filter(None, billing_lines)),
+                    0,
+                    "L",
+                )
             else:
                 pdf.set_x(right_column_x)
                 pdf.cell(col_width_half, line_height, "No billing address on file.", 0, 1, "L")
@@ -257,6 +221,7 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         if db_handler:
             db_handler.close()
 
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a Quote PDF from existing application data.")
     parser.add_argument("sales_document_id", type=int, help="The ID of the sales document to generate.")
@@ -267,6 +232,7 @@ def main():
         generate_quote_pdf(args.sales_document_id, args.output)
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

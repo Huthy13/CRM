@@ -276,13 +276,54 @@ class TestSalesLogic(unittest.TestCase):
 
         self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_quote_data, {**mock_quote_data, "document_type": SalesDocumentType.SALES_ORDER.value, "status": SalesDocumentStatus.SO_OPEN.value}]
 
-        sales_order = self.sales_logic.convert_quote_to_sales_order(mock_quote_id)
+        with patch.object(self.sales_logic, 'get_items_for_sales_document', return_value=[]):
+            sales_order = self.sales_logic.convert_quote_to_sales_order(mock_quote_id)
 
         self.assertIsNotNone(sales_order)
         self.assertEqual(sales_order.id, mock_quote_id)
         self.assertEqual(sales_order.document_type, SalesDocumentType.SALES_ORDER)
         self.assertEqual(sales_order.status, SalesDocumentStatus.SO_OPEN)
         self.mock_db_handler.update_sales_document.assert_called_once_with(mock_quote_id, {"document_type": SalesDocumentType.SALES_ORDER.value, "status": SalesDocumentStatus.SO_OPEN.value})
+
+    def test_convert_quote_to_sales_order_queues_replenishment_when_insufficient_stock(self):
+        mock_quote_id = 1
+        mock_customer_id = 5
+        mock_quote_data = {
+            "id": mock_quote_id,
+            "document_number": "QUO-001",
+            "customer_id": mock_customer_id,
+            "document_type": SalesDocumentType.QUOTE.value,
+            "created_date": "date",
+            "status": SalesDocumentStatus.QUOTE_ACCEPTED.value,
+            "notes": "N",
+            "subtotal": 0.0,
+            "taxes": 0.0,
+            "total_amount": 0.0,
+        }
+        item_dict = {
+            "id": 10,
+            "sales_document_id": mock_quote_id,
+            "product_id": 100,
+            "product_description": "Item 1",
+            "quantity": 5.0,
+            "unit_price": 100.0,
+            "discount_percentage": 0.0,
+            "line_total": 500.0,
+        }
+        self.mock_db_handler.get_sales_document_by_id.side_effect = [
+            mock_quote_data,
+            {**mock_quote_data, "document_type": SalesDocumentType.SALES_ORDER.value, "status": SalesDocumentStatus.SO_OPEN.value},
+        ]
+        self.mock_db_handler.get_items_for_sales_document.return_value = [item_dict]
+
+        mock_inv_repo = MagicMock()
+        mock_inv_repo.get_stock_level.return_value = 0
+        self.sales_logic.inventory_service.inventory_repo = mock_inv_repo
+
+        sales_order = self.sales_logic.convert_quote_to_sales_order(mock_quote_id)
+
+        self.assertIsNotNone(sales_order)
+        mock_inv_repo.add_replenishment_item.assert_called_once_with(100, 5.0)
 
     def test_convert_quote_to_sales_order_quote_not_found(self):
         self.mock_db_handler.get_sales_document_by_id.return_value = None

@@ -276,10 +276,23 @@ class SalesLogic:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
+        # Check inventory for each item and queue replenishment if current stock is insufficient
+        items = self.get_items_for_sales_document(quote_id)
+        for item in items:
+            if item.product_id is None:
+                continue
+            stock_level = self.inventory_service.inventory_repo.get_stock_level(
+                item.product_id
+            )
+            shortage = item.quantity - stock_level
+            if shortage > 0:
+                self.inventory_service.inventory_repo.add_replenishment_item(
+                    item.product_id, shortage
+                )
         # Update the document type and status
         updates = {
             "document_type": SalesDocumentType.SALES_ORDER.value,
-            "status": SalesDocumentStatus.SO_OPEN.value
+            "status": SalesDocumentStatus.SO_OPEN.value,
         }
         self.sales_repo.update_sales_document(quote_id, updates)
 

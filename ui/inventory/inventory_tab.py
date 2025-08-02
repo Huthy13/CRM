@@ -25,13 +25,36 @@ class InventoryTab:
         self.sales_logic = sales_logic
         self.selected_item_id = None
 
+        self.setup_to_order_section()
         self.setup_to_receive_section()
         self.setup_ready_to_ship_section()
         self.frame.bind("<FocusIn>", self.refresh_lists)
 
+    # --- To Order Section ---
+    def setup_to_order_section(self):
+        tk.Label(self.frame, text="To Order").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.to_order_tree = ttk.Treeview(
+            self.frame,
+            columns=("product", "ordered", "on_hand", "to_order"),
+            show="tree headings",
+        )
+        self.to_order_tree.heading("#0", text="SO Number")
+        self.to_order_tree.heading("product", text="Product")
+        self.to_order_tree.heading("ordered", text="Ordered")
+        self.to_order_tree.heading("on_hand", text="On Hand")
+        self.to_order_tree.heading("to_order", text="To Order")
+        self.to_order_tree.column("#0", width=100)
+        self.to_order_tree.column("product", width=200)
+        self.to_order_tree.column("ordered", width=80, anchor=tk.E)
+        self.to_order_tree.column("on_hand", width=80, anchor=tk.E)
+        self.to_order_tree.column("to_order", width=80, anchor=tk.E)
+        self.to_order_tree.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.frame.grid_rowconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+
     # --- To Receive Section ---
     def setup_to_receive_section(self):
-        tk.Label(self.frame, text="To Receive").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame, text="To Receive").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.to_receive_tree = ttk.Treeview(
             self.frame,
             columns=("product", "ordered", "received", "remaining"),
@@ -47,16 +70,15 @@ class InventoryTab:
         self.to_receive_tree.column("ordered", width=80, anchor=tk.E)
         self.to_receive_tree.column("received", width=80, anchor=tk.E)
         self.to_receive_tree.column("remaining", width=80, anchor=tk.E)
-        self.to_receive_tree.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.to_receive_tree.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.to_receive_tree.bind("<<TreeviewSelect>>", self.on_select_item)
-        self.frame.grid_rowconfigure(1, weight=1)
-        self.frame.grid_columnconfigure(0, weight=1)
+        self.frame.grid_rowconfigure(3, weight=1)
 
-        tk.Button(self.frame, text="Record Receipt", command=self.open_receipt_popup).grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        tk.Button(self.frame, text="Record Receipt", command=self.open_receipt_popup).grid(row=4, column=0, padx=5, pady=5, sticky="w")
 
     # --- Ready to Ship Section ---
     def setup_ready_to_ship_section(self):
-        tk.Label(self.frame, text="Ready to Ship").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        tk.Label(self.frame, text="Ready to Ship").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.ready_tree = ttk.Treeview(
             self.frame,
             columns=("doc", "product", "ordered", "on_hand"),
@@ -70,8 +92,8 @@ class InventoryTab:
         self.ready_tree.column("product", width=200)
         self.ready_tree.column("ordered", width=80, anchor=tk.E)
         self.ready_tree.column("on_hand", width=80, anchor=tk.E)
-        self.ready_tree.grid(row=4, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
-        self.frame.grid_rowconfigure(4, weight=1)
+        self.ready_tree.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.frame.grid_rowconfigure(6, weight=1)
 
     def on_select_item(self, event=None):
         selection = self.to_receive_tree.selection()
@@ -95,9 +117,52 @@ class InventoryTab:
         self.frame.master.wait_window(popup)
 
     def refresh_lists(self, event=None):
+        self.refresh_to_order()
         self.refresh_to_receive()
         self.refresh_ready_to_ship()
 
+    def refresh_to_order(self):
+        expanded_docs = {
+            iid
+            for iid in self.to_order_tree.get_children()
+            if self.to_order_tree.item(iid, "open")
+        }
+        self.to_order_tree.delete(*self.to_order_tree.get_children())
+        orders = self.sales_logic.get_all_sales_documents_by_criteria(
+            doc_type=SalesDocumentType.SALES_ORDER,
+            status=SalesDocumentStatus.SO_OPEN,
+        )
+        for doc in orders:
+            doc_iid = f"doc_{doc.id}"
+            is_open = doc_iid in expanded_docs
+            items = self.sales_logic.get_items_for_sales_document(doc.id)
+            doc_inserted = False
+            for item in items:
+                product = (
+                    self.product_logic.get_product_details(item.product_id)
+                    if item.product_id
+                    else None
+                )
+                on_hand = product.quantity_on_hand if product else 0
+                to_order = item.quantity - on_hand
+                if to_order > 0:
+                    if not doc_inserted:
+                        self.to_order_tree.insert(
+                            "", "end", iid=doc_iid, text=doc.document_number, open=is_open
+                        )
+                        doc_inserted = True
+                    self.to_order_tree.insert(
+                        doc_iid,
+                        "end",
+                        iid=item.id,
+                        text="",
+                        values=(
+                            item.product_description,
+                            item.quantity,
+                            on_hand,
+                            to_order,
+                        ),
+                    )
     def refresh_to_receive(self):
         expanded_docs = {
             iid

@@ -99,12 +99,22 @@ class InventoryTab:
         self.refresh_ready_to_ship()
 
     def refresh_to_receive(self):
+        expanded_docs = {
+            iid
+            for iid in self.to_receive_tree.get_children()
+            if self.to_receive_tree.item(iid, "open")
+        }
         self.to_receive_tree.delete(*self.to_receive_tree.get_children())
         self.selected_item_id = None
-        docs = self.purchase_logic.get_all_documents_by_criteria(status=PurchaseDocumentStatus.PO_ISSUED)
+        docs = self.purchase_logic.get_all_documents_by_criteria(
+            status=PurchaseDocumentStatus.PO_ISSUED
+        )
         for doc in docs:
             doc_iid = f"doc_{doc.id}"
-            self.to_receive_tree.insert("", "end", iid=doc_iid, text=doc.document_number, open=False)
+            is_open = doc_iid in expanded_docs
+            self.to_receive_tree.insert(
+                "", "end", iid=doc_iid, text=doc.document_number, open=is_open
+            )
             items = self.purchase_logic.get_items_for_document(doc.id)
             for item in items:
                 remaining = item.quantity - item.received_quantity

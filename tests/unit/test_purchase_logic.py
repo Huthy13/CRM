@@ -32,43 +32,30 @@ class TestPurchaseLogic(unittest.TestCase):
         }
         self.mock_db_handler.get_account_details.return_value = self.mock_vendor_account_dict
 
-    def test_generate_document_number_first_of_day(self):
-        # Mock datetime to control date string
-        with patch('core.purchase_logic.datetime.date') as mock_date:
-            mock_date.today.return_value.strftime.return_value = "20230101"
+    def test_generate_document_number_first(self):
+        self.mock_db_handler.get_all_purchase_documents.return_value = []
+        doc_number = self.purchase_logic._generate_document_number()
+        self.assertEqual(doc_number, "P00000")
 
-            # Simulate no existing documents for this prefix and date
-            self.mock_db_handler.get_all_purchase_documents.return_value = []
-
-            doc_number = self.purchase_logic._generate_document_number("RFQ")
-            self.assertEqual(doc_number, "RFQ-20230101-0001")
-
-    def test_generate_document_number_subsequent_of_day(self):
-        with patch('core.purchase_logic.datetime.date') as mock_date:
-            mock_date.today.return_value.strftime.return_value = "20230101"
-
-            existing_doc_num = "RFQ-20230101-0005"
-            self.mock_db_handler.get_all_purchase_documents.return_value = [{"document_number": existing_doc_num}]
-
-            doc_number = self.purchase_logic._generate_document_number("RFQ")
-            self.assertEqual(doc_number, "RFQ-20230101-0006")
+    def test_generate_document_number_increment(self):
+        self.mock_db_handler.get_all_purchase_documents.return_value = [{"document_number": "P00005"}]
+        doc_number = self.purchase_logic._generate_document_number()
+        self.assertEqual(doc_number, "P00006")
 
     def test_generate_document_number_with_old_formats_present(self):
-        with patch('core.purchase_logic.datetime.date') as mock_date:
-            mock_date.today.return_value.strftime.return_value = "20230101"
-            self.mock_db_handler.get_all_purchase_documents.return_value = [
-                {"document_number": "RFQ-OLD-001"},
-                {"document_number": "RFQ-20230101-0002"},
-                {"document_number": "PO-OLD-002"}
-            ]
-            doc_number = self.purchase_logic._generate_document_number("RFQ")
-            self.assertEqual(doc_number, "RFQ-20230101-0003")
+        self.mock_db_handler.get_all_purchase_documents.return_value = [
+            {"document_number": "OLD-001"},
+            {"document_number": "P00002"},
+            {"document_number": "RFQ-OLD-002"}
+        ]
+        doc_number = self.purchase_logic._generate_document_number()
+        self.assertEqual(doc_number, "P00003")
 
 
     def test_create_rfq_success(self):
         self.mock_db_handler.add_purchase_document.return_value = 123 # New document ID
 
-        generated_numeric_doc_number = "10000000" # Expected from _generate_document_number
+        generated_numeric_doc_number = "P00000" # Expected from _generate_document_number
 
         # Mock get_purchase_document_by_id to return a dict that PurchaseLogic.get_purchase_document_details will convert
         mock_created_doc_dict = {
@@ -101,7 +88,7 @@ class TestPurchaseLogic(unittest.TestCase):
         doc_id = 1
         # Mock the parent document
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
-            "id": doc_id, "document_number": "RFQ-001", "vendor_id": 1,
+            "id": doc_id, "document_number": "P00000", "vendor_id": 1,
             "created_date": "date", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
         }
         # Mock product fetching
@@ -138,7 +125,7 @@ class TestPurchaseLogic(unittest.TestCase):
     def test_add_item_to_document_invalid_quantity(self):
         # Ensure the mock returns all necessary fields for PurchaseDocument instantiation
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
-            "id": 1, "document_number": "RFQ-001", "vendor_id": 1,
+            "id": 1, "document_number": "P00000", "vendor_id": 1,
             "created_date": "date_str", "status": PurchaseDocumentStatus.RFQ.value, "notes": ""
         }
         with self.assertRaisesRegex(ValueError, "Quantity must be positive."):
@@ -147,7 +134,7 @@ class TestPurchaseLogic(unittest.TestCase):
     def test_add_item_to_document_invalid_status(self):
         doc_id = 1
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
-            "id": doc_id, "document_number": "PO-001", "vendor_id": 1,
+            "id": doc_id, "document_number": "P00001", "vendor_id": 1,
             "created_date": "date", "status": PurchaseDocumentStatus.RECEIVED.value, "notes": ""
         }
         with self.assertRaisesRegex(ValueError, "RFQ, Quoted, or PO-Issued"):
@@ -167,7 +154,7 @@ class TestPurchaseLogic(unittest.TestCase):
         # Mock parent document with non-editable status
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
             "id": doc_id,
-            "document_number": "PO-001",
+            "document_number": "P00001",
             "vendor_id": 1,
             "created_date": "date",
             "status": PurchaseDocumentStatus.RECEIVED.value,
@@ -203,11 +190,11 @@ class TestPurchaseLogic(unittest.TestCase):
         self.mock_db_handler.get_purchase_document_by_id.side_effect = None # Clear side_effect
 
         initial_doc_state = {
-            "id": doc_id, "document_number": "RFQ-002", "vendor_id": 2,
+            "id": doc_id, "document_number": "P00000", "vendor_id": 2,
             "created_date": "date2", "status": PurchaseDocumentStatus.QUOTED.value, "notes": "notes"
         }
         updated_doc_state = {
-            "id": doc_id, "document_number": "RFQ-002", "vendor_id": 2,
+            "id": doc_id, "document_number": "P00001", "vendor_id": 2,
             "created_date": "date2", "status": PurchaseDocumentStatus.PO_ISSUED.value, "notes": "notes"
         }
 
@@ -226,24 +213,24 @@ class TestPurchaseLogic(unittest.TestCase):
             }
         ]
 
-        with patch.object(self.purchase_logic, '_generate_document_number', return_value="PO-20230101-0001") as mock_gen_num:
+        with patch.object(self.purchase_logic, '_generate_document_number', return_value="P00001") as mock_gen_num:
             updated_doc = self.purchase_logic.convert_rfq_to_po(doc_id)
 
             self.assertIsNotNone(updated_doc)
             self.assertEqual(updated_doc.status, PurchaseDocumentStatus.PO_ISSUED)
             self.mock_db_handler.update_purchase_document.assert_called_once_with(doc_id, {
                 "status": PurchaseDocumentStatus.PO_ISSUED.value,
-                "document_number": "PO-20230101-0001"
+                "document_number": "P00001"
             })
             self.mock_inventory_service.record_purchase_order.assert_called_once_with(
-                101, 5, reference="PO#PO-20230101-0001"
+                101, 5, reference="PO#P00001"
             )
 
     def test_convert_rfq_to_po_wrong_status(self):
         doc_id = 1
         self.mock_db_handler.get_purchase_document_by_id.side_effect = None
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
-            "id": doc_id, "document_number": "RFQ-003", "vendor_id": 3,
+            "id": doc_id, "document_number": "P00000", "vendor_id": 3,
             "created_date": "date3", "status": PurchaseDocumentStatus.RFQ.value, "notes": "notes"
         }
         with self.assertRaisesRegex(ValueError, "Only RFQs with status 'Quoted' can be converted to PO."):
@@ -254,7 +241,7 @@ class TestPurchaseLogic(unittest.TestCase):
         doc_id = 1
         initial_doc_state = {
             "id": doc_id,
-            "document_number": "RFQ-010",
+            "document_number": "P00000",
             "vendor_id": 1,
             "created_date": "date",
             "status": PurchaseDocumentStatus.QUOTED.value,
@@ -262,7 +249,7 @@ class TestPurchaseLogic(unittest.TestCase):
         }
         updated_doc_state = {
             "id": doc_id,
-            "document_number": "PO-20230101-0001",
+            "document_number": "P00001",
             "vendor_id": 1,
             "created_date": "date",
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
@@ -288,7 +275,7 @@ class TestPurchaseLogic(unittest.TestCase):
             }
         ]
         with patch.object(
-            self.purchase_logic, "_generate_document_number", return_value="PO-20230101-0001"
+            self.purchase_logic, "_generate_document_number", return_value="P00001"
         ):
             updated_doc = self.purchase_logic.update_document_status(
                 doc_id, PurchaseDocumentStatus.PO_ISSUED
@@ -297,17 +284,17 @@ class TestPurchaseLogic(unittest.TestCase):
         self.assertEqual(updated_doc.status, PurchaseDocumentStatus.PO_ISSUED)
         self.mock_db_handler.update_purchase_document.assert_called_once_with(
             doc_id,
-            {"status": PurchaseDocumentStatus.PO_ISSUED.value, "document_number": "PO-20230101-0001"},
+            {"status": PurchaseDocumentStatus.PO_ISSUED.value, "document_number": "P00001"},
         )
         self.mock_inventory_service.record_purchase_order.assert_called_once_with(
-            101, 5, reference="PO#PO-20230101-0001"
+            101, 5, reference="PO#P00001"
         )
 
     def test_update_document_status_revert_po_clears_on_order(self):
         doc_id = 1
         initial_doc_state = {
             "id": doc_id,
-            "document_number": "PO-20230101-0001",
+            "document_number": "P00001",
             "vendor_id": 1,
             "created_date": "date",
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
@@ -315,7 +302,7 @@ class TestPurchaseLogic(unittest.TestCase):
         }
         updated_doc_state = {
             "id": doc_id,
-            "document_number": "PO-20230101-0001",
+            "document_number": "P00001",
             "vendor_id": 1,
             "created_date": "date",
             "status": PurchaseDocumentStatus.RFQ.value,
@@ -346,18 +333,18 @@ class TestPurchaseLogic(unittest.TestCase):
             doc_id, PurchaseDocumentStatus.RFQ.value
         )
         self.mock_inventory_service.record_purchase_order.assert_called_once_with(
-            101, -3, reference="PO#PO-20230101-0001"
+            101, -3, reference="PO#P00001"
         )
 
     def test_mark_document_received_success(self):
         doc_id = 1
         self.mock_db_handler.get_purchase_document_by_id.side_effect = None
         initial_doc_state = {
-            "id": doc_id, "document_number": "PO-004", "vendor_id": 4,
+            "id": doc_id, "document_number": "P00004", "vendor_id": 4,
             "created_date": "date4", "status": PurchaseDocumentStatus.PO_ISSUED.value, "notes": "notes"
         }
         updated_doc_state = {
-            "id": doc_id, "document_number": "PO-004", "vendor_id": 4,
+            "id": doc_id, "document_number": "P00004", "vendor_id": 4,
             "created_date": "date4", "status": PurchaseDocumentStatus.RECEIVED.value, "notes": "notes"
         }
         self.mock_db_handler.get_purchase_document_by_id.side_effect = [initial_doc_state, updated_doc_state]
@@ -369,11 +356,11 @@ class TestPurchaseLogic(unittest.TestCase):
         doc_id = 1
         self.mock_db_handler.get_purchase_document_by_id.side_effect = None
         initial_doc_state = {
-            "id": doc_id, "document_number": "PO-005", "vendor_id": 5,
+            "id": doc_id, "document_number": "P00005", "vendor_id": 5,
             "created_date": "date5", "status": PurchaseDocumentStatus.RECEIVED.value, "notes": "notes"
         }
         updated_doc_state = {
-            "id": doc_id, "document_number": "PO-005", "vendor_id": 5,
+            "id": doc_id, "document_number": "P00005", "vendor_id": 5,
             "created_date": "date5", "status": PurchaseDocumentStatus.CLOSED.value, "notes": "notes"
         }
         self.mock_db_handler.get_purchase_document_by_id.side_effect = [initial_doc_state, updated_doc_state]
@@ -385,7 +372,7 @@ class TestPurchaseLogic(unittest.TestCase):
     def test_get_purchase_document_details(self):
         doc_id = 7
         mock_doc_data = {
-            "id": doc_id, "document_number": "RFQ-123", "vendor_id": 1,
+            "id": doc_id, "document_number": "P00123", "vendor_id": 1,
             "created_date": "2023-01-01T00:00:00", "status": "RFQ", "notes": "Test"
         }
         self.mock_db_handler.get_purchase_document_by_id.return_value = mock_doc_data
@@ -508,7 +495,7 @@ class TestPurchaseLogic(unittest.TestCase):
         doc_id = 5
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
             "id": doc_id,
-            "document_number": "PO-20230101-0001",
+            "document_number": "P00001",
             "vendor_id": 1,
             "created_date": "2023-01-01",
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
@@ -527,10 +514,10 @@ class TestPurchaseLogic(unittest.TestCase):
         ]
         purchase_logic.receive_purchase_order(doc_id)
         mock_inventory_service.record_purchase_order.assert_called_once_with(
-            10, -3, reference="PO#PO-20230101-0001"
+            10, -3, reference="PO#P00001"
         )
         mock_inventory_service.adjust_stock.assert_called_once_with(
-            10, 3, InventoryTransactionType.PURCHASE, reference="PO#PO-20230101-0001"
+            10, 3, InventoryTransactionType.PURCHASE, reference="PO#P00001"
         )
         self.mock_db_handler.update_purchase_document_status.assert_called_with(
             doc_id, PurchaseDocumentStatus.RECEIVED.value

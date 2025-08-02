@@ -45,32 +45,26 @@ class PurchaseLogic:
             inv_repo, self.product_repo
         )
 
-    def _generate_document_number(self, prefix: str) -> str:
-        """
-        Generates a unique document number for RFQs (RFQ-YYYYMMDD-XXXX)
-        and POs (PO-YYYYMMDD-XXXX).
-        XXXX is a 4-digit incrementing number for that day and type.
-        """
-        if not prefix:
-            raise ValueError("Prefix is required for generating a document number.")
+    def _generate_document_number(self) -> str:
+        """Generates a unique purchase document number in the format ``P#####``.
 
-        today_str = datetime.date.today().strftime("%Y%m%d")
-        full_prefix = f"{prefix}-{today_str}-"
-
+        The numbering is shared across all purchase documents.
+        """
+        prefix = "P"
         all_docs_raw = self.purchase_repo.get_all_purchase_documents()
-        max_seq_today = 0
+        max_seq = -1
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
-            if doc_num_str and doc_num_str.startswith(full_prefix):
+            if doc_num_str and doc_num_str.startswith(prefix):
                 try:
-                    seq_part = int(doc_num_str.split('-')[-1])
-                    if seq_part > max_seq_today:
-                        max_seq_today = seq_part
+                    seq_part = int(doc_num_str[len(prefix):])
+                    if seq_part > max_seq:
+                        max_seq = seq_part
                 except (ValueError, IndexError):
-                    pass # Ignore malformed numbers
+                    pass  # Ignore malformed numbers
 
-        next_seq = max_seq_today + 1
-        return f"{full_prefix}{next_seq:04d}"
+        next_seq = max_seq + 1
+        return f"{prefix}{next_seq:05d}"
 
     # TODO: PurchaseLogic will need access to ProductLogic or direct product fetching methods from DB
     # For now, product_description will be passed through if product_id is also given.
@@ -85,7 +79,7 @@ class PurchaseLogic:
         if vendor_account_dict.get('account_type') != AccountType.VENDOR.value:
              raise ValueError(f"Account ID {vendor_id} is not a registered Vendor.")
 
-        doc_number = self._generate_document_number("RFQ")
+        doc_number = self._generate_document_number()
         created_date_str = datetime.datetime.now().isoformat()
 
         new_doc_id = self.purchase_repo.add_purchase_document(
@@ -201,7 +195,7 @@ class PurchaseLogic:
 
         # When converting, we can either update the status and keep the number,
         # or generate a new PO number. Generating a new PO number is often cleaner.
-        new_po_number = self._generate_document_number("PO")
+        new_po_number = self._generate_document_number()
         self.purchase_repo.update_purchase_document(doc_id, {
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
             "document_number": new_po_number

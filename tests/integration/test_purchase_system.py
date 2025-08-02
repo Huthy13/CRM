@@ -78,7 +78,7 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         self.assertIsNotNone(rfq_doc.id)
         self.assertEqual(rfq_doc.status, PurchaseDocumentStatus.RFQ)
         self.assertEqual(rfq_doc.vendor_id, self.vendor1_id)
-        self.assertTrue(rfq_doc.document_number.startswith("RFQ-"))
+        self.assertTrue(rfq_doc.document_number.startswith("P"))
 
         # 2. Add items to RFQ (using product_id)
         self.assertIsNotNone(self.product1, "Product1 should be loaded")
@@ -129,7 +129,7 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         self.assertIsNotNone(po_doc)
         self.assertEqual(po_doc.status, PurchaseDocumentStatus.PO_ISSUED)
         # Document number should now be a new PO number
-        self.assertTrue(po_doc.document_number.startswith("PO-"))
+        self.assertTrue(po_doc.document_number.startswith("P"))
         self.assertNotEqual(po_doc.document_number, rfq_doc.document_number)
 
         # 5. Mark PO as Received

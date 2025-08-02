@@ -56,7 +56,7 @@ class SalesLogic:
         The numbering is shared across all sales documents regardless of type.
         """
         prefix = "S"
-        all_docs_raw = self.sales_repo.get_all_sales_documents()
+        all_docs_raw = self.sales_repo.get_all_sales_documents(is_active=None)
         max_seq = -1
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
@@ -401,72 +401,103 @@ class SalesLogic:
         doc_data = self.sales_repo.get_sales_document_by_id(doc_id)
         if doc_data:
             status_enum = None
-            if doc_data.get('status'):
+            if doc_data.get("status"):
                 try:
-                    status_enum = SalesDocumentStatus(doc_data['status'])
+                    status_enum = SalesDocumentStatus(doc_data["status"])
                 except ValueError:
-                    logger.warning("Invalid sales status '%s' in DB for doc ID %s", doc_data['status'], doc_id)
+                    logger.warning(
+                        "Invalid sales status '%s' in DB for doc ID %s",
+                        doc_data["status"],
+                        doc_id,
+                    )
 
             doc_type_enum = None
-            if doc_data.get('document_type'):
+            if doc_data.get("document_type"):
                 try:
-                    doc_type_enum = SalesDocumentType(doc_data['document_type'])
+                    doc_type_enum = SalesDocumentType(doc_data["document_type"])
                 except ValueError:
-                    logger.warning("Invalid sales document type '%s' in DB for doc ID %s", doc_data['document_type'], doc_id)
+                    logger.warning(
+                        "Invalid sales document type '%s' in DB for doc ID %s",
+                        doc_data["document_type"],
+                        doc_id,
+                    )
 
             return SalesDocument(
-                doc_id=doc_data['id'],
-                document_number=doc_data['document_number'],
-                customer_id=doc_data['customer_id'],
+                doc_id=doc_data["id"],
+                document_number=doc_data["document_number"],
+                customer_id=doc_data["customer_id"],
                 document_type=doc_type_enum,
-                created_date=doc_data['created_date'],
-                expiry_date=doc_data.get('expiry_date'),
-                due_date=doc_data.get('due_date'),
+                created_date=doc_data["created_date"],
+                expiry_date=doc_data.get("expiry_date"),
+                due_date=doc_data.get("due_date"),
                 status=status_enum,
-                notes=doc_data.get('notes'),
-                subtotal=doc_data.get('subtotal'),
-                taxes=doc_data.get('taxes'),
-                total_amount=doc_data.get('total_amount'),
-                related_quote_id=doc_data.get('related_quote_id')
+                notes=doc_data.get("notes"),
+                subtotal=doc_data.get("subtotal"),
+                taxes=doc_data.get("taxes"),
+                total_amount=doc_data.get("total_amount"),
+                related_quote_id=doc_data.get("related_quote_id"),
+                is_active=bool(doc_data.get("is_active", True)),
             )
         return None
 
-    def get_all_sales_documents_by_criteria(self, customer_id: int = None, doc_type: SalesDocumentType = None, status: SalesDocumentStatus = None) -> List[SalesDocument]:
+    def get_all_sales_documents_by_criteria(
+        self,
+        customer_id: int = None,
+        doc_type: SalesDocumentType = None,
+        status: SalesDocumentStatus = None,
+        is_active: Optional[bool] = True,
+    ) -> List[SalesDocument]:
         doc_type_value = doc_type.value if doc_type else None
         status_value = status.value if status else None
 
-        docs_data = self.sales_repo.get_all_sales_documents(customer_id=customer_id, document_type=doc_type_value, status=status_value)
+        docs_data = self.sales_repo.get_all_sales_documents(
+            customer_id=customer_id,
+            document_type=doc_type_value,
+            status=status_value,
+            is_active=is_active,
+        )
         result_list = []
         for doc_data in docs_data:
             status_enum = None
-            if doc_data.get('status'):
+            if doc_data.get("status"):
                 try:
-                    status_enum = SalesDocumentStatus(doc_data['status'])
+                    status_enum = SalesDocumentStatus(doc_data["status"])
                 except ValueError:
-                    logger.warning("Invalid sales status '%s' in DB for doc ID %s", doc_data['status'], doc_data['id'])
+                    logger.warning(
+                        "Invalid sales status '%s' in DB for doc ID %s",
+                        doc_data["status"],
+                        doc_data["id"],
+                    )
 
             doc_type_enum = None
-            if doc_data.get('document_type'):
+            if doc_data.get("document_type"):
                 try:
-                    doc_type_enum = SalesDocumentType(doc_data['document_type'])
+                    doc_type_enum = SalesDocumentType(doc_data["document_type"])
                 except ValueError:
-                    logger.warning("Invalid sales document type '%s' in DB for doc ID %s", doc_data['document_type'], doc_data['id'])
+                    logger.warning(
+                        "Invalid sales document type '%s' in DB for doc ID %s",
+                        doc_data["document_type"],
+                        doc_data["id"],
+                    )
 
-            result_list.append(SalesDocument(
-                doc_id=doc_data['id'],
-                document_number=doc_data['document_number'],
-                customer_id=doc_data['customer_id'],
-                document_type=doc_type_enum,
-                created_date=doc_data['created_date'],
-                expiry_date=doc_data.get('expiry_date'),
-                due_date=doc_data.get('due_date'),
-                status=status_enum,
-                notes=doc_data.get('notes'),
-                subtotal=doc_data.get('subtotal'),
-                taxes=doc_data.get('taxes'),
-                total_amount=doc_data.get('total_amount'),
-                related_quote_id=doc_data.get('related_quote_id')
-            ))
+            result_list.append(
+                SalesDocument(
+                    doc_id=doc_data["id"],
+                    document_number=doc_data["document_number"],
+                    customer_id=doc_data["customer_id"],
+                    document_type=doc_type_enum,
+                    created_date=doc_data["created_date"],
+                    expiry_date=doc_data.get("expiry_date"),
+                    due_date=doc_data.get("due_date"),
+                    status=status_enum,
+                    notes=doc_data.get("notes"),
+                    subtotal=doc_data.get("subtotal"),
+                    taxes=doc_data.get("taxes"),
+                    total_amount=doc_data.get("total_amount"),
+                    related_quote_id=doc_data.get("related_quote_id"),
+                    is_active=bool(doc_data.get("is_active", True)),
+                )
+            )
         return result_list
 
     def get_items_for_sales_document(self, doc_id: int) -> List[SalesDocumentItem]:
@@ -535,24 +566,19 @@ class SalesLogic:
         if not doc:
             raise ValueError(f"Sales document with ID {doc_id} not found.")
 
-        # Add any business logic checks here, e.g., cannot delete a PAID invoice.
-        # For now, allowing deletion if found.
-        # Note: DB ON DELETE CASCADE should handle items if configured on FK.
-        # If not, items must be deleted manually first.
-        # The sales_document_items table in database_setup.py does NOT have ON DELETE CASCADE.
-        # So, we must delete items first.
-
         items = self.get_items_for_sales_document(doc_id)
         if items:
-             # Check if document status allows item/document deletion
             deletable_doc_statuses = [
-                SalesDocumentStatus.QUOTE_DRAFT, SalesDocumentStatus.QUOTE_REJECTED, SalesDocumentStatus.QUOTE_EXPIRED,
-                SalesDocumentStatus.INVOICE_DRAFT, SalesDocumentStatus.INVOICE_VOID
+                SalesDocumentStatus.QUOTE_DRAFT,
+                SalesDocumentStatus.QUOTE_REJECTED,
+                SalesDocumentStatus.QUOTE_EXPIRED,
+                SalesDocumentStatus.INVOICE_DRAFT,
+                SalesDocumentStatus.INVOICE_VOID,
             ]
-            if doc.status not in deletable_doc_statuses :
-                 raise ValueError(f"Cannot delete document with status '{doc.status.value}' that has items. Consider voiding first.")
+            if doc.status not in deletable_doc_statuses:
+                raise ValueError(
+                    f"Cannot delete document with status '{doc.status.value}' that has items. Consider voiding first."
+                )
 
-            for item in items:
-                self.sales_repo.delete_sales_document_item(item.id) # Use the item's own ID
-
+        # Soft delete by marking inactive
         self.sales_repo.delete_sales_document(doc_id)

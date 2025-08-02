@@ -34,8 +34,17 @@ class PurchaseDocumentTab:
         self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_selected_document, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=5)
 
+        self.show_inactive_var = tk.BooleanVar(value=False)
+        self.show_inactive_cb = ttk.Checkbutton(
+            button_frame,
+            text="Show Inactive",
+            variable=self.show_inactive_var,
+            command=self.load_documents,
+        )
+        self.show_inactive_cb.pack(side=tk.LEFT, padx=5)
+
         # Treeview for displaying documents
-        columns = ("doc_number", "vendor_name", "created_date", "status", "notes")
+        columns = ("doc_number", "vendor_name", "created_date", "status", "notes", "active")
         self.tree = ttk.Treeview(self.frame, columns=columns, show="headings", selectmode="browse")
 
         self.tree.heading("doc_number", text="Document #")
@@ -43,12 +52,14 @@ class PurchaseDocumentTab:
         self.tree.heading("created_date", text="Created Date")
         self.tree.heading("status", text="Status")
         self.tree.heading("notes", text="Notes")
+        self.tree.heading("active", text="Active")
 
         self.tree.column("doc_number", width=150, anchor=tk.W)
         self.tree.column("vendor_name", width=200, anchor=tk.W)
         self.tree.column("created_date", width=150, anchor=tk.W)
         self.tree.column("status", width=100, anchor=tk.CENTER)
         self.tree.column("notes", width=300, anchor=tk.W)
+        self.tree.column("active", width=60, anchor=tk.CENTER)
 
         self.tree.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
@@ -83,9 +94,10 @@ class PurchaseDocumentTab:
         for i in self.tree.get_children():
             self.tree.delete(i)
 
-        # Fetch all non-closed documents (example filter)
-        # documents = self.purchase_logic.get_all_documents_by_criteria(status_not_closed=True) # Needs method adjustment
-        documents = self.purchase_logic.get_all_documents_by_criteria() # Get all for now
+        show_inactive = self.show_inactive_var.get()
+        documents = self.purchase_logic.get_all_documents_by_criteria(
+            is_active=None if show_inactive else True
+        )
 
         for doc in documents:
             vendor_name = "Unknown Vendor"
@@ -102,13 +114,19 @@ class PurchaseDocumentTab:
             except (ValueError, TypeError):
                 pass # Keep original if not parsable
 
-            self.tree.insert("", tk.END, values=(
-                doc.document_number,
-                vendor_name,
-                formatted_date,
-                doc.status.value if doc.status else "N/A",
-                doc.notes or ""
-            ), iid=str(doc.id)) # Use doc.id as item identifier (iid)
+            self.tree.insert(
+                "",
+                tk.END,
+                values=(
+                    doc.document_number,
+                    vendor_name,
+                    formatted_date,
+                    doc.status.value if doc.status else "N/A",
+                    doc.notes or "",
+                    "Yes" if doc.is_active else "No",
+                ),
+                iid=str(doc.id),
+            )
 
         self.on_tree_select(None) # Update button states
 

@@ -456,9 +456,7 @@ class TestSalesLogic(unittest.TestCase):
         ]
         self.mock_db_handler.get_items_for_sales_document.return_value = mock_items_list
         self.sales_logic.delete_sales_document(mock_doc_id)
-        self.assertEqual(self.mock_db_handler.delete_sales_document_item.call_count, 2)
-        self.mock_db_handler.delete_sales_document_item.assert_any_call(mock_item_id1)
-        self.mock_db_handler.delete_sales_document_item.assert_any_call(mock_item_id2)
+        self.mock_db_handler.delete_sales_document_item.assert_not_called()
         self.mock_db_handler.delete_sales_document.assert_called_once_with(mock_doc_id)
 
     def test_delete_sales_document_not_found(self):

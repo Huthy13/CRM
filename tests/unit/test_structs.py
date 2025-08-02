@@ -82,7 +82,7 @@ class TestPurchaseDocumentClass(unittest.TestCase):
         doc_dict = doc.to_dict()
         expected_dict = {
             "id": 1, "document_number": "P00001", "vendor_id": 5,
-            "created_date": now_iso, "status": "Quoted", "notes": "Quoted notes"
+            "created_date": now_iso, "status": "Quoted", "notes": "Quoted notes", "is_active": True
         }
         self.assertEqual(doc_dict, expected_dict)
 

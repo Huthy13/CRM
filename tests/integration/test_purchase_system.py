@@ -201,13 +201,14 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
 
         self.purchase_logic.delete_purchase_document(rfq_to_delete.id)
 
-        # Check document is deleted
         deleted_doc_check = self.purchase_logic.get_purchase_document_details(rfq_to_delete.id)
-        self.assertIsNone(deleted_doc_check)
+        self.assertIsNotNone(deleted_doc_check)
+        self.assertFalse(deleted_doc_check.is_active)
 
-        # Check items are deleted (due to ON DELETE CASCADE)
-        items_after_delete = self.db_handler.get_items_for_document(rfq_to_delete.id) # Use DB direct to check
-        self.assertEqual(len(items_after_delete), 0)
+        items_after_delete = self.db_handler.get_items_for_document(
+            rfq_to_delete.id
+        )  # Use DB direct to check
+        self.assertEqual(len(items_after_delete), 2)
 
     def test_delete_specific_item(self):
         rfq = self.purchase_logic.create_rfq(vendor_id=self.vendor1_id)

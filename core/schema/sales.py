@@ -17,6 +17,7 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             taxes REAL DEFAULT 0.0,
             total_amount REAL DEFAULT 0.0,
             related_quote_id INTEGER,
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (customer_id) REFERENCES accounts(id),

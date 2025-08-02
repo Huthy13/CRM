@@ -139,7 +139,13 @@ class AddressPopup(tk.Toplevel):
         self.country_entry = self._create_entry("Country:", 4, self.address.country)
         tk.Label(self, text="Type:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
         self.type_var = tk.StringVar(self)
-        self.type_dropdown = ttk.Combobox(self, textvariable=self.type_var, values=["Billing", "Shipping"], state="readonly", width=37)
+        self.type_dropdown = ttk.Combobox(
+            self,
+            textvariable=self.type_var,
+            values=["Billing", "Shipping", "Remittance"],
+            state="readonly",
+            width=37,
+        )
         if hasattr(self.address, 'address_type'):
             self.type_dropdown.set(self.address.address_type)
         self.type_dropdown.grid(row=5, column=1, padx=5, pady=5)

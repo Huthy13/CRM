@@ -206,7 +206,7 @@ class TestCompanyInfo(unittest.TestCase):
         self.assertEqual(db_entry['name'], "My Company")
 
     def test_07_enforce_single_primary_address(self):
-        """Test that only one primary billing and one primary shipping address can be saved for the company."""
+        """Ensure only one primary address per type (Billing, Shipping, Remittance)."""
         if not self.root:
             self.skipTest("Tkinter root not available, skipping UI-dependent test.")
 
@@ -232,6 +232,16 @@ class TestCompanyInfo(unittest.TestCase):
         tab.company_info.addresses.append(shipping_address1)
         tab.company_info.addresses.append(shipping_address2)
 
+        # Add two primary remittance addresses
+        remittance_address1 = Address(street="123 Remit St", city="Remitville", state="RS", zip_code="98765", country="RC")
+        remittance_address1.address_type = "Remittance"
+        remittance_address1.is_primary = True
+        remittance_address2 = Address(street="456 Remit St", city="Remitville", state="RS", zip_code="98765", country="RC")
+        remittance_address2.address_type = "Remittance"
+        remittance_address2.is_primary = True
+        tab.company_info.addresses.append(remittance_address1)
+        tab.company_info.addresses.append(remittance_address2)
+
         tab.save_company_information()
 
         # Verify that only one of each is primary
@@ -240,6 +250,8 @@ class TestCompanyInfo(unittest.TestCase):
         self.assertEqual(len(primary_billing_addresses), 1)
         primary_shipping_addresses = [addr for addr in addresses if addr['address_type'] == 'Shipping' and addr['is_primary']]
         self.assertEqual(len(primary_shipping_addresses), 1)
+        primary_remittance_addresses = [addr for addr in addresses if addr['address_type'] == 'Remittance' and addr['is_primary']]
+        self.assertEqual(len(primary_remittance_addresses), 1)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -147,7 +147,7 @@ class TestAddressBookLogic(unittest.TestCase):
         # ... rest of test ...
 
     def test_enforce_single_primary_address(self):
-        """Test that only one primary billing and one primary shipping address can be saved for an account."""
+        """Ensure only one primary address per type (Billing, Shipping, Remittance)."""
         from shared.structs import Account, Address
         account = Account(name="Test Account", account_type=AccountType.CUSTOMER)
         self.logic.save_account(account)
@@ -183,6 +183,22 @@ class TestAddressBookLogic(unittest.TestCase):
         addresses = self.db_handler.get_account_addresses(account.account_id)
         primary_shipping_addresses = [addr for addr in addresses if addr['address_type'] == 'Shipping' and addr['is_primary']]
         self.assertEqual(len(primary_shipping_addresses), 1)
+
+        # Add two primary remittance addresses
+        remittance_address1 = Address(street="123 Remit St", city="Remitville", state="RS", zip_code="98765", country="RC")
+        remittance_address1.address_type = "Remittance"
+        remittance_address1.is_primary = True
+        remittance_address2 = Address(street="456 Remit St", city="Remitville", state="RS", zip_code="98765", country="RC")
+        remittance_address2.address_type = "Remittance"
+        remittance_address2.is_primary = True
+        account.addresses.append(remittance_address1)
+        account.addresses.append(remittance_address2)
+        self.logic.save_account_addresses(account)
+
+        # Verify that only one remittance address is primary
+        addresses = self.db_handler.get_account_addresses(account.account_id)
+        primary_remittance_addresses = [addr for addr in addresses if addr['address_type'] == 'Remittance' and addr['is_primary']]
+        self.assertEqual(len(primary_remittance_addresses), 1)
 
 if __name__ == '__main__':
     unittest.main()

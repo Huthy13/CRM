@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from core.database import DatabaseHandler
 from core.address_book_logic import AddressBookLogic
 from ui.contacts.contact_tab import ContactTab
 from ui.accounts.account_tab import AccountTab
@@ -12,7 +11,8 @@ from core.purchase_logic import PurchaseLogic
 from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
 from core.sales_logic import SalesLogic # Import SalesLogic
 from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import SalesDocumentTab
-from ui.company_info_tab import CompanyInfoTab # Import the new tab
+# Company information popup
+from ui.company_info_tab import CompanyInfoTab
 from core.company_repository import CompanyRepository
 from core.company_service import CompanyService
 from core.address_service import AddressService
@@ -25,7 +25,7 @@ class AddressBookView:
     def __init__(self, root, logic: AddressBookLogic): # logic is AddressBookLogic
         self.root = root
         self.root.title("Ace's CRM")
-        self.root.geometry("1000x800") # Adjusted size for new tab
+        self.root.geometry("1000x800")  # Adjusted size for new tab
 
         self.address_book_logic = logic
 
@@ -34,9 +34,13 @@ class AddressBookView:
         product_repo = ProductRepository(self.db_handler)
         inventory_repo = InventoryRepository(self.db_handler)
         self.inventory_service = InventoryService(inventory_repo, product_repo)
-        self.product_logic = ProductLogic(self.db_handler) # Initialize ProductLogic
-        self.purchase_logic = PurchaseLogic(self.db_handler, inventory_service=self.inventory_service) # Initialize PurchaseLogic
-        self.sales_logic = SalesLogic(self.db_handler, inventory_service=self.inventory_service) # Initialize SalesLogic
+        self.product_logic = ProductLogic(self.db_handler)  # Initialize ProductLogic
+        self.purchase_logic = PurchaseLogic(
+            self.db_handler, inventory_service=self.inventory_service
+        )  # Initialize PurchaseLogic
+        self.sales_logic = SalesLogic(
+            self.db_handler, inventory_service=self.inventory_service
+        )  # Initialize SalesLogic
 
         # Initialize services for company info
         address_repo = AddressRepository(self.db_handler)
@@ -52,9 +56,20 @@ class AddressBookView:
         # Setup Notebook for tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        self.root.columnconfigure(0, weight=1) # Allow notebook to expand
-        self.root.rowconfigure(0, weight=1)    # Allow notebook to expand
+        self.root.columnconfigure(0, weight=1)  # Allow notebook to expand
+        self.root.rowconfigure(0, weight=1)  # Allow notebook to expand
 
+        # Top-level menu
+        menu_bar = tk.Menu(self.root)
+        self.root.config(menu=menu_bar)
+
+        file_menu = tk.Menu(menu_bar, tearoff=0)
+        file_menu.add_command(label="Exit", command=self.root.destroy)
+        menu_bar.add_cascade(label="File", menu=file_menu)
+
+        settings_menu = tk.Menu(menu_bar, tearoff=0)
+        settings_menu.add_command(label="Company info", command=self.open_company_info)
+        menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
         # Initialize all tabs
         self.account_tab = AccountTab(self.notebook, self.address_book_logic)
@@ -63,8 +78,9 @@ class AddressBookView:
         self.task_tab = TaskTab(self.notebook, self.address_book_logic)
         self.product_tab = ProductTab(self.notebook, self.address_book_logic, self.product_logic, self.inventory_service, self.purchase_logic) # Pass product_logic here too
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
-        self.sales_document_tab = SalesDocumentTab(self.notebook, self.sales_logic, self.address_book_logic, self.product_logic) # Add SalesDocumentTab
-        self.company_info_tab = CompanyInfoTab(self.notebook, self.company_service) # Add CompanyInfoTab
+        self.sales_document_tab = SalesDocumentTab(
+            self.notebook, self.sales_logic, self.address_book_logic, self.product_logic
+        )  # Add SalesDocumentTab
         self.pricing_rule_tab = PricingRuleTab(self.notebook, self.address_book_logic)
 
 
@@ -75,6 +91,12 @@ class AddressBookView:
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase")
-        self.notebook.add(self.sales_document_tab.frame, text="Sales") # Add Sales Documents tab
-        self.notebook.add(self.company_info_tab.frame, text="Company Information") # Add the new tab to the notebook
+        self.notebook.add(self.sales_document_tab.frame, text="Sales")  # Add Sales Documents tab
         self.notebook.add(self.pricing_rule_tab.frame, text="Pricing Rules")
+
+    def open_company_info(self):
+        """Open the company information popup."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Company Information")
+        company_tab = CompanyInfoTab(popup, self.company_service)
+        company_tab.frame.pack(fill="both", expand=True)

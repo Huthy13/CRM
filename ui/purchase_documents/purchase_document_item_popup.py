@@ -16,7 +16,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.product_map = {} # To map product name to product_id
 
         self.title(f"{'Edit' if self.item_id else 'Add'} Line Item")
-        self.geometry("400x200") # Initial size, can adjust
+        self.geometry("400x240") # Initial size, can adjust
         self.resizable(False, False)
 
         self.grab_set() # Make it modal
@@ -61,6 +61,13 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         self.unit_price_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
         row += 1
 
+        # Note
+        ttk.Label(frame, text="Note:").grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
+        self.note_var = tk.StringVar()
+        self.note_entry = ttk.Entry(frame, width=47, textvariable=self.note_var)
+        self.note_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.EW)
+        row += 1
+
         # Total Price (Read-only display)
         self.total_price_label = ttk.Label(frame, text="Total Price:") # Define if not already
         self.total_price_label.grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
@@ -70,7 +77,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
         row += 1
 
         # Adjust popup geometry if new fields make it too cramped
-        self.geometry("400x250") # Increased height
+        self.geometry("400x300") # Increased height
 
         # --- Buttons ---
         button_frame = ttk.Frame(frame)
@@ -94,6 +101,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                  self.unit_price_var.set(f"{item_data.get('unit_price', 0.0):.2f}") # Format to 2 decimal places
             else:
                 self.unit_price_var.set("0.00")
+            self.note_var.set(item_data.get('note', ''))
             self._calculate_and_display_total_price() # Calculate on load if editing
         else: # New item
             self.quantity_var.set("1") # Default quantity for new item
@@ -134,6 +142,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                 else: # No product selected in combobox either
                     self.unit_price_var.set("0.00")
 
+            self.note_var.set(item_data.get('note', ''))
             self._calculate_and_display_total_price() # Ensure total is calculated with final values
         else: # New item (already handled mostly, but ensure _on_product_selected isn't called if not needed)
             if self.product_combobox.get() == "<Select Product>": # If default "<Select Product>" is set
@@ -218,6 +227,7 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
             return
 
         unit_price_str = self.unit_price_var.get().strip()
+        note_str = self.note_var.get().strip()
 
         try:
             quantity = float(quantity_str)
@@ -256,7 +266,8 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                     quantity=quantity,
                     # product_description_override can be passed if needed
                     unit_price=unit_price, # Pass the parsed unit price
-                    total_price=current_total_price # Pass the calculated total price
+                    total_price=current_total_price, # Pass the calculated total price
+                    note=note_str or None
                 )
                 if new_item:
                     messagebox.showinfo("Success", "Item added successfully.", parent=self)
@@ -271,7 +282,8 @@ class PurchaseDocumentItemPopup(tk.Toplevel):
                     product_id=selected_product_id, # Assuming product can be changed, or keep original if not
                     # description will be fetched by logic based on product_id or use override
                     quantity=quantity,
-                    unit_price=unit_price
+                    unit_price=unit_price,
+                    note=note_str or None
                 )
                 if updated_item:
                     messagebox.showinfo("Success", "Item updated successfully.", parent=self)

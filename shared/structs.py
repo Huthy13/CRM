@@ -173,7 +173,8 @@ class SalesDocumentItem:
                  product_description: str = "", quantity: float = 0.0,
                  unit_price: float = None,  # This would be sale_price from Product
                  discount_percentage: Optional[float] = 0.0,
-                 line_total: float = None):  # quantity * unit_price * (1 - discount_percentage/100)
+                 line_total: float = None,
+                 note: str | None = None):  # quantity * unit_price * (1 - discount_percentage/100)
         self.id = item_id
         self.sales_document_id = sales_document_id
         self.product_id = product_id
@@ -182,6 +183,7 @@ class SalesDocumentItem:
         self.unit_price = unit_price  # Sale price
         self.discount_percentage = discount_percentage if discount_percentage is not None else 0.0
         self.line_total = line_total  # Calculated
+        self.note = note
 
     def calculate_line_total(self):
         """Calculates line total based on quantity, unit_price, and discount."""
@@ -202,6 +204,7 @@ class SalesDocumentItem:
             "unit_price": self.unit_price,
             "discount_percentage": self.discount_percentage,
             "line_total": self.line_total,
+            "note": self.note,
         }
 
     def __str__(self) -> str:
@@ -269,7 +272,8 @@ class CompanyInformation:
 class PurchaseDocumentItem:
     def __init__(self, item_id=None, purchase_document_id: int = None, product_id: Optional[int] = None,
                  product_description: str = "", quantity: float = 0.0,
-                 unit_price: float = None, total_price: float = None):
+                 unit_price: float = None, total_price: float = None,
+                 note: str | None = None):
         self.id = item_id  # Using 'id'
         self.purchase_document_id = purchase_document_id
         self.product_id = product_id
@@ -277,6 +281,7 @@ class PurchaseDocumentItem:
         self.quantity = quantity
         self.unit_price = unit_price
         self.total_price = total_price  # Should be calculated quantity * unit_price if unit_price is known
+        self.note = note
 
     def calculate_total_price(self):
         """Calculates total price if quantity and unit_price are set."""
@@ -295,6 +300,7 @@ class PurchaseDocumentItem:
             "quantity": self.quantity,
             "unit_price": self.unit_price,
             "total_price": self.total_price,
+            "note": self.note,
         }
 
     def __str__(self) -> str:

@@ -26,6 +26,7 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             quantity REAL NOT NULL,
             unit_price REAL,
             total_price REAL,
+            note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents(id),

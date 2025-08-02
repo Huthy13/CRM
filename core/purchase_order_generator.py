@@ -190,10 +190,32 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
                 # Handle multi-line descriptions
                 start_x = pdf.get_x()
                 start_y = pdf.get_y()
-                pdf.multi_cell(desc_col, line_height, item.product_description or "", 1, "L")
+                product_info = (
+                    purchase_logic.product_repo.get_product_details(item.product_id)
+                    if item.product_id
+                    else None
+                )
+                product_name = product_info.get("name") if product_info else None
+                product_description = (
+                    product_info.get("description") if product_info else item.product_description
+                )
+                lines = []
+                if product_name:
+                    lines.append(("B", product_name))
+                if product_description:
+                    lines.append(("", product_description))
+                if item.note:
+                    lines.append(("I", item.note))
+                desc_line_height = 5
+                for idx, (style, text) in enumerate(lines):
+                    border = "LTR" if idx == 0 else ("LBR" if idx == len(lines) - 1 else "LR")
+                    pdf.set_font("Arial", style, 9)
+                    pdf.multi_cell(desc_col, desc_line_height, text, border, "L")
+                    pdf.set_x(start_x)
                 end_y_desc = pdf.get_y()
 
                 pdf.set_xy(start_x + desc_col, start_y) # Reset X position for next cells in the row
+                pdf.set_font("Arial", "", 9)
 
                 pdf.cell(qty_col, end_y_desc - start_y, f"{item.quantity:.2f}" if item.quantity is not None else "0.00", 1, 0, "R")
                 pdf.cell(price_col, end_y_desc - start_y, f"${effective_unit_price:.2f}", 1, 0, "R")

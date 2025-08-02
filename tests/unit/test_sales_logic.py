@@ -109,7 +109,7 @@ class TestSalesLogic(unittest.TestCase):
             "id": new_item_id, "sales_document_id": mock_doc_id, "product_id": mock_product_id,
             "product_description": "Test Product", "quantity": mock_quantity,
             "unit_price": 100.00, "discount_percentage": mock_discount,
-            "line_total": 180.00
+            "line_total": 180.00, "note": None
         }
         self.mock_db_handler.get_sales_document_item_by_id.return_value = mock_item_dict
         self.mock_db_handler.get_items_for_sales_document.return_value = [mock_item_dict.copy()]
@@ -177,7 +177,7 @@ class TestSalesLogic(unittest.TestCase):
             "id": new_item_id, "sales_document_id": mock_doc_id, "product_id": mock_product_id,
             "product_description": "Test Product", "quantity": mock_quantity,
             "unit_price": 100.00, "discount_percentage": mock_discount,
-            "line_total": 180.00
+            "line_total": 180.00, "note": None
         }
         self.mock_db_handler.get_sales_document_item_by_id.return_value = mock_item_dict
         self.mock_db_handler.get_items_for_sales_document.return_value = [mock_item_dict.copy()]
@@ -227,13 +227,13 @@ class TestSalesLogic(unittest.TestCase):
         initial_item_data = {
             "id": mock_item_id, "sales_document_id": mock_doc_id, "product_id": 10,
             "product_description": "Old Product Name", "quantity": 1.0,
-            "unit_price": 100.00, "discount_percentage": 0.0, "line_total": 100.00
+            "unit_price": 100.00, "discount_percentage": 0.0, "line_total": 100.00, "note": None
         }
         updated_item_data = {
             "id": mock_item_id, "sales_document_id": mock_doc_id, "product_id": mock_product_id,
             "product_description": "New Product Name", "quantity": new_quantity,
             "unit_price": new_unit_price, "discount_percentage": new_discount,
-            "line_total": new_quantity * new_unit_price * (1 - new_discount / 100.0)
+            "line_total": new_quantity * new_unit_price * (1 - new_discount / 100.0), "note": None
         }
 
         self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
@@ -262,7 +262,7 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_item_by_id.return_value = {
             "id": mock_item_id, "sales_document_id": mock_doc_id, "product_id": 10,
             "product_description": "Any Desc", "quantity": 1.0, "unit_price": 100.00,
-            "discount_percentage": 0.0, "line_total": 100.00
+            "discount_percentage": 0.0, "line_total": 100.00, "note": None
         }
         self.mock_db_handler.get_sales_document_by_id.return_value = {"id": mock_doc_id, "status": SalesDocumentStatus.INVOICE_PAID.value, "document_type":SalesDocumentType.INVOICE.value, "customer_id":1, "document_number":"I", "created_date":"d","subtotal":0,"taxes":0,"total_amount":0}
         self.mock_db_handler.get_product_details.return_value = {"product_id":1, "name":"P", "sale_price":10}
@@ -309,6 +309,7 @@ class TestSalesLogic(unittest.TestCase):
             "unit_price": 100.0,
             "discount_percentage": 0.0,
             "line_total": 500.0,
+            "note": None,
         }
         self.mock_db_handler.get_sales_document_by_id.side_effect = [
             mock_quote_data,
@@ -343,7 +344,7 @@ class TestSalesLogic(unittest.TestCase):
         mock_so_id = 1
         mock_customer_id = 5
         mock_so_data = {"id": mock_so_id, "document_number": "S00000", "customer_id": mock_customer_id, "document_type": SalesDocumentType.SALES_ORDER.value, "created_date": "date", "status": SalesDocumentStatus.SO_FULFILLED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
-        mock_so_item_data = [{"id": 10, "sales_document_id": mock_so_id, "product_id": 100, "product_description": "Item 1", "quantity": 2.0, "unit_price": 100.0, "discount_percentage": 0.0, "line_total": 200.0}]
+        mock_so_item_data = [{"id": 10, "sales_document_id": mock_so_id, "product_id": 100, "product_description": "Item 1", "quantity": 2.0, "unit_price": 100.0, "discount_percentage": 0.0, "line_total": 200.0, "note": None}]
         new_invoice_id = 2
 
         self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_so_data, {"id": new_invoice_id, "document_number": "S00001", "customer_id": mock_customer_id, "document_type": SalesDocumentType.INVOICE.value, "status": SalesDocumentStatus.INVOICE_DRAFT.value, "related_quote_id":mock_so_id, "total_amount":220.0, "created_date":"d"}]
@@ -409,7 +410,7 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_item_by_id.return_value = {
             "id": mock_item_id, "sales_document_id": mock_doc_id, "product_id": 1,
             "product_description": "Desc", "quantity": 1.0, "unit_price": 50.0,
-            "discount_percentage": 0.0, "line_total": 50.0
+            "discount_percentage": 0.0, "line_total": 50.0, "note": None
         }
         self.mock_db_handler.get_sales_document_by_id.return_value = {"id": mock_doc_id, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value, "customer_id":1, "document_number":"Q", "created_date":"d", "subtotal":100,"taxes":0,"total_amount":100}
         self.mock_db_handler.get_items_for_sales_document.return_value = [] # After deletion
@@ -431,7 +432,7 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_item_by_id.return_value = {
             "id": mock_item_id, "sales_document_id": mock_doc_id, "product_id": 1,
             "product_description": "Desc", "quantity": 1.0, "unit_price": 50.0,
-            "discount_percentage": 0.0, "line_total": 50.0
+            "discount_percentage": 0.0, "line_total": 50.0, "note": None
         }
         self.mock_db_handler.get_sales_document_by_id.return_value = {"id": mock_doc_id, "status": SalesDocumentStatus.INVOICE_SENT.value, "document_type":SalesDocumentType.INVOICE.value, "customer_id":1, "document_number":"I", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
         with self.assertRaisesRegex(ValueError, "Items cannot be deleted from a document with status 'Invoice Sent'."):
@@ -451,8 +452,8 @@ class TestSalesLogic(unittest.TestCase):
         mock_item_id2 = 11
         self.mock_db_handler.get_sales_document_by_id.return_value = {"id": mock_doc_id, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type":SalesDocumentType.QUOTE.value, "customer_id":1, "document_number":"Q", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
         mock_items_list = [
-            {"id": mock_item_id1, "sales_document_id": mock_doc_id, "product_id": 1, "product_description": "Item 1", "quantity": 1, "unit_price": 10, "discount_percentage": 0, "line_total": 10},
-            {"id": mock_item_id2, "sales_document_id": mock_doc_id, "product_id": 2, "product_description": "Item 2", "quantity": 2, "unit_price": 20, "discount_percentage": 0, "line_total": 40}
+            {"id": mock_item_id1, "sales_document_id": mock_doc_id, "product_id": 1, "product_description": "Item 1", "quantity": 1, "unit_price": 10, "discount_percentage": 0, "line_total": 10, "note": None},
+            {"id": mock_item_id2, "sales_document_id": mock_doc_id, "product_id": 2, "product_description": "Item 2", "quantity": 2, "unit_price": 20, "discount_percentage": 0, "line_total": 40, "note": None}
         ]
         self.mock_db_handler.get_items_for_sales_document.return_value = mock_items_list
         self.sales_logic.delete_sales_document(mock_doc_id)
@@ -468,7 +469,7 @@ class TestSalesLogic(unittest.TestCase):
         mock_doc_id = 1
         self.mock_db_handler.get_sales_document_by_id.return_value = {"id": mock_doc_id, "status": SalesDocumentStatus.INVOICE_SENT.value, "document_type":SalesDocumentType.INVOICE.value, "customer_id":1, "document_number":"I", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
         self.mock_db_handler.get_items_for_sales_document.return_value = [ # Ensure items have all keys
-            {"id": 10, "sales_document_id": mock_doc_id, "product_id": 1, "product_description": "Item 1", "quantity": 1, "unit_price": 10, "discount_percentage": 0, "line_total": 10}
+            {"id": 10, "sales_document_id": mock_doc_id, "product_id": 1, "product_description": "Item 1", "quantity": 1, "unit_price": 10, "discount_percentage": 0, "line_total": 10, "note": None}
         ]
         with self.assertRaisesRegex(ValueError, "Cannot delete document with status 'Invoice Sent' that has items. Consider voiding first."):
             self.sales_logic.delete_sales_document(mock_doc_id)

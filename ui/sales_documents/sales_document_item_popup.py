@@ -15,7 +15,7 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         self.product_map = {}
 
         self.title(f"{'Edit' if self.item_id else 'Add'} Line Item")
-        self.geometry("450x300") # Adjusted size for discount field
+        self.geometry("450x340") # Adjusted size for discount and note fields
         self.resizable(False, False)
         self.grab_set()
         self.focus_set()
@@ -55,6 +55,13 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         self.discount_var = tk.StringVar(value="0.0") # Default discount
         self.discount_entry = ttk.Entry(frame, width=15, textvariable=self.discount_var)
         self.discount_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.E)
+        row += 1
+
+        # Note
+        ttk.Label(frame, text="Note:").grid(row=row, column=0, padx=5, pady=(5,2), sticky=tk.W)
+        self.note_var = tk.StringVar()
+        self.note_entry = ttk.Entry(frame, width=47, textvariable=self.note_var)
+        self.note_entry.grid(row=row, column=1, padx=5, pady=(5,5), sticky=tk.EW)
         row += 1
 
         # Line Total (Read-only display)
@@ -100,6 +107,7 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         self.quantity_var.set(str(item_data.get('quantity', '1')))
         self.unit_price_var.set(f"{item_data.get('unit_price', 0.0):.2f}")
         self.discount_var.set(f"{item_data.get('discount_percentage', 0.0):.1f}")
+        self.note_var.set(item_data.get('note', ''))
         # Line total will be recalculated by trace or explicitly
         self._calculate_and_display_line_total()
 
@@ -168,6 +176,7 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
         quantity_str = self.quantity_var.get().strip()
         unit_price_str = self.unit_price_var.get().strip()
         discount_str = self.discount_var.get().strip()
+        note_str = self.note_var.get().strip()
 
         if not selected_product_name or selected_product_name == "<Select Product>":
             messagebox.showerror("Validation Error", "Please select a product.", parent=self)
@@ -212,7 +221,8 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
                     quantity=quantity,
                     unit_price_override=unit_price, # Pass the UI entered price as override
                     discount_percentage=discount_percentage,
-                    product_description_override=final_product_description # Pass the fetched name/description
+                    product_description_override=final_product_description, # Pass the fetched name/description
+                    note=note_str or None
                 )
                 if new_item:
                     messagebox.showinfo("Success", "Item added successfully.", parent=self)
@@ -225,7 +235,8 @@ class SalesDocumentItemPopup(Toplevel): # Changed class name
                     quantity=quantity,
                     unit_price_override=unit_price,
                     discount_percentage=discount_percentage,
-                    product_description_override=final_product_description
+                    product_description_override=final_product_description,
+                    note=note_str or None
                 )
                 if updated_item:
                     messagebox.showinfo("Success", "Item updated successfully.", parent=self)

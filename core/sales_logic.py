@@ -137,14 +137,14 @@ class SalesLogic:
             if customer and customer.pricing_rule_id:
                 rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
                 if rule:
-                    if rule.fixed_price is not None:
-                        final_unit_price = rule.fixed_price
-                    elif rule.markup_percentage is not None:
-                        product_cost = product_info.get('cost')
-                        if product_cost is not None:
-                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
-                        else:
-                            raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply markup rule.")
+                    product_cost = product_info.get('cost')
+                    if product_cost is None:
+                        raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply pricing rule.")
+                    final_unit_price = product_cost
+                    if rule.fixed_markup is not None:
+                        final_unit_price += rule.fixed_markup
+                    if rule.markup_percentage is not None:
+                        final_unit_price *= (1 + rule.markup_percentage / 100)
 
             if final_unit_price is None: # If no rule was applied or customer/rule not found
                 final_unit_price = product_info.get('sale_price')
@@ -209,14 +209,14 @@ class SalesLogic:
             if customer and customer.pricing_rule_id:
                 rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
                 if rule:
-                    if rule.fixed_price is not None:
-                        final_unit_price = rule.fixed_price
-                    elif rule.markup_percentage is not None:
-                        product_cost = product_info.get('cost')
-                        if product_cost is not None:
-                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
-                        else:
-                            raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply markup rule.")
+                    product_cost = product_info.get('cost')
+                    if product_cost is None:
+                        raise ValueError(f"Product cost for product ID {product_id} not found, cannot apply pricing rule.")
+                    final_unit_price = product_cost
+                    if rule.fixed_markup is not None:
+                        final_unit_price += rule.fixed_markup
+                    if rule.markup_percentage is not None:
+                        final_unit_price *= (1 + rule.markup_percentage / 100)
 
             if final_unit_price is None: # If no rule was applied or customer/rule not found
                 final_unit_price = product_info.get('sale_price')
@@ -380,14 +380,15 @@ class SalesLogic:
         if customer and customer.pricing_rule_id:
             rule = address_book_logic.get_pricing_rule(customer.pricing_rule_id)
             if rule:
-                if rule.fixed_price is not None:
-                    final_unit_price = rule.fixed_price
-                elif rule.markup_percentage is not None:
-                    product_info = self.product_repo.get_product_details(product_id)
-                    if product_info:
-                        product_cost = product_info.get('cost')
-                        if product_cost is not None:
-                            final_unit_price = product_cost * (1 + rule.markup_percentage / 100)
+                product_info = self.product_repo.get_product_details(product_id)
+                if product_info:
+                    product_cost = product_info.get('cost')
+                    if product_cost is not None:
+                        final_unit_price = product_cost
+                        if rule.fixed_markup is not None:
+                            final_unit_price += rule.fixed_markup
+                        if rule.markup_percentage is not None:
+                            final_unit_price *= (1 + rule.markup_percentage / 100)
 
         if final_unit_price is None:
             product_info = self.product_repo.get_product_details(product_id)

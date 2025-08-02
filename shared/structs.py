@@ -9,18 +9,18 @@ from .interaction_structs import InteractionType, Interaction
 from .task_structs import TaskStatus, TaskPriority, Task
 
 class PricingRule:
-    def __init__(self, rule_id: int | None = None, rule_name: str = "", markup_percentage: float | None = None, fixed_price: float | None = None):
+    def __init__(self, rule_id: int | None = None, rule_name: str = "", markup_percentage: float | None = None, fixed_markup: float | None = None):
         self.rule_id = rule_id
         self.rule_name = rule_name
         self.markup_percentage = markup_percentage
-        self.fixed_price = fixed_price
+        self.fixed_markup = fixed_markup
 
     def to_dict(self) -> dict:
         return {
             "rule_id": self.rule_id,
             "rule_name": self.rule_name,
             "markup_percentage": self.markup_percentage,
-            "fixed_price": self.fixed_price,
+            "fixed_markup": self.fixed_markup,
         }
 
 class Product:

@@ -523,9 +523,9 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
     def tearDown(self):
         self.db_handler.close()
 
-    def test_add_item_with_fixed_price_rule(self):
-        """Test adding an item for a customer with a fixed price rule."""
-        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Price Rule", fixed_price=120.0)
+    def test_add_item_with_fixed_markup_rule(self):
+        """Test adding an item for a customer with a fixed markup rule."""
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Markup Rule", fixed_markup=20.0)
         self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
 
         item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
@@ -542,6 +542,16 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
         # cost is 100.0, markup is 25%, so price should be 125.0
         self.assertEqual(item.unit_price, 125.0)
 
+    def test_add_item_with_combined_rule(self):
+        """Test adding an item for a customer with both fixed and percentage markup."""
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Combined Rule", fixed_markup=10.0, markup_percentage=20.0)
+        self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
+
+        item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
+
+        # cost 100 + fixed 10 = 110; 20% markup -> 132
+        self.assertEqual(item.unit_price, 132.0)
+
     def test_add_item_with_no_rule(self):
         """Test adding an item for a customer with no pricing rule."""
         item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)
@@ -551,7 +561,7 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
 
     def test_update_item_with_pricing_rule(self):
         """Test that updating an item still respects the pricing rule."""
-        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Price Rule", fixed_price=110.0)
+        rule_id = self.address_book_logic.create_pricing_rule(rule_name="Fixed Markup Rule", fixed_markup=10.0)
         self.address_book_logic.assign_pricing_rule(self.customer.account_id, rule_id)
 
         item = self.sales_logic.add_item_to_sales_document(self.quote.id, self.product.product_id, 1)

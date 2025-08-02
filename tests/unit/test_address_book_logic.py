@@ -220,11 +220,11 @@ class TestPricingRules(unittest.TestCase):
         self.assertIsNotNone(retrieved_rule)
         self.assertEqual(retrieved_rule.rule_name, "20% Markup")
         self.assertEqual(retrieved_rule.markup_percentage, 20.0)
-        self.assertIsNone(retrieved_rule.fixed_price)
+        self.assertIsNone(retrieved_rule.fixed_markup)
 
     def test_list_pricing_rules(self):
         """Test listing all pricing rules."""
-        self.logic.create_pricing_rule(rule_name="Rule 1", fixed_price=10.0)
+        self.logic.create_pricing_rule(rule_name="Rule 1", fixed_markup=10.0)
         self.logic.create_pricing_rule(rule_name="Rule 2", markup_percentage=5.0)
 
         rules = self.logic.list_pricing_rules()
@@ -234,18 +234,18 @@ class TestPricingRules(unittest.TestCase):
 
     def test_update_pricing_rule(self):
         """Test updating a pricing rule."""
-        rule_id = self.logic.create_pricing_rule(rule_name="Old Name", fixed_price=9.99)
+        rule_id = self.logic.create_pricing_rule(rule_name="Old Name", fixed_markup=9.99)
 
-        self.logic.update_pricing_rule(rule_id, "New Name", fixed_price=None, markup_percentage=15.0)
+        self.logic.update_pricing_rule(rule_id, "New Name", markup_percentage=15.0, fixed_markup=5.0)
 
         updated_rule = self.logic.get_pricing_rule(rule_id)
         self.assertEqual(updated_rule.rule_name, "New Name")
         self.assertEqual(updated_rule.markup_percentage, 15.0)
-        self.assertIsNone(updated_rule.fixed_price)
+        self.assertEqual(updated_rule.fixed_markup, 5.0)
 
     def test_delete_pricing_rule(self):
         """Test deleting a pricing rule."""
-        rule_id = self.logic.create_pricing_rule(rule_name="To Be Deleted", fixed_price=1.0)
+        rule_id = self.logic.create_pricing_rule(rule_name="To Be Deleted", fixed_markup=1.0)
         self.logic.delete_pricing_rule(rule_id)
         retrieved_rule = self.logic.get_pricing_rule(rule_id)
         self.assertIsNone(retrieved_rule)
@@ -253,7 +253,7 @@ class TestPricingRules(unittest.TestCase):
     def test_assign_and_remove_pricing_rule(self):
         """Test assigning a pricing rule to a customer and removing it."""
         customer = self.logic.save_account(Account(name="Test Customer", account_type=AccountType.CUSTOMER))
-        rule_id = self.logic.create_pricing_rule(rule_name="Customer Rule", fixed_price=50.0)
+        rule_id = self.logic.create_pricing_rule(rule_name="Customer Rule", fixed_markup=50.0)
 
         # Assign
         self.logic.assign_pricing_rule(customer.account_id, rule_id)
@@ -269,7 +269,10 @@ class TestPricingRules(unittest.TestCase):
         """Test validation logic for creating/updating pricing rules."""
         with self.assertRaisesRegex(ValueError, "Rule name cannot be empty."):
             self.logic.create_pricing_rule(rule_name="")
-        with self.assertRaisesRegex(ValueError, "Either markup_percentage or fixed_price must be provided."):
+        with self.assertRaisesRegex(ValueError, "Either markup_percentage or fixed_markup must be provided."):
             self.logic.create_pricing_rule(rule_name="No price")
-        with self.assertRaisesRegex(ValueError, "Provide either markup_percentage or fixed_price, not both."):
-            self.logic.create_pricing_rule(rule_name="Both prices", markup_percentage=10.0, fixed_price=10.0)
+        # Providing both should be allowed
+        rule_id = self.logic.create_pricing_rule(rule_name="Both prices", markup_percentage=10.0, fixed_markup=10.0)
+        retrieved_rule = self.logic.get_pricing_rule(rule_id)
+        self.assertEqual(retrieved_rule.markup_percentage, 10.0)
+        self.assertEqual(retrieved_rule.fixed_markup, 10.0)

@@ -18,8 +18,8 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
             rule_name TEXT UNIQUE NOT NULL,
             markup_percentage FLOAT,
-            fixed_price FLOAT,
+            fixed_markup FLOAT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT either_markup_or_fixed CHECK (markup_percentage IS NOT NULL OR fixed_price IS NOT NULL)
+            CONSTRAINT either_markup_or_fixed CHECK (markup_percentage IS NOT NULL OR fixed_markup IS NOT NULL)
         )
     """)

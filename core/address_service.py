@@ -11,21 +11,15 @@ class AddressService:
 
     @staticmethod
     def enforce_single_primary(addresses):
-        """Ensure only one primary address exists for each type."""
-        primary_billing_found = False
-        primary_shipping_found = False
+        """Ensure only one primary address exists per address type."""
+        primary_found = set()
         for address in reversed(addresses):
             if getattr(address, "is_primary", False):
-                if address.address_type == "Billing":
-                    if primary_billing_found:
-                        address.is_primary = False
-                    else:
-                        primary_billing_found = True
-                elif address.address_type == "Shipping":
-                    if primary_shipping_found:
-                        address.is_primary = False
-                    else:
-                        primary_shipping_found = True
+                addr_type = getattr(address, "address_type", None)
+                if addr_type in primary_found:
+                    address.is_primary = False
+                else:
+                    primary_found.add(addr_type)
 
     def add_address(self, street, city, state, zip_code, country):
         """Add a new address and return its ID."""

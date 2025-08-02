@@ -11,6 +11,7 @@ from core.purchase_logic import PurchaseLogic
 from ui.purchase_documents.purchase_document_tab import PurchaseDocumentTab
 from core.sales_logic import SalesLogic # Import SalesLogic
 from ui.sales_documents.sales_document_tab import SalesDocumentTab # Import SalesDocumentTab
+from ui.inventory.inventory_tab import InventoryTab
 # Company information popup
 from ui.company_info_tab import CompanyInfoTab
 from core.company_repository import CompanyRepository
@@ -84,6 +85,9 @@ class AddressBookView:
         self.sales_document_tab = SalesDocumentTab(
             self.notebook, self.sales_logic, self.address_book_logic, self.product_logic
         )  # Add Sales Documents tab
+        self.inventory_tab = InventoryTab(
+            self.notebook, self.purchase_logic, self.product_logic
+        )
 
 
         # Add frames from tabs to Notebook
@@ -94,6 +98,7 @@ class AddressBookView:
         self.notebook.add(self.product_tab.frame, text="Products")
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase")
         self.notebook.add(self.sales_document_tab.frame, text="Sales")
+        self.notebook.add(self.inventory_tab.frame, text="Inventory")
 
     def open_company_info(self):
         """Open the company information popup."""

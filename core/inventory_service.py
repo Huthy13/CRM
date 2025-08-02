@@ -60,3 +60,22 @@ class InventoryService:
     def get_on_order_level(self, product_id: int) -> float:
         """Return the quantity currently on order for a product."""
         return self.inventory_repo.get_on_order_level(product_id)
+
+    def get_products_on_order(self) -> list[dict]:
+        """Return products with aggregated on-order quantities and on-hand stock."""
+        entries = self.inventory_repo.get_all_on_order_levels()
+        result = []
+        for entry in entries:
+            pid = entry.get("product_id")
+            product = self.product_repo.get_product_details(pid)
+            if not product:
+                continue
+            result.append(
+                {
+                    "product_id": pid,
+                    "name": product.get("name"),
+                    "on_hand": product.get("quantity_on_hand", 0),
+                    "on_order": entry.get("qty", 0),
+                }
+            )
+        return result

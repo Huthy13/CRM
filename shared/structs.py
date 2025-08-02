@@ -289,7 +289,8 @@ class PurchaseDocumentItem:
     def __init__(self, item_id=None, purchase_document_id: int = None, product_id: Optional[int] = None,
                  product_description: str = "", quantity: float = 0.0,
                  unit_price: float = None, total_price: float = None,
-                 note: str | None = None):
+                 note: str | None = None, received_quantity: float = 0.0,
+                 is_received: bool = False):
         self.id = item_id  # Using 'id'
         self.purchase_document_id = purchase_document_id
         self.product_id = product_id
@@ -298,6 +299,8 @@ class PurchaseDocumentItem:
         self.unit_price = unit_price
         self.total_price = total_price  # Should be calculated quantity * unit_price if unit_price is known
         self.note = note
+        self.received_quantity = received_quantity
+        self.is_received = is_received
 
     def calculate_total_price(self):
         """Calculates total price if quantity and unit_price are set."""
@@ -317,6 +320,8 @@ class PurchaseDocumentItem:
             "unit_price": self.unit_price,
             "total_price": self.total_price,
             "note": self.note,
+            "received_quantity": self.received_quantity,
+            "is_received": self.is_received,
         }
 
     def __str__(self) -> str:

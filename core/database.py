@@ -1171,6 +1171,45 @@ class DatabaseHandler:
             return dict(zip(columns, row))
         return None
 
+    def add_purchase_receipt(self, item_id: int, quantity: float, received_date: str | None = None) -> int:
+        """Add a receipt entry for a purchase document item."""
+        if received_date is None:
+            received_date = datetime.datetime.now().isoformat()
+        self.cursor.execute(
+            """
+            INSERT INTO purchase_receipts (purchase_document_item_id, quantity, received_date)
+            VALUES (?, ?, ?)
+            """,
+            (item_id, quantity, received_date),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_total_received_for_item(self, item_id: int) -> float:
+        """Return total quantity received for a given purchase document item."""
+        self.cursor.execute(
+            "SELECT COALESCE(SUM(quantity), 0) FROM purchase_receipts WHERE purchase_document_item_id = ?",
+            (item_id,),
+        )
+        result = self.cursor.fetchone()
+        return result[0] if result else 0.0
+
+    def mark_purchase_item_received(self, item_id: int):
+        """Mark a purchase document item as fully received."""
+        self.cursor.execute(
+            "UPDATE purchase_document_items SET is_received = 1 WHERE id = ?",
+            (item_id,),
+        )
+        self.conn.commit()
+
+    def are_all_items_received(self, doc_id: int) -> bool:
+        """Check if all items for a purchase document are fully received."""
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM purchase_document_items WHERE purchase_document_id = ? AND is_received = 0",
+            (doc_id,),
+        )
+        return self.cursor.fetchone()[0] == 0
+
     # delete_items_for_document is not strictly needed if ON DELETE CASCADE is reliable,
     # but can be implemented for explicit control if desired.
     # def delete_items_for_document(self, doc_id: int):
@@ -1223,6 +1262,21 @@ class DatabaseHandler:
         )
         row = self.cursor.fetchone()
         return row[0] if row else 0.0
+
+    def get_all_on_order_quantities(self) -> list[dict]:
+        """Return on-order quantities grouped by product."""
+        self.cursor.execute(
+            """
+            SELECT product_id, SUM(quantity_change) AS qty
+            FROM inventory_transactions
+            WHERE transaction_type = ?
+            GROUP BY product_id
+            HAVING qty > 0
+            """,
+            (InventoryTransactionType.PURCHASE_ORDER.value,),
+        )
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
     def add_replenishment_item(self, product_id: int, quantity_needed: float) -> int:
         """Queue a product for replenishment."""

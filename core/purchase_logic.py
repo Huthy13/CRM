@@ -348,6 +348,7 @@ class PurchaseLogic:
         items_data = self.purchase_repo.get_items_for_document(doc_id)
         result_list = []
         for item_data in items_data:
+            received_qty = self.purchase_repo.get_total_received_for_item(item_data['id'])
             result_list.append(PurchaseDocumentItem(
                 item_id=item_data['id'],
                 purchase_document_id=item_data['purchase_document_id'],
@@ -356,13 +357,16 @@ class PurchaseLogic:
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
                 total_price=item_data.get('total_price'),
-                note=item_data.get('note')
+                note=item_data.get('note'),
+                received_quantity=received_qty,
+                is_received=bool(item_data.get('is_received'))
             ))
         return result_list
 
     def get_purchase_document_item_details(self, item_id: int) -> Optional[PurchaseDocumentItem]:
         item_data = self.purchase_repo.get_purchase_document_item_by_id(item_id)
         if item_data:
+            received_qty = self.purchase_repo.get_total_received_for_item(item_id)
             return PurchaseDocumentItem(
                 item_id=item_data['id'],
                 purchase_document_id=item_data['purchase_document_id'],
@@ -371,7 +375,9 @@ class PurchaseLogic:
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
                 total_price=item_data.get('total_price'),
-                note=item_data.get('note')
+                note=item_data.get('note'),
+                received_quantity=received_qty,
+                is_received=bool(item_data.get('is_received'))
             )
         return None
 
@@ -392,8 +398,48 @@ class PurchaseLogic:
 
         self.purchase_repo.delete_purchase_document_item(item_id)
 
+    def record_item_receipt(self, item_id: int, quantity: float) -> PurchaseDocumentItem:
+        """Record the receipt of a quantity for a specific purchase document item."""
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive.")
+
+        item = self.get_purchase_document_item_details(item_id)
+        if not item:
+            raise ValueError(f"Item with ID {item_id} not found.")
+
+        doc = self.get_purchase_document_details(item.purchase_document_id)
+        if not doc or doc.status != PurchaseDocumentStatus.PO_ISSUED:
+            raise ValueError("Can only receive items from issued purchase orders.")
+
+        already_received = self.purchase_repo.get_total_received_for_item(item_id)
+        if already_received + quantity > item.quantity:
+            raise ValueError("Received quantity exceeds ordered quantity.")
+
+        self.purchase_repo.add_purchase_receipt(item_id, quantity)
+
+        if item.product_id:
+            self.inventory_service.record_purchase_order(
+                item.product_id, -quantity, reference=f"PO#{doc.document_number}"
+            )
+            self.inventory_service.adjust_stock(
+                item.product_id,
+                quantity,
+                InventoryTransactionType.PURCHASE,
+                reference=f"PO#{doc.document_number}",
+            )
+
+        if already_received + quantity >= item.quantity:
+            self.purchase_repo.mark_item_fully_received(item_id)
+
+        if self.purchase_repo.are_all_items_received(doc.id):
+            self.purchase_repo.update_purchase_document_status(
+                doc.id, PurchaseDocumentStatus.RECEIVED.value
+            )
+
+        return self.get_purchase_document_item_details(item_id)
+
     def receive_purchase_order(self, doc_id: int) -> PurchaseDocument:
-        """Increment inventory for a received purchase order."""
+        """Receive all remaining quantities for a purchase order."""
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Purchase document with ID {doc_id} not found.")
@@ -403,19 +449,9 @@ class PurchaseLogic:
             )
         items = self.get_items_for_document(doc_id)
         for item in items:
-            if item.product_id:
-                self.inventory_service.record_purchase_order(
-                    item.product_id, -item.quantity, reference=f"PO#{doc.document_number}"
-                )
-                self.inventory_service.adjust_stock(
-                    item.product_id,
-                    item.quantity,
-                    InventoryTransactionType.PURCHASE,
-                    reference=f"PO#{doc.document_number}",
-                )
-        self.purchase_repo.update_purchase_document_status(
-            doc_id, PurchaseDocumentStatus.RECEIVED.value
-        )
+            remaining = item.quantity - item.received_quantity
+            if remaining > 0:
+                self.record_item_receipt(item.id, remaining)
         return self.get_purchase_document_details(doc_id)
 
     def delete_purchase_document(self, doc_id: int):
@@ -437,6 +473,10 @@ class PurchaseLogic:
 
         # Mark document inactive
         self.purchase_repo.delete_purchase_document(doc_id)
+
+    def get_products_on_order(self) -> list[dict]:
+        """Return products with outstanding quantities on order."""
+        return self.inventory_service.get_products_on_order()
 
 # Remove the old update_item_quote method as its functionality is merged into update_document_item
 # def update_item_quote(self, item_id: int, unit_price: float) -> Optional[PurchaseDocumentItem]:

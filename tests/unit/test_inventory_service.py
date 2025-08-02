@@ -50,5 +50,20 @@ class InventoryServiceTest(unittest.TestCase):
         service.record_purchase_order(self.product_id, -2, reference="PO#1")
         self.assertEqual(service.get_on_order_level(self.product_id), 2)
 
+    def test_get_products_on_order_aggregates(self):
+        service = InventoryService(self.inventory_repo, self.product_repo)
+        second_product = self.db.add_product(
+            sku="PROD2", name="Another", description="desc", cost=0, sale_price=0, is_active=True,
+            quantity_on_hand=3, reorder_point=1, reorder_quantity=5, safety_stock=1
+        )
+        service.record_purchase_order(self.product_id, 5)
+        service.record_purchase_order(second_product, 2)
+        service.record_purchase_order(self.product_id, -1)
+        summary = service.get_products_on_order()
+        lookup = {p["product_id"]: p for p in summary}
+        self.assertEqual(lookup[self.product_id]["on_order"], 4)
+        self.assertEqual(lookup[second_product]["on_order"], 2)
+        self.assertEqual(lookup[self.product_id]["on_hand"], 8)
+
 if __name__ == "__main__":
     unittest.main()

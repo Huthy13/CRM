@@ -250,6 +250,105 @@ class TestPurchaseLogic(unittest.TestCase):
             self.purchase_logic.convert_rfq_to_po(doc_id)
         self.mock_inventory_service.record_purchase_order.assert_not_called()
 
+    def test_update_document_status_to_po_issued_records_on_order(self):
+        doc_id = 1
+        initial_doc_state = {
+            "id": doc_id,
+            "document_number": "RFQ-010",
+            "vendor_id": 1,
+            "created_date": "date",
+            "status": PurchaseDocumentStatus.QUOTED.value,
+            "notes": "",
+        }
+        updated_doc_state = {
+            "id": doc_id,
+            "document_number": "PO-20230101-0001",
+            "vendor_id": 1,
+            "created_date": "date",
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "notes": "",
+        }
+        # update_document_status -> get_purchase_document_details (initial)
+        # convert_rfq_to_po -> get_purchase_document_details (initial)
+        # convert_rfq_to_po end -> get_purchase_document_details (updated)
+        self.mock_db_handler.get_purchase_document_by_id.side_effect = [
+            initial_doc_state,
+            initial_doc_state,
+            updated_doc_state,
+        ]
+        self.mock_db_handler.get_items_for_document.return_value = [
+            {
+                "id": 1,
+                "purchase_document_id": doc_id,
+                "product_id": 101,
+                "product_description": "Item",
+                "quantity": 5,
+                "unit_price": None,
+                "total_price": None,
+            }
+        ]
+        with patch.object(
+            self.purchase_logic, "_generate_document_number", return_value="PO-20230101-0001"
+        ):
+            updated_doc = self.purchase_logic.update_document_status(
+                doc_id, PurchaseDocumentStatus.PO_ISSUED
+            )
+
+        self.assertEqual(updated_doc.status, PurchaseDocumentStatus.PO_ISSUED)
+        self.mock_db_handler.update_purchase_document.assert_called_once_with(
+            doc_id,
+            {"status": PurchaseDocumentStatus.PO_ISSUED.value, "document_number": "PO-20230101-0001"},
+        )
+        self.mock_inventory_service.record_purchase_order.assert_called_once_with(
+            101, 5, reference="PO#PO-20230101-0001"
+        )
+
+    def test_update_document_status_revert_po_clears_on_order(self):
+        doc_id = 1
+        initial_doc_state = {
+            "id": doc_id,
+            "document_number": "PO-20230101-0001",
+            "vendor_id": 1,
+            "created_date": "date",
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "notes": "",
+        }
+        updated_doc_state = {
+            "id": doc_id,
+            "document_number": "PO-20230101-0001",
+            "vendor_id": 1,
+            "created_date": "date",
+            "status": PurchaseDocumentStatus.RFQ.value,
+            "notes": "",
+        }
+        self.mock_db_handler.get_purchase_document_by_id.side_effect = [
+            initial_doc_state,
+            updated_doc_state,
+        ]
+        self.mock_db_handler.get_items_for_document.return_value = [
+            {
+                "id": 1,
+                "purchase_document_id": doc_id,
+                "product_id": 101,
+                "product_description": "Item",
+                "quantity": 3,
+                "unit_price": None,
+                "total_price": None,
+            }
+        ]
+
+        updated_doc = self.purchase_logic.update_document_status(
+            doc_id, PurchaseDocumentStatus.RFQ
+        )
+
+        self.assertEqual(updated_doc.status, PurchaseDocumentStatus.RFQ)
+        self.mock_db_handler.update_purchase_document_status.assert_called_once_with(
+            doc_id, PurchaseDocumentStatus.RFQ.value
+        )
+        self.mock_inventory_service.record_purchase_order.assert_called_once_with(
+            101, -3, reference="PO#PO-20230101-0001"
+        )
+
     def test_mark_document_received_success(self):
         doc_id = 1
         self.mock_db_handler.get_purchase_document_by_id.side_effect = None

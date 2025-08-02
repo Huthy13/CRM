@@ -42,6 +42,7 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             company_name_for_header,
             company_phone_pdf,
             company_shipping_address_pdf_lines,
+            company_remittance_address_pdf_lines,
             company_billing_address_pdf_lines,
         ) = get_company_pdf_context(company_service)
 
@@ -66,7 +67,7 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         pdf = PDF(
             document_number=doc.document_number,
             company_name=company_name_for_header,
-            company_billing_address_lines=company_billing_address_pdf_lines,
+            company_billing_address_lines=company_remittance_address_pdf_lines,
             document_type="Quote",
         )
         pdf.alias_nb_pages()
@@ -89,28 +90,36 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         pdf.cell(col_width_half, line_height, "Shipping Address:", 0, 1, "L")
         pdf.set_font("Arial", "", 11)
 
-        pdf.cell(col_width_half, line_height, company_name_for_header, 0, 1, "L")
+        if customer:
+            pdf.cell(col_width_half, line_height, customer.name or "N/A", 0, 1, "L")
+            if customer_shipping_address:
+                pdf.multi_cell(
+                    col_width_half,
+                    line_height,
+                    "\n".join(
+                        filter(
+                            None,
+                            [
+                                customer_shipping_address.street or "",
+                                f"{customer_shipping_address.city or ''}, {customer_shipping_address.state or ''} {customer_shipping_address.zip_code or ''}",
+                                (customer_shipping_address.country or "").strip(),
+                            ],
+                        )
+                    ),
+                    0,
+                    "L",
+                )
+            else:
+                pdf.cell(col_width_half, line_height, "No shipping address on file.", 0, 1, "L")
+        else:
+            pdf.cell(col_width_half, line_height, "Customer details not available.", 0, 1, "L")
 
-        temp_x_offset = pdf.get_x()
-        pdf.multi_cell(
-            col_width_half,
-            line_height,
-            "\n".join(company_shipping_address_pdf_lines),
-            0,
-            "L",
-        )
-        y_after_company_address = pdf.get_y()
-        pdf.set_xy(temp_x_offset, y_after_company_address)
-
-        if company_phone_pdf:
-            pdf.cell(col_width_half, line_height, f"Phone: {company_phone_pdf}", 0, 1, "L")
-
-        y_after_company_info = pdf.get_y()
+        y_after_shipping_info = pdf.get_y()
 
         pdf.set_xy(current_x + col_width_half + 10, current_y)
 
         pdf.set_font("Arial", "B", 11)
-        pdf.cell(col_width_half, line_height, "Customer:", 0, 1, "L")
+        pdf.cell(col_width_half, line_height, "Billing Address:", 0, 1, "L")
         pdf.set_font("Arial", "", 11)
 
         right_column_x = current_x + col_width_half + 10
@@ -144,9 +153,9 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
             pdf.set_x(right_column_x)
             pdf.cell(col_width_half, line_height, "Customer details not available.", 0, 1, "L")
 
-        y_after_customer_info = pdf.get_y()
+        y_after_billing_info = pdf.get_y()
 
-        pdf.set_y(max(y_after_company_info, y_after_customer_info))
+        pdf.set_y(max(y_after_shipping_info, y_after_billing_info))
         pdf.ln(line_height * 1.5)
 
         pdf.set_font("Arial", "B", 10)
@@ -176,7 +185,21 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
 
                 start_x = pdf.get_x()
                 start_y = pdf.get_y()
-                pdf.multi_cell(desc_col, line_height, item.product_description or "", 1, "L")
+                product_info = (
+                    sales_logic.product_repo.get_product_details(item.product_id)
+                    if item.product_id
+                    else None
+                )
+                if product_info:
+                    desc_text = "\n".join(
+                        filter(
+                            None,
+                            [product_info.get("name"), product_info.get("description")],
+                        )
+                    )
+                else:
+                    desc_text = item.product_description or ""
+                pdf.multi_cell(desc_col, line_height, desc_text, 1, "L")
                 end_y_desc = pdf.get_y()
 
                 pdf.set_xy(start_x + desc_col, start_y)

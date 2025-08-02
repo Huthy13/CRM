@@ -50,6 +50,7 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
             company_name_for_header,
             company_phone_pdf,
             company_shipping_address_pdf_lines,
+            company_remittance_address_pdf_lines,
             company_billing_address_pdf_lines,
         ) = get_company_pdf_context(company_service)
         

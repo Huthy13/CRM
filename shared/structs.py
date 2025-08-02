@@ -285,6 +285,7 @@ class InventoryTransactionType(Enum):
     PURCHASE = "Purchase"
     SALE = "Sale"
     ADJUSTMENT = "Adjustment"
+    PURCHASE_ORDER = "Purchase Order"
 
 
 class PurchaseOrderStatus(Enum):

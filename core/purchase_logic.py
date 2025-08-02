@@ -206,6 +206,12 @@ class PurchaseLogic:
             "status": PurchaseDocumentStatus.PO_ISSUED.value,
             "document_number": new_po_number
         })
+        items = self.get_items_for_document(doc_id)
+        for item in items:
+            if item.product_id:
+                self.inventory_service.record_purchase_order(
+                    item.product_id, item.quantity, reference=f"PO#{new_po_number}"
+                )
         return self.get_purchase_document_details(doc_id)
 
     def mark_document_received(self, doc_id: int) -> Optional[PurchaseDocument]:
@@ -238,19 +244,45 @@ class PurchaseLogic:
         return self.get_purchase_document_details(doc_id)
 
     def update_document_status(self, doc_id: int, new_status: PurchaseDocumentStatus) -> Optional[PurchaseDocument]:
-        """Updates the status of a purchase document."""
-        # Basic validation or transition logic can be added here if needed.
-        # For now, directly update using the DB handler.
+        """Updates the status of a purchase document.
+
+        Handles transitions that require inventory adjustments or special
+        numbering such as converting an RFQ into a purchase order or receiving
+        an issued PO.
+        """
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found for status update.")
 
-        # Example: Prevent changing status from Closed (can be more elaborate)
+        # No change requested
+        if doc.status == new_status:
+            return doc
+
+        # Prevent updates to closed documents
         if doc.status == PurchaseDocumentStatus.CLOSED and new_status != PurchaseDocumentStatus.CLOSED:
             raise ValueError("Cannot change status of a closed document.")
 
+        # Converting a quoted RFQ into an issued PO
+        if new_status == PurchaseDocumentStatus.PO_ISSUED and doc.status != PurchaseDocumentStatus.PO_ISSUED:
+            return self.convert_rfq_to_po(doc_id)
+
+        # Receiving an issued PO affects inventory
+        if new_status == PurchaseDocumentStatus.RECEIVED and doc.status == PurchaseDocumentStatus.PO_ISSUED:
+            return self.receive_purchase_order(doc_id)
+
+        # Reverting an issued PO prior to receipt should clear on-order qty
+        if doc.status == PurchaseDocumentStatus.PO_ISSUED and new_status != PurchaseDocumentStatus.RECEIVED:
+            items = self.get_items_for_document(doc_id)
+            for item in items:
+                if item.product_id:
+                    self.inventory_service.record_purchase_order(
+                        item.product_id,
+                        -item.quantity,
+                        reference=f"PO#{doc.document_number}",
+                    )
+
         self.purchase_repo.update_purchase_document_status(doc_id, new_status.value)
-        return self.get_purchase_document_details(doc_id) # Return updated document
+        return self.get_purchase_document_details(doc_id)
 
     def get_purchase_document_details(self, doc_id: int) -> Optional[PurchaseDocument]:
         doc_data = self.purchase_repo.get_purchase_document_by_id(doc_id)
@@ -352,6 +384,9 @@ class PurchaseLogic:
         items = self.get_items_for_document(doc_id)
         for item in items:
             if item.product_id:
+                self.inventory_service.record_purchase_order(
+                    item.product_id, -item.quantity, reference=f"PO#{doc.document_number}"
+                )
                 self.inventory_service.adjust_stock(
                     item.product_id,
                     item.quantity,

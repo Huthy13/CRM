@@ -276,10 +276,21 @@ class SalesLogic:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
+        # Record inventory reductions for each item, triggering replenishment when needed
+        items = self.get_items_for_sales_document(quote_id)
+        for item in items:
+            if item.product_id is None:
+                continue
+            self.inventory_service.adjust_stock(
+                item.product_id,
+                -item.quantity,
+                InventoryTransactionType.SALE,
+                reference=f"SO-{quote_id}",
+            )
         # Update the document type and status
         updates = {
             "document_type": SalesDocumentType.SALES_ORDER.value,
-            "status": SalesDocumentStatus.SO_OPEN.value
+            "status": SalesDocumentStatus.SO_OPEN.value,
         }
         self.sales_repo.update_sales_document(quote_id, updates)
 
@@ -515,7 +526,7 @@ class SalesLogic:
 
 
     def confirm_sales_order(self, doc_id: int) -> SalesDocument:
-        """Deduct inventory for a sales order and mark it fulfilled."""
+        """Mark a sales order as fulfilled."""
         doc = self.get_sales_document_details(doc_id)
         if not doc:
             raise ValueError(f"Sales document with ID {doc_id} not found.")
@@ -525,15 +536,6 @@ class SalesLogic:
             raise ValueError(
                 f"Sales order must be in status '{SalesDocumentStatus.SO_OPEN.value}' to confirm."
             )
-        items = self.get_items_for_sales_document(doc_id)
-        for item in items:
-            if item.product_id:
-                self.inventory_service.adjust_stock(
-                    item.product_id,
-                    -item.quantity,
-                    InventoryTransactionType.SALE,
-                    reference=f"SO#{doc.document_number}",
-                )
         self.sales_repo.update_sales_document(
             doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
         )

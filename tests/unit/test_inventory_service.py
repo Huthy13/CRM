@@ -41,5 +41,14 @@ class InventoryServiceTest(unittest.TestCase):
         queue = self.inventory_repo.get_replenishment_queue()
         self.assertEqual(len(queue), 0)
 
+    def test_record_purchase_order_tracks_quantity(self):
+        service = InventoryService(self.inventory_repo, self.product_repo)
+        service.record_purchase_order(self.product_id, 4, reference="PO#1")
+        self.assertEqual(service.get_on_order_level(self.product_id), 4)
+        # On-hand stock should remain unchanged
+        self.assertEqual(self.inventory_repo.get_stock_level(self.product_id), 8)
+        service.record_purchase_order(self.product_id, -2, reference="PO#1")
+        self.assertEqual(service.get_on_order_level(self.product_id), 2)
+
 if __name__ == "__main__":
     unittest.main()

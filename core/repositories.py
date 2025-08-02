@@ -293,6 +293,9 @@ class InventoryRepository:
     def get_stock_level(self, product_id: int) -> float:
         return self.db.get_stock_level(product_id)
 
+    def get_on_order_level(self, product_id: int) -> float:
+        return self.db.get_on_order_quantity(product_id)
+
     def add_replenishment_item(self, product_id: int, quantity_needed: float):
         return self.db.add_replenishment_item(product_id, quantity_needed)
 

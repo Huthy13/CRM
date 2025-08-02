@@ -47,8 +47,9 @@ class SalesLogic:
         self.inventory_service = inventory_service or InventoryService(
             inv_repo, self.product_repo
         )
-
-        self._db = self.account_repo.db if self.account_repo else None
+        # Expose the underlying database handler for legacy callers
+        self.db = db_handler
+        self._db = db_handler
 
     def _generate_sales_document_number(self, doc_type: SalesDocumentType) -> str:
         """Generates a unique sales document number in the format ``S#####``.

@@ -29,6 +29,9 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler = MagicMock()
         self.sales_logic = SalesLogic(self.mock_db_handler)
 
+    def test_exposes_db_handler(self):
+        self.assertIs(self.sales_logic.db, self.mock_db_handler)
+
     def test_create_quote_success(self):
         mock_customer_id = 1
         mock_notes = "Test quote notes"

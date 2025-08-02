@@ -29,22 +29,22 @@ class ProductTab:
 
         button_width = 20
         button_frame = tk.Frame(self.frame)
-        button_frame.grid(row=1, column=0, columnspan=4, pady=5)
+        button_frame.grid(row=1, column=0, columnspan=4, pady=5, sticky="w")
 
-        self.add_product_button = tk.Button(
-            button_frame, text="Add New Product",
+        self.new_button = tk.Button(
+            button_frame, text="New",
             command=self.create_new_product, width=button_width)
-        self.add_product_button.pack(side=tk.LEFT, padx=5)
+        self.new_button.pack(side=tk.LEFT, padx=5)
 
-        self.edit_product_button = tk.Button(
-            button_frame, text="Edit Product",
+        self.edit_button = tk.Button(
+            button_frame, text="Edit",
             command=self.edit_existing_product, width=button_width)
-        self.edit_product_button.pack(side=tk.LEFT, padx=5)
+        self.edit_button.pack(side=tk.LEFT, padx=5)
 
-        self.remove_product_button = tk.Button(
-            button_frame, text="Remove Product",
+        self.delete_button = tk.Button(
+            button_frame, text="Delete",
             command=self.remove_product, width=button_width)
-        self.remove_product_button.pack(side=tk.LEFT, padx=5)
+        self.delete_button.pack(side=tk.LEFT, padx=5)
 
         self.view_categories_button = tk.Button(
             button_frame, text="View Categories",

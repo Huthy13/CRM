@@ -18,19 +18,15 @@ class SalesDocumentTab:
 
     def _setup_ui(self):
         button_frame = ttk.Frame(self.frame)
-        button_frame.pack(pady=10, padx=10, fill=tk.X)
+        button_frame.pack(pady=10, padx=10, fill=tk.X, anchor=tk.W)
 
-        # Updated button text for sales context
-        self.new_quote_button = ttk.Button(button_frame, text="New Quote", command=lambda: self.open_manage_document_popup(doc_type=SalesDocumentType.QUOTE))
-        self.new_quote_button.pack(side=tk.LEFT, padx=5)
+        self.new_button = ttk.Button(button_frame, text="New", command=lambda: self.open_manage_document_popup(doc_type=SalesDocumentType.QUOTE))
+        self.new_button.pack(side=tk.LEFT, padx=5)
 
-        self.new_invoice_button = ttk.Button(button_frame, text="New Invoice", command=lambda: self.open_manage_document_popup(doc_type=SalesDocumentType.INVOICE))
-        self.new_invoice_button.pack(side=tk.LEFT, padx=5)
+        self.edit_button = ttk.Button(button_frame, text="Edit", command=lambda: self.open_manage_document_popup(), state=tk.DISABLED)
+        self.edit_button.pack(side=tk.LEFT, padx=5)
 
-        self.manage_button = ttk.Button(button_frame, text="Manage Document", command=lambda: self.open_manage_document_popup())
-        self.manage_button.pack(side=tk.LEFT, padx=5)
-
-        self.delete_button = ttk.Button(button_frame, text="Delete Document", command=self.delete_selected_document, state=tk.DISABLED)
+        self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_selected_document, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=5)
 
         # Adapted columns for sales documents
@@ -120,12 +116,15 @@ class SalesDocumentTab:
             try:
                 self.selected_document_id = int(selected_items[0])
                 self.delete_button.config(state=tk.NORMAL)
+                self.edit_button.config(state=tk.NORMAL)
             except ValueError:
                 self.selected_document_id = None
                 self.delete_button.config(state=tk.DISABLED)
+                self.edit_button.config(state=tk.DISABLED)
         else:
             self.selected_document_id = None
             self.delete_button.config(state=tk.DISABLED)
+            self.edit_button.config(state=tk.DISABLED)
 
     def open_manage_document_popup(self, doc_type=None):
         # Import SalesDocumentPopup locally

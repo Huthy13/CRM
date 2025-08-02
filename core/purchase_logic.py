@@ -51,7 +51,7 @@ class PurchaseLogic:
         The numbering is shared across all purchase documents.
         """
         prefix = "P"
-        all_docs_raw = self.purchase_repo.get_all_purchase_documents()
+        all_docs_raw = self.purchase_repo.get_all_purchase_documents(is_active=None)
         max_seq = -1
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
@@ -282,42 +282,61 @@ class PurchaseLogic:
         doc_data = self.purchase_repo.get_purchase_document_by_id(doc_id)
         if doc_data:
             status_enum = None
-            if doc_data.get('status'):
+            if doc_data.get("status"):
                 try:
-                    status_enum = PurchaseDocumentStatus(doc_data['status'])
+                    status_enum = PurchaseDocumentStatus(doc_data["status"])
                 except ValueError:
-                    logger.warning("Invalid status '%s' in DB for doc ID %s", doc_data['status'], doc_id)
+                    logger.warning(
+                        "Invalid status '%s' in DB for doc ID %s",
+                        doc_data["status"],
+                        doc_id,
+                    )
 
             return PurchaseDocument(
-                doc_id=doc_data['id'],
-                document_number=doc_data['document_number'],
-                vendor_id=doc_data['vendor_id'],
-                created_date=doc_data['created_date'],
+                doc_id=doc_data["id"],
+                document_number=doc_data["document_number"],
+                vendor_id=doc_data["vendor_id"],
+                created_date=doc_data["created_date"],
                 status=status_enum,
-                notes=doc_data.get('notes')
+                notes=doc_data.get("notes"),
+                is_active=bool(doc_data.get("is_active", True)),
             )
         return None
 
-    def get_all_documents_by_criteria(self, vendor_id: int = None, status: PurchaseDocumentStatus = None) -> List[PurchaseDocument]:
+    def get_all_documents_by_criteria(
+        self,
+        vendor_id: int = None,
+        status: PurchaseDocumentStatus = None,
+        is_active: Optional[bool] = True,
+    ) -> List[PurchaseDocument]:
         status_value = status.value if status else None
-        docs_data = self.purchase_repo.get_all_purchase_documents(vendor_id=vendor_id, status=status_value)
+        docs_data = self.purchase_repo.get_all_purchase_documents(
+            vendor_id=vendor_id, status=status_value, is_active=is_active
+        )
         result_list = []
         for doc_data in docs_data:
             status_enum = None
-            if doc_data.get('status'):
+            if doc_data.get("status"):
                 try:
-                    status_enum = PurchaseDocumentStatus(doc_data['status'])
+                    status_enum = PurchaseDocumentStatus(doc_data["status"])
                 except ValueError:
-                    logger.warning("Invalid status '%s' in DB for doc ID %s", doc_data['status'], doc_data['id'])
+                    logger.warning(
+                        "Invalid status '%s' in DB for doc ID %s",
+                        doc_data["status"],
+                        doc_data["id"],
+                    )
 
-            result_list.append(PurchaseDocument(
-                doc_id=doc_data['id'],
-                document_number=doc_data['document_number'],
-                vendor_id=doc_data['vendor_id'],
-                created_date=doc_data['created_date'],
-                status=status_enum,
-                notes=doc_data.get('notes')
-            ))
+            result_list.append(
+                PurchaseDocument(
+                    doc_id=doc_data["id"],
+                    document_number=doc_data["document_number"],
+                    vendor_id=doc_data["vendor_id"],
+                    created_date=doc_data["created_date"],
+                    status=status_enum,
+                    notes=doc_data.get("notes"),
+                    is_active=bool(doc_data.get("is_active", True)),
+                )
+            )
         return result_list
 
     def get_items_for_document(self, doc_id: int) -> List[PurchaseDocumentItem]:
@@ -393,16 +412,23 @@ class PurchaseLogic:
         return self.get_purchase_document_details(doc_id)
 
     def delete_purchase_document(self, doc_id: int):
-        """Deletes a purchase document and all of its items."""
+        """Soft delete a purchase document and adjust inventory if needed."""
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found.")
 
-        # Manually delete items first since ON DELETE CASCADE is not used
-        items = self.get_items_for_document(doc_id)
-        for item in items:
-            self.purchase_repo.delete_purchase_document_item(item.id)
+        # If the document represents an issued PO, remove on-order quantities
+        if doc.status == PurchaseDocumentStatus.PO_ISSUED:
+            items = self.get_items_for_document(doc_id)
+            for item in items:
+                if item.product_id:
+                    self.inventory_service.record_purchase_order(
+                        item.product_id,
+                        -item.quantity,
+                        reference=f"PO#{doc.document_number}",
+                    )
 
+        # Mark document inactive
         self.purchase_repo.delete_purchase_document(doc_id)
 
 # Remove the old update_item_quote method as its functionality is merged into update_document_item

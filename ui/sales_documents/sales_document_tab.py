@@ -29,8 +29,26 @@ class SalesDocumentTab:
         self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_selected_document, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=5)
 
+        self.show_inactive_var = tk.BooleanVar(value=False)
+        self.show_inactive_cb = ttk.Checkbutton(
+            button_frame,
+            text="Show Inactive",
+            variable=self.show_inactive_var,
+            command=self.load_documents,
+        )
+        self.show_inactive_cb.pack(side=tk.LEFT, padx=5)
+
         # Adapted columns for sales documents
-        columns = ("doc_number", "doc_type", "customer_name", "created_date", "status", "total_amount", "notes")
+        columns = (
+            "doc_number",
+            "doc_type",
+            "customer_name",
+            "created_date",
+            "status",
+            "total_amount",
+            "notes",
+            "active",
+        )
         self.tree = ttk.Treeview(self.frame, columns=columns, show="headings", selectmode="browse")
 
         self.tree.heading("doc_number", text="Document #")
@@ -40,6 +58,7 @@ class SalesDocumentTab:
         self.tree.heading("status", text="Status")
         self.tree.heading("total_amount", text="Total Amount")
         self.tree.heading("notes", text="Notes")
+        self.tree.heading("active", text="Active")
 
         self.tree.column("doc_number", width=150, anchor=tk.W)
         self.tree.column("doc_type", width=80, anchor=tk.W)
@@ -48,6 +67,7 @@ class SalesDocumentTab:
         self.tree.column("status", width=120, anchor=tk.CENTER)
         self.tree.column("total_amount", width=100, anchor=tk.E)
         self.tree.column("notes", width=250, anchor=tk.W)
+        self.tree.column("active", width=60, anchor=tk.CENTER)
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
@@ -76,8 +96,10 @@ class SalesDocumentTab:
         for i in self.tree.get_children():
             self.tree.delete(i)
 
-        # Use sales_logic to get sales documents
-        documents = self.sales_logic.get_all_sales_documents_by_criteria()
+        show_inactive = self.show_inactive_var.get()
+        documents = self.sales_logic.get_all_sales_documents_by_criteria(
+            is_active=None if show_inactive else True
+        )
 
         for doc in documents:
             customer_name = "Unknown Customer"
@@ -98,15 +120,21 @@ class SalesDocumentTab:
             status_display = doc.status.value if doc.status else "N/A"
             total_amount_display = f"${doc.total_amount:.2f}" if doc.total_amount is not None else "$0.00"
 
-            self.tree.insert("", tk.END, values=(
-                doc.document_number,
-                doc_type_display,
-                customer_name,
-                formatted_date,
-                status_display,
-                total_amount_display,
-                doc.notes or ""
-            ), iid=str(doc.id))
+            self.tree.insert(
+                "",
+                tk.END,
+                values=(
+                    doc.document_number,
+                    doc_type_display,
+                    customer_name,
+                    formatted_date,
+                    status_display,
+                    total_amount_display,
+                    doc.notes or "",
+                    "Yes" if doc.is_active else "No",
+                ),
+                iid=str(doc.id),
+            )
 
         self.on_tree_select(None)
 

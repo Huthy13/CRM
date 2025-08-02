@@ -118,13 +118,23 @@ class SalesDocumentStatus(Enum):
     INVOICE_OVERDUE = "Invoice Overdue"
 
 class SalesDocument:
-    def __init__(self, doc_id=None, document_number: str = "", customer_id: int = None,
-                 document_type: SalesDocumentType = None,
-                 created_date: str = None, expiry_date: Optional[str] = None,  # For Quotes
-                 due_date: Optional[str] = None,  # For Invoices
-                 status: SalesDocumentStatus = None, notes: str = None,
-                 subtotal: Optional[float] = 0.0, taxes: Optional[float] = 0.0, total_amount: Optional[float] = 0.0,
-                 related_quote_id: Optional[int] = None):  # Link invoice to quote
+    def __init__(
+        self,
+        doc_id=None,
+        document_number: str = "",
+        customer_id: int = None,
+        document_type: SalesDocumentType = None,
+        created_date: str = None,
+        expiry_date: Optional[str] = None,  # For Quotes
+        due_date: Optional[str] = None,  # For Invoices
+        status: SalesDocumentStatus = None,
+        notes: str = None,
+        subtotal: Optional[float] = 0.0,
+        taxes: Optional[float] = 0.0,
+        total_amount: Optional[float] = 0.0,
+        related_quote_id: Optional[int] = None,
+        is_active: bool = True,
+    ):
         self.id = doc_id
         self.document_number = document_number
         self.customer_id = customer_id  # Changed from vendor_id
@@ -138,6 +148,7 @@ class SalesDocument:
         self.taxes = taxes
         self.total_amount = total_amount
         self.related_quote_id = related_quote_id
+        self.is_active = is_active
 
     def to_dict(self) -> dict:
         return {
@@ -154,6 +165,7 @@ class SalesDocument:
             "taxes": self.taxes,
             "total_amount": self.total_amount,
             "related_quote_id": self.related_quote_id,
+            "is_active": self.is_active,
         }
 
 class SalesDocumentItem:
@@ -199,14 +211,23 @@ class SalesDocumentItem:
 # --- End Sales Document Structures ---
 
 class PurchaseDocument:
-    def __init__(self, doc_id=None, document_number: str = "", vendor_id: int = None,
-                 created_date: str = None, status: PurchaseDocumentStatus = None, notes: str = None):
+    def __init__(
+        self,
+        doc_id=None,
+        document_number: str = "",
+        vendor_id: int = None,
+        created_date: str = None,
+        status: PurchaseDocumentStatus = None,
+        notes: str = None,
+        is_active: bool = True,
+    ):
         self.id = doc_id  # Using 'id' to match table column consistently
         self.document_number = document_number
         self.vendor_id = vendor_id
         self.created_date = created_date  # Should be ISO string
         self.status = status
         self.notes = notes
+        self.is_active = is_active
 
     def to_dict(self) -> dict:
         return {
@@ -216,6 +237,7 @@ class PurchaseDocument:
             "created_date": self.created_date,
             "status": self.status.value if self.status else None,
             "notes": self.notes,
+            "is_active": self.is_active,
         }
 
     def __str__(self) -> str:

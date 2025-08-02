@@ -1,8 +1,9 @@
 import sqlite3
 import os
-import datetime # Import datetime
+import datetime  # Import datetime
 import logging
-from .database_setup import DB_NAME, initialize_database # Import from database_setup
+from typing import Optional
+from .database_setup import DB_NAME, initialize_database  # Import from database_setup
 from shared.structs import InventoryTransactionType
 
 logger = logging.getLogger(__name__)
@@ -757,8 +758,14 @@ class DatabaseHandler:
         row = self.cursor.fetchone()
         return dict(row) if row else None
 
-    def get_all_sales_documents(self, customer_id: int = None, document_type: str = None, status: str = None) -> list[dict]:
-        """Retrieves sales documents, optionally filtered."""
+    def get_all_sales_documents(
+        self,
+        customer_id: int = None,
+        document_type: str = None,
+        status: str = None,
+        is_active: Optional[bool] = True,
+    ) -> list[dict]:
+        """Retrieves sales documents with optional filters."""
         query = "SELECT * FROM sales_documents WHERE 1=1"
         params = []
         if customer_id is not None:
@@ -770,6 +777,9 @@ class DatabaseHandler:
         if status is not None:
             query += " AND status = ?"
             params.append(status)
+        if is_active is not None:
+            query += " AND is_active = ?"
+            params.append(1 if is_active else 0)
         query += " ORDER BY created_date DESC, id DESC"
 
         self.cursor.execute(query, params)
@@ -789,9 +799,11 @@ class DatabaseHandler:
         self.conn.commit()
 
     def delete_sales_document(self, doc_id: int):
-        """Deletes a sales document. Associated items should be handled by ON DELETE CASCADE if set up."""
-        # Assuming ON DELETE CASCADE is set for sales_document_items.sales_document_id
-        self.cursor.execute("DELETE FROM sales_documents WHERE id = ?", (doc_id,))
+        """Soft deletes a sales document by marking it inactive."""
+        self.cursor.execute(
+            "UPDATE sales_documents SET is_active = 0 WHERE id = ?",
+            (doc_id,),
+        )
         self.conn.commit()
 
 # --- Sales Document Item CRUD Methods ---
@@ -1015,8 +1027,13 @@ class DatabaseHandler:
             return dict(zip(columns, row))
         return None
 
-    def get_all_purchase_documents(self, vendor_id: int = None, status: str = None) -> list[dict]:
-        """Retrieves purchase documents, optionally filtered by vendor_id and/or status."""
+    def get_all_purchase_documents(
+        self,
+        vendor_id: int = None,
+        status: str = None,
+        is_active: Optional[bool] = True,
+    ) -> list[dict]:
+        """Retrieves purchase documents with optional filters."""
         query = "SELECT * FROM purchase_documents WHERE 1=1"
         params = []
         if vendor_id is not None:
@@ -1025,7 +1042,10 @@ class DatabaseHandler:
         if status is not None:
             query += " AND status = ?"
             params.append(status)
-        query += " ORDER BY created_date DESC" # Default sort order
+        if is_active is not None:
+            query += " AND is_active = ?"
+            params.append(1 if is_active else 0)
+        query += " ORDER BY created_date DESC"  # Default sort order
 
         self.cursor.execute(query, params)
         columns = [desc[0] for desc in self.cursor.description]
@@ -1053,8 +1073,11 @@ class DatabaseHandler:
         self.conn.commit()
 
     def delete_purchase_document(self, doc_id: int):
-        """Deletes a purchase document. Associated items are deleted by ON DELETE CASCADE."""
-        self.cursor.execute("DELETE FROM purchase_documents WHERE id = ?", (doc_id,))
+        """Soft deletes a purchase document by marking it inactive."""
+        self.cursor.execute(
+            "UPDATE purchase_documents SET is_active = 0 WHERE id = ?",
+            (doc_id,),
+        )
         self.conn.commit()
 
 # Purchase Document Item related methods

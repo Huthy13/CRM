@@ -10,6 +10,7 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             created_date TEXT NOT NULL,
             status TEXT NOT NULL,
             notes TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (vendor_id) REFERENCES accounts(id)

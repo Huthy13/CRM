@@ -4,7 +4,6 @@ from ui.products.product_popup import ProductDetailsPopup
 from ui.products.adjust_inventory_popup import AdjustInventoryPopup
 from ui.products.transaction_history_popup import TransactionHistoryPopup
 from ui.inventory_reports import InventoryReportPopup
-from ui.category_popup import CategoryListPopup # Import CategoryListPopup
 from shared.structs import Product
 # from core.logic.product_management import ProductLogic # For type hinting
 
@@ -23,13 +22,9 @@ class ProductTab:
         self.frame.bind("<FocusIn>", self.load_products)
 
     def setup_product_tab(self):
-        tk.Label(self.frame, text="Product Management").grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        self.stock_summary_label = tk.Label(self.frame, text="Total On Hand: 0")
-        self.stock_summary_label.grid(row=0, column=3, padx=5, pady=5, sticky="e")
-
         button_width = 20
         button_frame = tk.Frame(self.frame)
-        button_frame.grid(row=1, column=0, columnspan=4, pady=5, sticky="w")
+        button_frame.grid(row=0, column=0, columnspan=4, pady=5, sticky="w")
 
         self.new_button = tk.Button(
             button_frame, text="New",
@@ -45,11 +40,6 @@ class ProductTab:
             button_frame, text="Delete",
             command=self.remove_product, width=button_width)
         self.delete_button.pack(side=tk.LEFT, padx=5)
-
-        self.view_categories_button = tk.Button(
-            button_frame, text="View Categories",
-            command=self.view_categories, width=button_width)
-        self.view_categories_button.pack(side=tk.LEFT, padx=5)
 
         self.adjust_inventory_button = tk.Button(
             button_frame, text="Adjust Inventory",
@@ -110,8 +100,8 @@ class ProductTab:
         self.tree.column("reorder_qty", width=100, anchor=tk.E)
         self.tree.column("safety_stock", width=100, anchor=tk.E)
 
-        self.tree.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-        self.frame.grid_rowconfigure(2, weight=1)
+        self.tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
+        self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
 
         self.tree.bind("<<TreeviewSelect>>", self.on_product_select)
@@ -201,9 +191,7 @@ class ProductTab:
 
         try:
             products = self.product_logic.get_all_products() # Use product_logic
-            total_qty = 0
             for product in products:
-                total_qty += product.quantity_on_hand
                 self.tree.insert("", "end", iid=product.product_id, values=(
                     product.product_id,
                     product.name,
@@ -218,7 +206,6 @@ class ProductTab:
                     product.reorder_quantity,
                     product.safety_stock,
                 ))
-            self.stock_summary_label.config(text=f"Total On Hand: {total_qty}")
         except Exception as e:
             import traceback
             detailed_error_message = f"Detailed error in load_products: {type(e).__name__}: {e}"
@@ -230,10 +217,6 @@ class ProductTab:
 
     def refresh_products_list(self):
         self.load_products()
-
-    def view_categories(self):
-        popup = CategoryListPopup(self.frame.master, self.product_logic) # Use self.product_logic
-        self.frame.master.wait_window(popup)
 
     def adjust_inventory(self):
         if not self.selected_product_id:

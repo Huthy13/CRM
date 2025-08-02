@@ -20,6 +20,7 @@ from core.repositories import AddressRepository, AccountRepository, InventoryRep
 from core.inventory_service import InventoryService
 from ui.pricing.pricing_rule_tab import PricingRuleTab
 from ui.payment_terms.payment_term_tab import PaymentTermTab
+from ui.category_popup import CategoryListPopup
 
 
 class AddressBookView:
@@ -72,6 +73,7 @@ class AddressBookView:
         settings_menu.add_command(label="Company info", command=self.open_company_info)
         settings_menu.add_command(label="Payment Terms", command=self.open_payment_terms)
         settings_menu.add_command(label="Pricing Rules", command=self.open_pricing_rules)
+        settings_menu.add_command(label="Product Categories", command=self.open_product_categories)
         menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
         # Initialize all tabs
@@ -115,3 +117,8 @@ class AddressBookView:
         popup.title("Payment Terms")
         term_tab = PaymentTermTab(popup, self.address_book_logic)
         term_tab.frame.pack(fill="both", expand=True)
+
+    def open_product_categories(self):
+        """Open the product categories popup."""
+        popup = CategoryListPopup(self.root, self.product_logic)
+        self.root.wait_window(popup)

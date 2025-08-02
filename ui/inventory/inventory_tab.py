@@ -34,15 +34,15 @@ class InventoryTab:
         tk.Label(self.frame, text="To Receive").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.to_receive_tree = ttk.Treeview(
             self.frame,
-            columns=("doc", "product", "ordered", "received", "remaining"),
-            show="headings",
+            columns=("product", "ordered", "received", "remaining"),
+            show="tree headings",
         )
-        self.to_receive_tree.heading("doc", text="PO Number")
+        self.to_receive_tree.heading("#0", text="PO Number")
         self.to_receive_tree.heading("product", text="Product")
         self.to_receive_tree.heading("ordered", text="Ordered")
         self.to_receive_tree.heading("received", text="Received")
         self.to_receive_tree.heading("remaining", text="Remaining")
-        self.to_receive_tree.column("doc", width=100)
+        self.to_receive_tree.column("#0", width=100)
         self.to_receive_tree.column("product", width=200)
         self.to_receive_tree.column("ordered", width=80, anchor=tk.E)
         self.to_receive_tree.column("received", width=80, anchor=tk.E)
@@ -75,7 +75,13 @@ class InventoryTab:
 
     def on_select_item(self, event=None):
         selection = self.to_receive_tree.selection()
-        self.selected_item_id = int(selection[0]) if selection else None
+        if selection:
+            try:
+                self.selected_item_id = int(selection[0])
+            except ValueError:
+                self.selected_item_id = None
+        else:
+            self.selected_item_id = None
 
     def open_receipt_popup(self):
         if not self.selected_item_id:
@@ -97,18 +103,23 @@ class InventoryTab:
         self.selected_item_id = None
         docs = self.purchase_logic.get_all_documents_by_criteria(status=PurchaseDocumentStatus.PO_ISSUED)
         for doc in docs:
+            doc_iid = f"doc_{doc.id}"
+            self.to_receive_tree.insert("", "end", iid=doc_iid, text=doc.document_number, open=False)
             items = self.purchase_logic.get_items_for_document(doc.id)
             for item in items:
                 remaining = item.quantity - item.received_quantity
                 if remaining > 0:
                     self.to_receive_tree.insert(
-                        "", "end", iid=item.id, values=(
-                            doc.document_number,
+                        doc_iid,
+                        "end",
+                        iid=item.id,
+                        text="",
+                        values=(
                             item.product_description,
                             item.quantity,
                             item.received_quantity,
                             remaining,
-                        )
+                        ),
                     )
 
     def refresh_ready_to_ship(self):

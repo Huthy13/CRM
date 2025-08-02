@@ -142,6 +142,7 @@ class SalesDocument:
         due_date: Optional[str] = None,  # For Invoices
         status: SalesDocumentStatus = None,
         notes: str = None,
+        reference_number: Optional[str] = None,
         subtotal: Optional[float] = 0.0,
         taxes: Optional[float] = 0.0,
         total_amount: Optional[float] = 0.0,
@@ -157,6 +158,7 @@ class SalesDocument:
         self.due_date = due_date
         self.status = status
         self.notes = notes
+        self.reference_number = reference_number
         self.subtotal = subtotal
         self.taxes = taxes
         self.total_amount = total_amount
@@ -174,6 +176,7 @@ class SalesDocument:
             "due_date": self.due_date,
             "status": self.status.value if self.status else None,
             "notes": self.notes,
+            "reference_number": self.reference_number,
             "subtotal": self.subtotal,
             "taxes": self.taxes,
             "total_amount": self.total_amount,

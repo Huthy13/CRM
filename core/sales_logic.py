@@ -47,8 +47,9 @@ class SalesLogic:
         self.inventory_service = inventory_service or InventoryService(
             inv_repo, self.product_repo
         )
-
-        self._db = self.account_repo.db if self.account_repo else None
+        # Expose the underlying database handler for legacy callers
+        self.db = db_handler
+        self._db = db_handler
 
     def _generate_sales_document_number(self, doc_type: SalesDocumentType) -> str:
         """Generates a unique sales document number in the format ``S#####``.
@@ -71,7 +72,8 @@ class SalesLogic:
         next_seq = max_seq + 1
         return f"{prefix}{next_seq:05d}"
 
-    def create_quote(self, customer_id: int, notes: str = None, expiry_date_iso: Optional[str] = None) -> Optional[SalesDocument]:
+    def create_quote(self, customer_id: int, notes: str = None, expiry_date_iso: Optional[str] = None,
+                     reference_number: Optional[str] = None) -> Optional[SalesDocument]:
         """Creates a new Quote."""
         customer_account_dict = self.account_repo.get_account_details(customer_id)
         if not customer_account_dict:
@@ -91,8 +93,9 @@ class SalesLogic:
             customer_id=customer_id,
             document_type=SalesDocumentType.QUOTE.value,
             created_date=created_date_str,
-            expiry_date=expiry_date_iso,
             status=SalesDocumentStatus.QUOTE_DRAFT.value,
+            reference_number=reference_number,
+            expiry_date=expiry_date_iso,
             notes=notes
         )
         if new_doc_id:
@@ -269,6 +272,8 @@ class SalesLogic:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
+        if not quote_doc.reference_number:
+            raise ValueError("Reference number is required to convert a Quote to a Sales Order.")
         # Record inventory reductions for each item, triggering replenishment when needed
         items = self.get_items_for_sales_document(quote_id)
         for item in items:
@@ -311,8 +316,9 @@ class SalesLogic:
             customer_id=so_doc.customer_id,
             document_type=SalesDocumentType.INVOICE.value,
             created_date=created_date_str,
-            due_date=final_due_date_iso,
             status=SalesDocumentStatus.INVOICE_DRAFT.value,
+            reference_number=so_doc.reference_number,
+            due_date=final_due_date_iso,
             notes=so_doc.notes,
             subtotal=so_doc.subtotal,
             taxes=so_doc.taxes,
@@ -437,6 +443,7 @@ class SalesLogic:
                 due_date=doc_data.get("due_date"),
                 status=status_enum,
                 notes=doc_data.get("notes"),
+                reference_number=doc_data.get("reference_number"),
                 subtotal=doc_data.get("subtotal"),
                 taxes=doc_data.get("taxes"),
                 total_amount=doc_data.get("total_amount"),

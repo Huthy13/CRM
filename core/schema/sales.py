@@ -12,6 +12,7 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             expiry_date TEXT,
             due_date TEXT,
             status TEXT NOT NULL,
+            reference_number TEXT,
             notes TEXT,
             subtotal REAL DEFAULT 0.0,
             taxes REAL DEFAULT 0.0,

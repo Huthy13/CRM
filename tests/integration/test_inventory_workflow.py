@@ -43,7 +43,7 @@ class InventoryWorkflowIntegrationTest(unittest.TestCase):
         self.db.close()
 
     def test_full_inventory_cycle(self):
-        quote = self.sales_logic.create_quote(self.customer_id)
+        quote = self.sales_logic.create_quote(self.customer_id, reference_number="PO123")
         self.sales_logic.add_item_to_sales_document(
             quote.id, self.product_id, 10, unit_price_override=5.0
         )

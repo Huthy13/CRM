@@ -16,25 +16,34 @@ class ContactTab(TabBase):
         self.bind("<FocusIn>", self.load_contacts)
 
     def setup_contact_tab(self):
-        tk.Label(self, text="Contact Management").grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
+        tk.Label(self, text="Contacts").grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
         button_width = 20
         button_frame = tk.Frame(self)
-        button_frame.grid(row=1, column=0, columnspan=3, pady=5)
+        button_frame.grid(row=1, column=0, columnspan=3, pady=5, sticky="w")
 
         self.add_contact_button = tk.Button(
-            button_frame, text="Add New Contact",
-            command=self.create_new_contact, width=button_width)
+            button_frame,
+            text="New",
+            command=self.create_new_contact,
+            width=button_width,
+        )
         self.add_contact_button.pack(side=tk.LEFT, padx=5)
 
         self.edit_contact_button = tk.Button(
-            button_frame, text="Edit Contact",
-            command=self.edit_existing_contact, width=button_width)
+            button_frame,
+            text="Edit",
+            command=self.edit_existing_contact,
+            width=button_width,
+        )
         self.edit_contact_button.pack(side=tk.LEFT, padx=5)
 
         self.remove_contact_button = tk.Button(
-            button_frame, text="Remove Contact",
-            command=self.remove_contact, width=button_width)
+            button_frame,
+            text="Delete",
+            command=self.remove_contact,
+            width=button_width,
+        )
         self.remove_contact_button.pack(side=tk.LEFT, padx=5)
 
         self.tree = ttk.Treeview(self, columns=("id", "name", "phone", "email", "role", "account_name"), show="headings")

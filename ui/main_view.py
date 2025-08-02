@@ -69,8 +69,8 @@ class AddressBookView:
 
 
         # Add frames from tabs to Notebook
-        self.notebook.add(self.account_tab, text="Account Administration")
-        self.notebook.add(self.contact_tab, text="Contact Information")
+        self.notebook.add(self.account_tab, text="Accounts")
+        self.notebook.add(self.contact_tab, text="Contacts")
         self.notebook.add(self.interaction_log_tab, text="Interaction Log")
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")

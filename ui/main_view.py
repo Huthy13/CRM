@@ -69,6 +69,7 @@ class AddressBookView:
 
         settings_menu = tk.Menu(menu_bar, tearoff=0)
         settings_menu.add_command(label="Company info", command=self.open_company_info)
+        settings_menu.add_command(label="Pricing Rules", command=self.open_pricing_rules)
         menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
         # Initialize all tabs
@@ -80,8 +81,7 @@ class AddressBookView:
         self.purchase_document_tab = PurchaseDocumentTab(self.notebook, self.purchase_logic, self.address_book_logic, self.product_logic) # Pass product_logic
         self.sales_document_tab = SalesDocumentTab(
             self.notebook, self.sales_logic, self.address_book_logic, self.product_logic
-        )  # Add SalesDocumentTab
-        self.pricing_rule_tab = PricingRuleTab(self.notebook, self.address_book_logic)
+        )  # Add Sales Documents tab
 
 
         # Add frames from tabs to Notebook
@@ -91,8 +91,7 @@ class AddressBookView:
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")
         self.notebook.add(self.purchase_document_tab.frame, text="Purchase")
-        self.notebook.add(self.sales_document_tab.frame, text="Sales")  # Add Sales Documents tab
-        self.notebook.add(self.pricing_rule_tab.frame, text="Pricing Rules")
+        self.notebook.add(self.sales_document_tab.frame, text="Sales")
 
     def open_company_info(self):
         """Open the company information popup."""
@@ -100,3 +99,10 @@ class AddressBookView:
         popup.title("Company Information")
         company_tab = CompanyInfoTab(popup, self.company_service)
         company_tab.frame.pack(fill="both", expand=True)
+
+    def open_pricing_rules(self):
+        """Open the pricing rules popup."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Pricing Rules")
+        pricing_tab = PricingRuleTab(popup, self.address_book_logic)
+        pricing_tab.frame.pack(fill="both", expand=True)

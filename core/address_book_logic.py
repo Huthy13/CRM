@@ -781,16 +781,14 @@ class AddressBookLogic:
         return {cat_id: (name, parent_id) for cat_id, name, parent_id in categories_data}
 
     # --- Pricing Rule Methods ---
-    def create_pricing_rule(self, rule_name: str, markup_percentage: float = None, fixed_price: float = None) -> Optional[int]:
+    def create_pricing_rule(self, rule_name: str, markup_percentage: float = None, fixed_markup: float = None) -> Optional[int]:
         """Creates a new pricing rule."""
         if not rule_name:
             raise ValueError("Rule name cannot be empty.")
-        if markup_percentage is None and fixed_price is None:
-            raise ValueError("Either markup_percentage or fixed_price must be provided.")
-        if markup_percentage is not None and fixed_price is not None:
-            raise ValueError("Provide either markup_percentage or fixed_price, not both.")
+        if markup_percentage is None and fixed_markup is None:
+            raise ValueError("Either markup_percentage or fixed_markup must be provided.")
 
-        return self.product_repo.add_pricing_rule(rule_name, markup_percentage, fixed_price)
+        return self.product_repo.add_pricing_rule(rule_name, markup_percentage, fixed_markup)
 
     def get_pricing_rule(self, rule_id: int) -> Optional[PricingRule]:
         """Retrieves a pricing rule by its ID."""
@@ -800,7 +798,7 @@ class AddressBookLogic:
                 rule_id=rule_data['rule_id'],
                 rule_name=rule_data['rule_name'],
                 markup_percentage=rule_data['markup_percentage'],
-                fixed_price=rule_data['fixed_price']
+                fixed_markup=rule_data['fixed_markup']
             )
         return None
 
@@ -811,19 +809,17 @@ class AddressBookLogic:
             rule_id=rule_data['rule_id'],
             rule_name=rule_data['rule_name'],
             markup_percentage=rule_data['markup_percentage'],
-            fixed_price=rule_data['fixed_price']
+            fixed_markup=rule_data['fixed_markup']
         ) for rule_data in rules_data]
 
-    def update_pricing_rule(self, rule_id: int, rule_name: str = None, markup_percentage: float = None, fixed_price: float = None):
+    def update_pricing_rule(self, rule_id: int, rule_name: str = None, markup_percentage: float = None, fixed_markup: float = None):
         """Updates a pricing rule."""
         if not rule_name:
             raise ValueError("Rule name cannot be empty.")
-        if markup_percentage is None and fixed_price is None:
-            raise ValueError("Either markup_percentage or fixed_price must be provided.")
-        if markup_percentage is not None and fixed_price is not None:
-            raise ValueError("Provide either markup_percentage or fixed_price, not both.")
+        if markup_percentage is None and fixed_markup is None:
+            raise ValueError("Either markup_percentage or fixed_markup must be provided.")
 
-        self.product_repo.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_price)
+        self.product_repo.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_markup)
 
     def delete_pricing_rule(self, rule_id: int):
         """Deletes a pricing rule."""

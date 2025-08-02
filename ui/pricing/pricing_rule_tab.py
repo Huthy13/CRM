@@ -37,11 +37,11 @@ class PricingRuleTab:
         )
         self.delete_button.pack(side=tk.LEFT, padx=5)
 
-        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "markup", "fixed_price"), show="headings")
+        self.tree = ttk.Treeview(self.frame, columns=("id", "name", "markup", "fixed_markup"), show="headings")
         self.tree.column("id", width=0, stretch=False)
         self.tree.heading("name", text="Rule Name")
         self.tree.heading("markup", text="Markup %")
-        self.tree.heading("fixed_price", text="Fixed Price")
+        self.tree.heading("fixed_markup", text="Fixed Markup")
         self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.select_rule)
 
@@ -58,7 +58,7 @@ class PricingRuleTab:
                 rule.rule_id,
                 rule.rule_name,
                 f"{rule.markup_percentage:.2f}" if rule.markup_percentage is not None else "N/A",
-                f"${rule.fixed_price:.2f}" if rule.fixed_price is not None else "N/A",
+                f"${rule.fixed_markup:.2f}" if rule.fixed_markup is not None else "N/A",
             ))
 
     def select_rule(self, event=None):

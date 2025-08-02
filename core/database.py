@@ -943,12 +943,12 @@ class DatabaseHandler:
         return self.cursor.fetchall()
 
 # --- Pricing Rule CRUD Methods ---
-    def add_pricing_rule(self, rule_name: str, markup_percentage: float | None, fixed_price: float | None) -> int:
+    def add_pricing_rule(self, rule_name: str, markup_percentage: float | None, fixed_markup: float | None) -> int:
         """Adds a new pricing rule and returns its ID."""
         self.cursor.execute("""
-            INSERT INTO pricing_rules (rule_name, markup_percentage, fixed_price)
+            INSERT INTO pricing_rules (rule_name, markup_percentage, fixed_markup)
             VALUES (?, ?, ?)
-        """, (rule_name, markup_percentage, fixed_price))
+        """, (rule_name, markup_percentage, fixed_markup))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -963,13 +963,13 @@ class DatabaseHandler:
         self.cursor.execute("SELECT * FROM pricing_rules ORDER BY rule_name")
         return [dict(row) for row in self.cursor.fetchall()]
 
-    def update_pricing_rule(self, rule_id: int, rule_name: str, markup_percentage: float | None, fixed_price: float | None):
+    def update_pricing_rule(self, rule_id: int, rule_name: str, markup_percentage: float | None, fixed_markup: float | None):
         """Updates a pricing rule."""
         self.cursor.execute("""
             UPDATE pricing_rules
-            SET rule_name = ?, markup_percentage = ?, fixed_price = ?
+            SET rule_name = ?, markup_percentage = ?, fixed_markup = ?
             WHERE rule_id = ?
-        """, (rule_name, markup_percentage, fixed_price, rule_id))
+        """, (rule_name, markup_percentage, fixed_markup, rule_id))
         self.conn.commit()
 
     def delete_pricing_rule(self, rule_id: int):

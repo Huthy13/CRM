@@ -124,8 +124,8 @@ class ProductRepository:
         return self.db.add_product_unit_of_measure(name)
 
     # Pricing rules
-    def add_pricing_rule(self, rule_name, markup_percentage=None, fixed_price=None):
-        return self.db.add_pricing_rule(rule_name, markup_percentage, fixed_price)
+    def add_pricing_rule(self, rule_name, markup_percentage=None, fixed_markup=None):
+        return self.db.add_pricing_rule(rule_name, markup_percentage, fixed_markup)
 
     def get_pricing_rule(self, rule_id):
         return self.db.get_pricing_rule(rule_id)
@@ -133,8 +133,8 @@ class ProductRepository:
     def get_all_pricing_rules(self):
         return self.db.get_all_pricing_rules()
 
-    def update_pricing_rule(self, rule_id, rule_name, markup_percentage=None, fixed_price=None):
-        self.db.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_price)
+    def update_pricing_rule(self, rule_id, rule_name, markup_percentage=None, fixed_markup=None):
+        self.db.update_pricing_rule(rule_id, rule_name, markup_percentage, fixed_markup)
 
     def delete_pricing_rule(self, rule_id):
         self.db.delete_pricing_rule(rule_id)

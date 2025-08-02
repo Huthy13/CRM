@@ -18,7 +18,7 @@ class PricingRulePopup(PopupBase):
 
         self.name_entry = self._create_entry("Rule Name:", 0, self.rule.rule_name)
         self.markup_entry = self._create_entry("Markup %:", 1, self.rule.markup_percentage)
-        self.fixed_price_entry = self._create_entry("Fixed Price:", 2, self.rule.fixed_price)
+        self.fixed_markup_entry = self._create_entry("Fixed Markup:", 2, self.rule.fixed_markup)
 
         save_button = tk.Button(self, text="Save", command=self.save_rule)
         save_button.grid(row=3, column=0, columnspan=2, pady=10)
@@ -28,7 +28,7 @@ class PricingRulePopup(PopupBase):
         if not self.validate_not_empty(rule_name, "Rule name"):
             return
         markup_str = self.markup_entry.get()
-        fixed_price_str = self.fixed_price_entry.get()
+        fixed_markup_str = self.fixed_markup_entry.get()
 
         markup = None
         if markup_str:
@@ -38,29 +38,25 @@ class PricingRulePopup(PopupBase):
                 messagebox.showerror("Error", "Markup percentage must be a number.")
                 return
 
-        fixed_price = None
-        if fixed_price_str:
+        fixed_markup = None
+        if fixed_markup_str:
             try:
-                fixed_price = float(fixed_price_str)
+                fixed_markup = float(fixed_markup_str)
             except ValueError:
-                messagebox.showerror("Error", "Fixed price must be a number.")
+                messagebox.showerror("Error", "Fixed markup must be a number.")
                 return
 
-        if markup is None and fixed_price is None:
-            messagebox.showerror("Error", "Either markup or fixed price must be provided.")
-            return
-
-        if markup is not None and fixed_price is not None:
-            messagebox.showerror("Error", "Provide either markup or fixed price, not both.")
+        if markup is None and fixed_markup is None:
+            messagebox.showerror("Error", "Either markup or fixed markup must be provided.")
             return
 
         self.rule.rule_name = rule_name
         self.rule.markup_percentage = markup
-        self.rule.fixed_price = fixed_price
+        self.rule.fixed_markup = fixed_markup
 
         if self.rule_id is None:
-            self.logic.create_pricing_rule(self.rule.rule_name, self.rule.markup_percentage, self.rule.fixed_price)
+            self.logic.create_pricing_rule(self.rule.rule_name, self.rule.markup_percentage, self.rule.fixed_markup)
         else:
-            self.logic.update_pricing_rule(self.rule.rule_id, self.rule.rule_name, self.rule.markup_percentage, self.rule.fixed_price)
+            self.logic.update_pricing_rule(self.rule.rule_id, self.rule.rule_name, self.rule.markup_percentage, self.rule.fixed_markup)
 
         self.destroy()

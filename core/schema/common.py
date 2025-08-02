@@ -23,3 +23,12 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             CONSTRAINT either_markup_or_fixed CHECK (markup_percentage IS NOT NULL OR fixed_markup IS NOT NULL)
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payment_terms (
+            term_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term_name TEXT UNIQUE NOT NULL,
+            days INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)

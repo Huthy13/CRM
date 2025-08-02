@@ -23,6 +23,19 @@ class PricingRule:
             "fixed_markup": self.fixed_markup,
         }
 
+class PaymentTerm:
+    def __init__(self, term_id: int | None = None, term_name: str = "", days: int | None = None):
+        self.term_id = term_id
+        self.term_name = term_name
+        self.days = days
+
+    def to_dict(self) -> dict:
+        return {
+            "term_id": self.term_id,
+            "term_name": self.term_name,
+            "days": self.days,
+        }
+
 class Product:
     def __init__(
         self,

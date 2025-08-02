@@ -59,8 +59,8 @@ class AccountRepository:
     def get_account_addresses(self, account_id):
         return self.db.get_account_addresses(account_id)
 
-    def add_account(self, name, phone, website, description, account_type, pricing_rule_id=None):
-        return self.db.add_account(name, phone, website, description, account_type, pricing_rule_id)
+    def add_account(self, name, phone, website, description, account_type, pricing_rule_id=None, payment_term_id=None):
+        return self.db.add_account(name, phone, website, description, account_type, pricing_rule_id, payment_term_id)
 
     def get_all_accounts(self):
         return self.db.get_all_accounts()
@@ -74,12 +74,34 @@ class AccountRepository:
     def get_account_details(self, account_id):
         return self.db.get_account_details(account_id)
 
-    def update_account(self, account_id, name, phone, website, description, account_type, pricing_rule_id=None):
-        self.db.update_account(account_id, name, phone, website, description, account_type, pricing_rule_id)
+    def update_account(self, account_id, name, phone, website, description, account_type, pricing_rule_id=None, payment_term_id=None):
+        self.db.update_account(account_id, name, phone, website, description, account_type, pricing_rule_id, payment_term_id)
 
     def clear_account_addresses(self, account_id):
         self.db.cursor.execute("DELETE FROM account_addresses WHERE account_id = ?", (account_id,))
         self.db.conn.commit()
+
+    # Payment terms
+    def add_payment_term(self, term_name, days=None):
+        return self.db.add_payment_term(term_name, days)
+
+    def get_payment_term(self, term_id):
+        return self.db.get_payment_term(term_id)
+
+    def get_all_payment_terms(self):
+        return self.db.get_all_payment_terms()
+
+    def update_payment_term(self, term_id, term_name, days=None):
+        self.db.update_payment_term(term_id, term_name, days)
+
+    def delete_payment_term(self, term_id):
+        self.db.delete_payment_term(term_id)
+
+    def assign_payment_term_to_account(self, account_id, term_id):
+        self.db.assign_payment_term_to_account(account_id, term_id)
+
+    def remove_payment_term_from_account(self, account_id):
+        self.db.remove_payment_term_from_account(account_id)
 
 
 class ProductRepository:

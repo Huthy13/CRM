@@ -32,18 +32,25 @@ class AccountDetailsPopup(PopupBase):
 
         self.description_entry = self._create_entry("Description:", 4, self.active_account.description)
 
+        # Payment Terms Dropdown
+        tk.Label(self, text="Payment Terms:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        self.payment_term_var = tk.StringVar(self)
+        self.payment_term_dropdown = ttk.Combobox(self, textvariable=self.payment_term_var, state="readonly", width=37)
+        self.payment_term_dropdown.grid(row=5, column=1, padx=5, pady=5)
+        self.load_payment_terms()
+
         # Pricing Rule Dropdown
-        tk.Label(self, text="Pricing Rule:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
+        tk.Label(self, text="Pricing Rule:").grid(row=6, column=0, padx=5, pady=5, sticky="e")
         self.pricing_rule_var = tk.StringVar(self)
         self.pricing_rule_dropdown = ttk.Combobox(self, textvariable=self.pricing_rule_var, state="disabled", width=37)
-        self.pricing_rule_dropdown.grid(row=5, column=1, padx=5, pady=5)
+        self.pricing_rule_dropdown.grid(row=6, column=1, padx=5, pady=5)
         self.load_pricing_rules()
         self.toggle_pricing_rule_dropdown()
 
 
         # Addresses Frame
         addresses_frame = tk.LabelFrame(self, text="Addresses")
-        addresses_frame.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+        addresses_frame.grid(row=7, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
         self.address_tree = ttk.Treeview(addresses_frame, columns=("type", "primary", "address"), show="headings", height=5)
         self.address_tree.heading("type", text="Type")
@@ -62,6 +69,16 @@ class AccountDetailsPopup(PopupBase):
         # Save Button
         save_button = tk.Button(self, text="Save", command=self.save_account)
         save_button.grid(row=18, column=0, columnspan=2, pady=10)
+
+    def load_payment_terms(self):
+        self.payment_terms = self.logic.list_payment_terms()
+        term_names = [term.term_name for term in self.payment_terms]
+        self.payment_term_dropdown['values'] = [""] + term_names
+        if self.active_account.payment_term_id:
+            for term in self.payment_terms:
+                if term.term_id == self.active_account.payment_term_id:
+                    self.payment_term_dropdown.set(term.term_name)
+                    break
 
     def load_pricing_rules(self):
         self.pricing_rules = self.logic.list_pricing_rules()
@@ -147,6 +164,16 @@ class AccountDetailsPopup(PopupBase):
                 return
         else:
             self.active_account.account_type = None
+
+        selected_term_name = self.payment_term_var.get()
+        if selected_term_name:
+            selected_term = next((term for term in self.payment_terms if term.term_name == selected_term_name), None)
+            if selected_term:
+                self.active_account.payment_term_id = selected_term.term_id
+            else:
+                self.active_account.payment_term_id = None
+        else:
+            self.active_account.payment_term_id = None
 
         selected_rule_name = self.pricing_rule_var.get()
         if selected_rule_name:

@@ -1,4 +1,4 @@
-from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule
+from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule, PaymentTerm
 from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
 import logging
@@ -86,7 +86,7 @@ class AddressBookLogic:
 
         if account.account_id is None:
             # Add the account to get an ID
-            new_id = self.account_repo.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
+            new_id = self.account_repo.add_account(account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id, account.payment_term_id)
             if new_id:
                 account.account_id = new_id
                 # Now, add the addresses
@@ -95,7 +95,7 @@ class AddressBookLogic:
             return None  # Failed to add
         else:
             # Update the account details
-            self.account_repo.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id)
+            self.account_repo.update_account(account.account_id, account.name, account.phone, account.website, account.description, account_type_value, account.pricing_rule_id, account.payment_term_id)
             # Clear existing addresses and add the new ones
             self.address_service.save_account_addresses(account)
             return account  # Return the updated account object
@@ -155,7 +155,8 @@ class AddressBookLogic:
                 website=data.get("website"),
                 description=data.get("description"),
                 account_type=account_type_enum,
-                pricing_rule_id=data.get("pricing_rule_id")
+                pricing_rule_id=data.get("pricing_rule_id"),
+                payment_term_id=data.get("payment_term_id")
             )
         return None
 
@@ -846,4 +847,58 @@ class AddressBookLogic:
             raise ValueError(f"Customer with ID {customer_id} not found.")
 
         self.product_repo.remove_pricing_rule_from_customer(customer_id)
+
+    # --- Payment Term Methods ---
+    def create_payment_term(self, term_name: str, days: int | None = None) -> Optional[int]:
+        """Creates a new payment term."""
+        if not term_name:
+            raise ValueError("Term name cannot be empty.")
+        return self.account_repo.add_payment_term(term_name, days)
+
+    def get_payment_term(self, term_id: int) -> Optional[PaymentTerm]:
+        """Retrieves a payment term by its ID."""
+        term_data = self.account_repo.get_payment_term(term_id)
+        if term_data:
+            return PaymentTerm(
+                term_id=term_data['term_id'],
+                term_name=term_data['term_name'],
+                days=term_data['days']
+            )
+        return None
+
+    def list_payment_terms(self) -> List[PaymentTerm]:
+        """Lists all payment terms."""
+        terms_data = self.account_repo.get_all_payment_terms()
+        return [PaymentTerm(
+            term_id=term_data['term_id'],
+            term_name=term_data['term_name'],
+            days=term_data['days']
+        ) for term_data in terms_data]
+
+    def update_payment_term(self, term_id: int, term_name: str, days: int | None = None):
+        """Updates a payment term."""
+        if not term_name:
+            raise ValueError("Term name cannot be empty.")
+        self.account_repo.update_payment_term(term_id, term_name, days)
+
+    def delete_payment_term(self, term_id: int):
+        """Deletes a payment term."""
+        self.account_repo.delete_payment_term(term_id)
+
+    def assign_payment_term(self, account_id: int, term_id: int):
+        """Assigns a payment term to an account."""
+        account = self.get_account_details(account_id)
+        if not account:
+            raise ValueError(f"Account with ID {account_id} not found.")
+        term = self.get_payment_term(term_id)
+        if not term:
+            raise ValueError(f"Payment term with ID {term_id} not found.")
+        self.account_repo.assign_payment_term_to_account(account_id, term_id)
+
+    def remove_payment_term(self, account_id: int):
+        """Removes a payment term from an account."""
+        account = self.get_account_details(account_id)
+        if not account:
+            raise ValueError(f"Account with ID {account_id} not found.")
+        self.account_repo.remove_payment_term_from_account(account_id)
 

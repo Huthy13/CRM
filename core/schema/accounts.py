@@ -12,9 +12,11 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             website TEXT,
             description TEXT,
             pricing_rule_id INTEGER,
+            payment_term_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pricing_rule_id) REFERENCES pricing_rules (rule_id) ON DELETE SET NULL
+            FOREIGN KEY (pricing_rule_id) REFERENCES pricing_rules (rule_id) ON DELETE SET NULL,
+            FOREIGN KEY (payment_term_id) REFERENCES payment_terms (term_id) ON DELETE SET NULL
         )
     """)
 

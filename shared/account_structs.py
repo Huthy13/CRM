@@ -47,6 +47,7 @@ class Account:
     description: str = ""
     account_type: Optional[AccountType] = None
     pricing_rule_id: Optional[int] = None
+    payment_term_id: Optional[int] = None
 
     def __str__(self) -> str:
         addresses_str = "\n".join([str(addr) for addr in self.addresses])
@@ -58,7 +59,8 @@ class Account:
             f"Website: {self.website}\n"
             f"Description: {self.description}\n"
             f"Account Type: {self.account_type.value if self.account_type else 'N/A'}\n"
-            f"Pricing Rule ID: {self.pricing_rule_id}"
+            f"Pricing Rule ID: {self.pricing_rule_id}\n"
+            f"Payment Term ID: {self.payment_term_id}"
         )
 
     def to_dict(self) -> dict:
@@ -72,16 +74,21 @@ class Account:
             "description": self.description,
             "account_type": self.account_type.value if self.account_type else None,
             "pricing_rule_id": self.pricing_rule_id,
+            "payment_term_id": self.payment_term_id,
         }
 
     @classmethod
     def from_row(cls, row: tuple) -> "Account":
         """Creates an Account object from a database row."""
-        if len(row) == 6:
+        if len(row) == 7:
+            account_id, name, phone, description, account_type_str, pricing_rule_id, payment_term_id = row
+        elif len(row) == 6:
             account_id, name, phone, description, account_type_str, pricing_rule_id = row
+            payment_term_id = None
         else:
             account_id, name, phone, description, account_type_str = row
             pricing_rule_id = None
+            payment_term_id = None
 
         account_type_enum = None
         if account_type_str:
@@ -97,6 +104,7 @@ class Account:
             description=description,
             account_type=account_type_enum,
             pricing_rule_id=pricing_rule_id,
+            payment_term_id=payment_term_id,
         )
 
 @dataclass

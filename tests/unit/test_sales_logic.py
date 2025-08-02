@@ -42,10 +42,10 @@ class TestSalesLogic(unittest.TestCase):
         mock_new_doc_id = 100
         self.mock_db_handler.add_sales_document.return_value = mock_new_doc_id
 
-        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="QUO-20230101-0001") as mock_gen_num:
+        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="S00000") as mock_gen_num:
             self.mock_db_handler.get_sales_document_by_id.return_value = {
                 "id": mock_new_doc_id,
-                "document_number": "QUO-20230101-0001",
+                "document_number": "S00000",
                 "customer_id": mock_customer_id,
                 "document_type": SalesDocumentType.QUOTE.value,
                 "created_date": datetime.datetime.now().isoformat(),
@@ -67,7 +67,7 @@ class TestSalesLogic(unittest.TestCase):
 
             self.mock_db_handler.add_sales_document.assert_called_once()
             call_args = self.mock_db_handler.add_sales_document.call_args[1]
-            self.assertEqual(call_args['doc_number'], "QUO-20230101-0001")
+            self.assertEqual(call_args['doc_number'], "S00000")
             self.assertEqual(call_args['customer_id'], mock_customer_id)
             self.assertEqual(call_args['document_type'], SalesDocumentType.QUOTE.value)
             self.assertEqual(call_args['status'], SalesDocumentStatus.QUOTE_DRAFT.value)
@@ -96,7 +96,7 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": mock_doc_id, "customer_id": 1, "document_type": SalesDocumentType.QUOTE.value,
             "status": SalesDocumentStatus.QUOTE_DRAFT.value,
-            "document_number": "QUO-TEST-001", "created_date": "2023-01-01T00:00:00",
+            "document_number": "S00000", "created_date": "2023-01-01T00:00:00",
             "subtotal":0, "taxes":0, "total_amount":0
         }
         self.mock_db_handler.get_product_details.return_value = {
@@ -135,7 +135,7 @@ class TestSalesLogic(unittest.TestCase):
     def test_add_item_to_sales_document_product_not_found(self):
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": 1, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value,
-            "document_number": "QUO-TEST-001", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
+            "document_number": "S00000", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
             "subtotal":0, "taxes":0, "total_amount":0}
         self.mock_db_handler.get_product_details.return_value = None
         with self.assertRaisesRegex(ValueError, "Product with ID 999 not found."):
@@ -149,7 +149,7 @@ class TestSalesLogic(unittest.TestCase):
     def test_add_item_to_sales_document_invalid_status(self):
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": 1, "status": SalesDocumentStatus.QUOTE_SENT.value, "document_type": SalesDocumentType.QUOTE.value,
-            "document_number": "QUO-TEST-001", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
+            "document_number": "S00000", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
             "subtotal":0, "taxes":0, "total_amount":0}
         self.mock_db_handler.get_product_details.return_value = {"product_id":1, "name":"P", "sale_price":10}
         with self.assertRaisesRegex(ValueError, "Items cannot be added to a document with status 'Quote Sent'."):
@@ -164,7 +164,7 @@ class TestSalesLogic(unittest.TestCase):
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": mock_doc_id, "customer_id": 1, "document_type": SalesDocumentType.SALES_ORDER.value,
             "status": SalesDocumentStatus.SO_OPEN.value,
-            "document_number": "SO-TEST-001", "created_date": "2023-01-01T00:00:00",
+            "document_number": "S00000", "created_date": "2023-01-01T00:00:00",
             "subtotal":0, "taxes":0, "total_amount":0
         }
         self.mock_db_handler.get_product_details.return_value = {
@@ -203,7 +203,7 @@ class TestSalesLogic(unittest.TestCase):
     def test_add_item_to_sales_document_no_sale_price(self):
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": 1, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value,
-            "document_number": "QUO-TEST-001", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
+            "document_number": "S00000", "created_date": "2023-01-01T00:00:00", "customer_id": 1,
             "subtotal":0, "taxes":0, "total_amount":0}
         self.mock_db_handler.get_product_details.return_value = {"product_id": 1, "name": "Test Product", "sale_price": None, "cost": None}
 
@@ -240,7 +240,7 @@ class TestSalesLogic(unittest.TestCase):
             initial_item_data, # For the first call in update_sales_document_item
             updated_item_data  # For the call to get_sales_document_item_details at the end
         ]
-        self.mock_db_handler.get_sales_document_by_id.return_value = { "id": mock_doc_id, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value, "customer_id": 1, "document_number": "Q", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
+        self.mock_db_handler.get_sales_document_by_id.return_value = { "id": mock_doc_id, "status": SalesDocumentStatus.QUOTE_DRAFT.value, "document_type": SalesDocumentType.QUOTE.value, "customer_id": 1, "document_number": "S00000", "created_date":"d", "subtotal":0,"taxes":0,"total_amount":0}
         self.mock_db_handler.get_product_details.return_value = {"product_id": mock_product_id, "name": "New Product Name", "sale_price": new_unit_price}
         expected_line_total = new_quantity * new_unit_price * (1 - new_discount / 100.0)
         self.mock_db_handler.get_items_for_sales_document.return_value = [updated_item_data.copy()] # Simulates items after update
@@ -272,7 +272,7 @@ class TestSalesLogic(unittest.TestCase):
     def test_convert_quote_to_sales_order_success(self):
         mock_quote_id = 1
         mock_customer_id = 5
-        mock_quote_data = {"id": mock_quote_id, "document_number": "QUO-001", "customer_id": mock_customer_id, "document_type": SalesDocumentType.QUOTE.value, "created_date": "date", "status": SalesDocumentStatus.QUOTE_ACCEPTED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
+        mock_quote_data = {"id": mock_quote_id, "document_number": "S00000", "customer_id": mock_customer_id, "document_type": SalesDocumentType.QUOTE.value, "created_date": "date", "status": SalesDocumentStatus.QUOTE_ACCEPTED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
 
         self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_quote_data, {**mock_quote_data, "document_type": SalesDocumentType.SALES_ORDER.value, "status": SalesDocumentStatus.SO_OPEN.value}]
 
@@ -290,7 +290,7 @@ class TestSalesLogic(unittest.TestCase):
         mock_customer_id = 5
         mock_quote_data = {
             "id": mock_quote_id,
-            "document_number": "QUO-001",
+            "document_number": "S00000",
             "customer_id": mock_customer_id,
             "document_type": SalesDocumentType.QUOTE.value,
             "created_date": "date",
@@ -342,16 +342,16 @@ class TestSalesLogic(unittest.TestCase):
     def test_convert_sales_order_to_invoice_success(self):
         mock_so_id = 1
         mock_customer_id = 5
-        mock_so_data = {"id": mock_so_id, "document_number": "SO-001", "customer_id": mock_customer_id, "document_type": SalesDocumentType.SALES_ORDER.value, "created_date": "date", "status": SalesDocumentStatus.SO_FULFILLED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
+        mock_so_data = {"id": mock_so_id, "document_number": "S00000", "customer_id": mock_customer_id, "document_type": SalesDocumentType.SALES_ORDER.value, "created_date": "date", "status": SalesDocumentStatus.SO_FULFILLED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
         mock_so_item_data = [{"id": 10, "sales_document_id": mock_so_id, "product_id": 100, "product_description": "Item 1", "quantity": 2.0, "unit_price": 100.0, "discount_percentage": 0.0, "line_total": 200.0}]
         new_invoice_id = 2
 
-        self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_so_data, {"id": new_invoice_id, "document_number": "INV-001", "customer_id": mock_customer_id, "document_type": SalesDocumentType.INVOICE.value, "status": SalesDocumentStatus.INVOICE_DRAFT.value, "related_quote_id":mock_so_id, "total_amount":220.0, "created_date":"d"}]
+        self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_so_data, {"id": new_invoice_id, "document_number": "S00001", "customer_id": mock_customer_id, "document_type": SalesDocumentType.INVOICE.value, "status": SalesDocumentStatus.INVOICE_DRAFT.value, "related_quote_id":mock_so_id, "total_amount":220.0, "created_date":"d"}]
         self.mock_db_handler.get_items_for_sales_document.side_effect = [[{k:v for k,v in item.items()} for item in mock_so_item_data], [{**item, "sales_document_id":new_invoice_id} for item in mock_so_item_data]]
         self.mock_db_handler.add_sales_document.return_value = new_invoice_id
         self.mock_db_handler.add_sales_document_item.return_value = 20
 
-        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="INV-001") as mock_gen_num:
+        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="S00001") as mock_gen_num:
             invoice = self.sales_logic.convert_sales_order_to_invoice(mock_so_id)
             self.assertIsNotNone(invoice)
             self.assertEqual(invoice.id, new_invoice_id)
@@ -485,7 +485,7 @@ class TestSalesLogic(unittest.TestCase):
         doc_id = 1
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": doc_id,
-            "document_number": "SO-20230101-0001",
+            "document_number": "S00000",
             "customer_id": 1,
             "document_type": SalesDocumentType.SALES_ORDER.value,
             "status": SalesDocumentStatus.SO_OPEN.value,

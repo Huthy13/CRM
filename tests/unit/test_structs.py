@@ -66,10 +66,10 @@ class TestPurchaseDocumentClass(unittest.TestCase):
 
     def test_purchase_document_creation_with_values(self):
         now_iso = "2023-10-27T10:00:00"
-        doc = PurchaseDocument(doc_id=1, document_number="RFQ-20231027-0001", vendor_id=10,
+        doc = PurchaseDocument(doc_id=1, document_number="P00001", vendor_id=10,
                                created_date=now_iso, status=PurchaseDocumentStatus.RFQ, notes="Test RFQ")
         self.assertEqual(doc.id, 1)
-        self.assertEqual(doc.document_number, "RFQ-20231027-0001")
+        self.assertEqual(doc.document_number, "P00001")
         self.assertEqual(doc.vendor_id, 10)
         self.assertEqual(doc.created_date, now_iso)
         self.assertEqual(doc.status, PurchaseDocumentStatus.RFQ)
@@ -77,18 +77,18 @@ class TestPurchaseDocumentClass(unittest.TestCase):
 
     def test_purchase_document_to_dict(self):
         now_iso = "2023-10-27T10:00:00"
-        doc = PurchaseDocument(doc_id=1, document_number="RFQ-001", vendor_id=5,
+        doc = PurchaseDocument(doc_id=1, document_number="P00001", vendor_id=5,
                                created_date=now_iso, status=PurchaseDocumentStatus.QUOTED, notes="Quoted notes")
         doc_dict = doc.to_dict()
         expected_dict = {
-            "id": 1, "document_number": "RFQ-001", "vendor_id": 5,
+            "id": 1, "document_number": "P00001", "vendor_id": 5,
             "created_date": now_iso, "status": "Quoted", "notes": "Quoted notes"
         }
         self.assertEqual(doc_dict, expected_dict)
 
     def test_purchase_document_str(self):
-        doc = PurchaseDocument(doc_id=1, document_number="PO-002", status=PurchaseDocumentStatus.PO_ISSUED)
-        self.assertIn("PO-002", str(doc))
+        doc = PurchaseDocument(doc_id=1, document_number="P00002", status=PurchaseDocumentStatus.PO_ISSUED)
+        self.assertIn("P00002", str(doc))
         self.assertIn("PO-Issued", str(doc))
 
 class TestPurchaseDocumentItemClass(unittest.TestCase):

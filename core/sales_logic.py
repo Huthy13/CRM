@@ -51,37 +51,25 @@ class SalesLogic:
         self._db = self.account_repo.db if self.account_repo else None
 
     def _generate_sales_document_number(self, doc_type: SalesDocumentType) -> str:
-        """
-        Generates a unique document number for Quotes (QUO-YYYYMMDD-XXXX)
-        and Invoices (INV-YYYYMMDD-XXXX).
-        XXXX is a 4-digit incrementing number for that day and type.
-        """
-        if doc_type == SalesDocumentType.QUOTE:
-            prefix = "QUO"
-        elif doc_type == SalesDocumentType.SALES_ORDER:
-            prefix = "SO"
-        else: # Invoice
-            prefix = "INV"
-        today_str = datetime.date.today().strftime("%Y%m%d")
-        full_prefix = f"{prefix}-{today_str}-"
+        """Generates a unique sales document number in the format ``S#####``.
 
-        # Query existing documents of the same type for today to find the max sequence
-        # This is a simplified approach; a more robust one might involve a dedicated sequence table
-        # or more complex query if performance for very high volume is a concern.
-        all_docs_raw = self.sales_repo.get_all_sales_documents(document_type=doc_type.value)
-        max_seq_today = 0
+        The numbering is shared across all sales documents regardless of type.
+        """
+        prefix = "S"
+        all_docs_raw = self.sales_repo.get_all_sales_documents()
+        max_seq = -1
         for doc_dict in all_docs_raw:
             doc_num_str = doc_dict.get("document_number")
-            if doc_num_str and doc_num_str.startswith(full_prefix):
+            if doc_num_str and doc_num_str.startswith(prefix):
                 try:
-                    seq_part = int(doc_num_str.split('-')[-1])
-                    if seq_part > max_seq_today:
-                        max_seq_today = seq_part
+                    seq_part = int(doc_num_str[len(prefix):])
+                    if seq_part > max_seq:
+                        max_seq = seq_part
                 except ValueError:
-                    pass # Ignore malformed numbers
+                    pass  # Ignore malformed numbers
 
-        next_seq = max_seq_today + 1
-        return f"{full_prefix}{next_seq:04d}"
+        next_seq = max_seq + 1
+        return f"{prefix}{next_seq:05d}"
 
     def create_quote(self, customer_id: int, notes: str = None, expiry_date_iso: Optional[str] = None) -> Optional[SalesDocument]:
         """Creates a new Quote."""

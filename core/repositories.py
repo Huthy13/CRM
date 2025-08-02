@@ -306,6 +306,9 @@ class SalesRepository:
     def delete_sales_document_item(self, item_id: int):
         self.db.delete_sales_document_item(item_id)
 
+    def are_all_items_shipped(self, doc_id: int) -> bool:
+        return self.db.are_all_items_shipped(doc_id)
+
     def delete_sales_document(self, doc_id: int):
         self.db.delete_sales_document(doc_id)
 

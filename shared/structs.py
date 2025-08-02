@@ -190,7 +190,9 @@ class SalesDocumentItem:
                  unit_price: float = None,  # This would be sale_price from Product
                  discount_percentage: Optional[float] = 0.0,
                  line_total: float = None,
-                 note: str | None = None):  # quantity * unit_price * (1 - discount_percentage/100)
+                 note: str | None = None,
+                 shipped_quantity: float = 0.0,
+                 is_shipped: bool = False):  # quantity * unit_price * (1 - discount_percentage/100)
         self.id = item_id
         self.sales_document_id = sales_document_id
         self.product_id = product_id
@@ -200,6 +202,8 @@ class SalesDocumentItem:
         self.discount_percentage = discount_percentage if discount_percentage is not None else 0.0
         self.line_total = line_total  # Calculated
         self.note = note
+        self.shipped_quantity = shipped_quantity
+        self.is_shipped = is_shipped
 
     def calculate_line_total(self):
         """Calculates line total based on quantity, unit_price, and discount."""
@@ -221,6 +225,8 @@ class SalesDocumentItem:
             "discount_percentage": self.discount_percentage,
             "line_total": self.line_total,
             "note": self.note,
+            "shipped_quantity": self.shipped_quantity,
+            "is_shipped": self.is_shipped,
         }
 
     def __str__(self) -> str:

@@ -1210,6 +1210,14 @@ class DatabaseHandler:
         )
         return self.cursor.fetchone()[0] == 0
 
+    def are_all_items_shipped(self, doc_id: int) -> bool:
+        """Check if all items for a sales document are fully shipped."""
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM sales_document_items WHERE sales_document_id = ? AND is_shipped = 0",
+            (doc_id,),
+        )
+        return self.cursor.fetchone()[0] == 0
+
     # delete_items_for_document is not strictly needed if ON DELETE CASCADE is reliable,
     # but can be implemented for explicit control if desired.
     # def delete_items_for_document(self, doc_id: int):

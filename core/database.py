@@ -239,12 +239,12 @@ class DatabaseHandler:
         """, (account_id,))
         return self.cursor.fetchall()
 
-    def add_account(self, name, phone, website, description, account_type, pricing_rule_id=None):
+    def add_account(self, name, phone, website, description, account_type, pricing_rule_id=None, payment_term_id=None):
         """Add a new account."""
         self.cursor.execute("""
-            INSERT INTO accounts (name, phone, website, description, account_type, pricing_rule_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, phone, website, description, account_type, pricing_rule_id))
+            INSERT INTO accounts (name, phone, website, description, account_type, pricing_rule_id, payment_term_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (name, phone, website, description, account_type, pricing_rule_id, payment_term_id))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -273,7 +273,7 @@ class DatabaseHandler:
     def get_account_details(self, account_id):
         """Retrieve full account details, including all associated addresses."""
         self.cursor.execute("""
-            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type, a.pricing_rule_id
+            SELECT a.id, a.name, a.phone, a.website, a.description, a.account_type, a.pricing_rule_id, a.payment_term_id
             FROM accounts AS a
             WHERE a.id = ?
         """, (account_id,))
@@ -284,13 +284,13 @@ class DatabaseHandler:
             return account_data
         return None
 
-    def update_account(self, account_id, name, phone, website, description, account_type, pricing_rule_id=None):
+    def update_account(self, account_id, name, phone, website, description, account_type, pricing_rule_id=None, payment_term_id=None):
         """Update an existing account."""
         self.cursor.execute("""
             UPDATE accounts
-            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?, pricing_rule_id = ?
+            SET name = ?, phone = ?, website = ?, description = ?, account_type = ?, pricing_rule_id = ?, payment_term_id = ?
             WHERE id = ?
-        """, (name, phone, website, description, account_type, pricing_rule_id, account_id))
+        """, (name, phone, website, description, account_type, pricing_rule_id, payment_term_id, account_id))
         self.conn.commit()
 
 # Interaction related methods
@@ -997,6 +997,57 @@ class DatabaseHandler:
     def remove_pricing_rule_from_customer(self, customer_id: int):
         """Removes a pricing rule from a customer."""
         self.cursor.execute("UPDATE accounts SET pricing_rule_id = NULL WHERE id = ?", (customer_id,))
+        self.conn.commit()
+
+    # --- Payment Term CRUD Methods ---
+    def add_payment_term(self, term_name: str, days: int | None) -> int:
+        """Adds a new payment term and returns its ID."""
+        self.cursor.execute(
+            """
+            INSERT INTO payment_terms (term_name, days)
+            VALUES (?, ?)
+            """,
+            (term_name, days),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_payment_term(self, term_id: int) -> dict | None:
+        """Retrieves a payment term by its ID."""
+        self.cursor.execute("SELECT * FROM payment_terms WHERE term_id = ?", (term_id,))
+        row = self.cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_all_payment_terms(self) -> list[dict]:
+        """Retrieves all payment terms."""
+        self.cursor.execute("SELECT * FROM payment_terms ORDER BY term_name")
+        return [dict(row) for row in self.cursor.fetchall()]
+
+    def update_payment_term(self, term_id: int, term_name: str, days: int | None):
+        """Updates a payment term."""
+        self.cursor.execute(
+            """
+            UPDATE payment_terms
+            SET term_name = ?, days = ?
+            WHERE term_id = ?
+            """,
+            (term_name, days, term_id),
+        )
+        self.conn.commit()
+
+    def delete_payment_term(self, term_id: int):
+        """Deletes a payment term."""
+        self.cursor.execute("DELETE FROM payment_terms WHERE term_id = ?", (term_id,))
+        self.conn.commit()
+
+    def assign_payment_term_to_account(self, account_id: int, term_id: int):
+        """Assigns a payment term to an account."""
+        self.cursor.execute("UPDATE accounts SET payment_term_id = ? WHERE id = ?", (term_id, account_id))
+        self.conn.commit()
+
+    def remove_payment_term_from_account(self, account_id: int):
+        """Removes a payment term from an account."""
+        self.cursor.execute("UPDATE accounts SET payment_term_id = NULL WHERE id = ?", (account_id,))
         self.conn.commit()
 
 # Purchase Document related methods

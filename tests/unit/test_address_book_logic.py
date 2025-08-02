@@ -276,3 +276,54 @@ class TestPricingRules(unittest.TestCase):
         retrieved_rule = self.logic.get_pricing_rule(rule_id)
         self.assertEqual(retrieved_rule.markup_percentage, 10.0)
         self.assertEqual(retrieved_rule.fixed_markup, 10.0)
+
+
+class TestPaymentTerms(unittest.TestCase):
+    def setUp(self):
+        self.db_handler = DatabaseHandler(db_name=':memory:')
+        self.logic = AddressBookLogic(self.db_handler)
+
+    def tearDown(self):
+        self.db_handler.close()
+
+    def test_create_and_get_payment_term(self):
+        term_id = self.logic.create_payment_term(term_name="Net 30", days=30)
+        self.assertIsNotNone(term_id)
+        term = self.logic.get_payment_term(term_id)
+        self.assertIsNotNone(term)
+        self.assertEqual(term.term_name, "Net 30")
+        self.assertEqual(term.days, 30)
+
+    def test_list_payment_terms(self):
+        self.logic.create_payment_term(term_name="Net 30", days=30)
+        self.logic.create_payment_term(term_name="Due on Receipt")
+        terms = self.logic.list_payment_terms()
+        names = [t.term_name for t in terms]
+        self.assertIn("Net 30", names)
+        self.assertIn("Due on Receipt", names)
+
+    def test_update_payment_term(self):
+        term_id = self.logic.create_payment_term(term_name="Old", days=15)
+        self.logic.update_payment_term(term_id, "New", days=45)
+        updated = self.logic.get_payment_term(term_id)
+        self.assertEqual(updated.term_name, "New")
+        self.assertEqual(updated.days, 45)
+
+    def test_delete_payment_term(self):
+        term_id = self.logic.create_payment_term(term_name="To Delete", days=10)
+        self.logic.delete_payment_term(term_id)
+        self.assertIsNone(self.logic.get_payment_term(term_id))
+
+    def test_assign_and_remove_payment_term(self):
+        account = self.logic.save_account(Account(name="Test", account_type=AccountType.CUSTOMER))
+        term_id = self.logic.create_payment_term(term_name="Net 15", days=15)
+        self.logic.assign_payment_term(account.account_id, term_id)
+        account_details = self.logic.get_account_details(account.account_id)
+        self.assertEqual(account_details.payment_term_id, term_id)
+        self.logic.remove_payment_term(account.account_id)
+        account_details_after = self.logic.get_account_details(account.account_id)
+        self.assertIsNone(account_details_after.payment_term_id)
+
+    def test_payment_term_validation(self):
+        with self.assertRaisesRegex(ValueError, "Term name cannot be empty."):
+            self.logic.create_payment_term(term_name="")

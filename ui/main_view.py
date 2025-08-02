@@ -19,6 +19,7 @@ from core.address_service import AddressService
 from core.repositories import AddressRepository, AccountRepository, InventoryRepository, ProductRepository
 from core.inventory_service import InventoryService
 from ui.pricing.pricing_rule_tab import PricingRuleTab
+from ui.payment_terms.payment_term_tab import PaymentTermTab
 
 
 class AddressBookView:
@@ -69,6 +70,7 @@ class AddressBookView:
 
         settings_menu = tk.Menu(menu_bar, tearoff=0)
         settings_menu.add_command(label="Company info", command=self.open_company_info)
+        settings_menu.add_command(label="Payment Terms", command=self.open_payment_terms)
         settings_menu.add_command(label="Pricing Rules", command=self.open_pricing_rules)
         menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
@@ -106,3 +108,10 @@ class AddressBookView:
         popup.title("Pricing Rules")
         pricing_tab = PricingRuleTab(popup, self.address_book_logic)
         pricing_tab.frame.pack(fill="both", expand=True)
+
+    def open_payment_terms(self):
+        """Open the payment terms popup."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Payment Terms")
+        term_tab = PaymentTermTab(popup, self.address_book_logic)
+        term_tab.frame.pack(fill="both", expand=True)

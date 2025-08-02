@@ -20,7 +20,7 @@ from core.address_service import AddressService
 from core.repositories import AddressRepository, AccountRepository
 
 
-def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
+def generate_sales_order_pdf(sales_document_id: int, output_path: str = None):
     db_handler = None
     try:
         db_handler = DatabaseHandler()
@@ -68,7 +68,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             document_number=doc.document_number,
             company_name=company_name_for_header,
             company_billing_address_lines=company_remittance_address_pdf_lines,
-            document_type="Invoice",
+            document_type="Sales Order",
         )
         pdf.alias_nb_pages()
         pdf.add_page()
@@ -130,7 +130,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
 
             if customer_billing_address:
                 pdf.set_x(right_column_x)
-                address_lines = [
+                billing_lines = [
                     customer_billing_address.street or "",
                     f"{customer_billing_address.city or ''}, {customer_billing_address.state or ''} {customer_billing_address.zip_code or ''}",
                     (customer_billing_address.country or "").strip(),
@@ -138,7 +138,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
                 pdf.multi_cell(
                     col_width_half,
                     line_height,
-                    "\n".join(filter(None, address_lines)),
+                    "\n".join(filter(None, billing_lines)),
                     0,
                     "L",
                 )
@@ -225,15 +225,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
 
                 pdf.set_xy(start_x + desc_col, start_y)
                 pdf.set_font("Arial", "", 9)
-
-                pdf.cell(
-                    qty_col,
-                    end_y_desc - start_y,
-                    f"{item.quantity:.2f}" if item.quantity is not None else "0.00",
-                    1,
-                    0,
-                    "R",
-                )
+                pdf.cell(qty_col, end_y_desc - start_y, f"{item.quantity:.2f}" if item.quantity is not None else "0.00", 1, 0, "R")
                 pdf.cell(price_col, end_y_desc - start_y, f"${effective_unit_price:.2f}", 1, 0, "R")
                 pdf.cell(total_col, end_y_desc - start_y, f"${item_total:.2f}", 1, 0, "R")
                 pdf.ln(end_y_desc - start_y)
@@ -256,7 +248,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             filename = output_path
         else:
             sanitized_doc_number = sanitize_filename(doc.document_number)
-            filename = f"Invoice_{sanitized_doc_number}.pdf"
+            filename = f"SalesOrder_{sanitized_doc_number}.pdf"
 
         pdf.output(filename, "F")
         print(f"PDF generated: {filename}")
@@ -275,13 +267,13 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate an Invoice PDF from existing application data.")
+    parser = argparse.ArgumentParser(description="Generate a Sales Order PDF from existing application data.")
     parser.add_argument("sales_document_id", type=int, help="The ID of the sales document to generate.")
     parser.add_argument("--output", type=str, help="Optional: Full path for the output PDF file.")
     args = parser.parse_args()
 
     if args.sales_document_id:
-        generate_invoice_pdf(args.sales_document_id, args.output)
+        generate_sales_order_pdf(args.sales_document_id, args.output)
     else:
         parser.print_help()
 

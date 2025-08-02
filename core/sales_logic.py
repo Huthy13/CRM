@@ -102,7 +102,8 @@ class SalesLogic:
     def add_item_to_sales_document(self, doc_id: int, product_id: int, quantity: float,
                                    product_description_override: Optional[str] = None,
                                    unit_price_override: Optional[float] = None, # This would be the sale price
-                                   discount_percentage: Optional[float] = 0.0
+                                   discount_percentage: Optional[float] = 0.0,
+                                   note: str | None = None
                                    ) -> Optional[SalesDocumentItem]:
         """Adds an item to a Quote or Invoice."""
         doc = self.get_sales_document_details(doc_id)
@@ -165,7 +166,8 @@ class SalesLogic:
             quantity=quantity,
             unit_price=final_unit_price,
             discount_percentage=effective_discount,
-            line_total=line_total
+            line_total=line_total,
+            note=note
         )
         if new_item_id:
             self._recalculate_sales_document_totals(doc_id)
@@ -175,7 +177,8 @@ class SalesLogic:
     def update_sales_document_item(self, item_id: int, product_id: int, quantity: float,
                                    unit_price_override: Optional[float], # Sale price
                                    discount_percentage: Optional[float] = 0.0,
-                                   product_description_override: Optional[str] = None
+                                   product_description_override: Optional[str] = None,
+                                   note: str | None = None
                                    ) -> Optional[SalesDocumentItem]:
         item_to_update = self.get_sales_document_item_details(item_id)
         if not item_to_update:
@@ -235,8 +238,10 @@ class SalesLogic:
             "quantity": quantity,
             "unit_price": final_unit_price,
             "discount_percentage": effective_discount,
-            "line_total": new_line_total
+            "line_total": new_line_total,
         }
+        if note is not None:
+            updates["note"] = note
         self.sales_repo.update_sales_document_item(item_id, updates)
         self._recalculate_sales_document_totals(doc.id)
         return self.get_sales_document_item_details(item_id)
@@ -512,7 +517,8 @@ class SalesLogic:
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
                 discount_percentage=item_data.get('discount_percentage'),
-                line_total=item_data.get('line_total')
+                line_total=item_data.get('line_total'),
+                note=item_data.get('note')
             ))
         return result_list
 
@@ -527,7 +533,8 @@ class SalesLogic:
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
                 discount_percentage=item_data.get('discount_percentage'),
-                line_total=item_data.get('line_total')
+                line_total=item_data.get('line_total'),
+                note=item_data.get('note')
             )
         return None
 

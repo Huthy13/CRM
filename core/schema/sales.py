@@ -35,6 +35,7 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             unit_price REAL NOT NULL,
             discount_percentage REAL DEFAULT 0.0,
             line_total REAL NOT NULL,
+            note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (sales_document_id) REFERENCES sales_documents(id),

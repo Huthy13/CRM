@@ -190,7 +190,8 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
                 # Handle multi-line descriptions
                 start_x = pdf.get_x()
                 start_y = pdf.get_y()
-                pdf.multi_cell(desc_col, line_height, item.product_description or "", 1, "L")
+                desc_text = "\n".join(filter(None, [item.product_description, item.note]))
+                pdf.multi_cell(desc_col, line_height, desc_text, 1, "L")
                 end_y_desc = pdf.get_y()
 
                 pdf.set_xy(start_x + desc_col, start_y) # Reset X position for next cells in the row

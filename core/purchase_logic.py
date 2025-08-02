@@ -96,7 +96,8 @@ class PurchaseLogic:
     def add_item_to_document(self, doc_id: int, product_id: int, quantity: float,
                              product_description_override: Optional[str] = None,
                              unit_price: Optional[float] = None,
-                             total_price: Optional[float] = None) -> Optional[PurchaseDocumentItem]:
+                             total_price: Optional[float] = None,
+                             note: str | None = None) -> Optional[PurchaseDocumentItem]:
         """Adds an item (linked to a product) to an RFQ or PO."""
         doc = self.get_purchase_document_details(doc_id)
         if not doc:
@@ -133,7 +134,8 @@ class PurchaseLogic:
             product_description=final_description,
             quantity=quantity,
             unit_price=unit_price,
-            total_price=total_price
+            total_price=total_price,
+            note=note
         )
         if new_item_id:
             return self.get_purchase_document_item_details(new_item_id)
@@ -141,7 +143,8 @@ class PurchaseLogic:
 
     def update_document_item(self, item_id: int, product_id: int, quantity: float,
                              unit_price: Optional[float],
-                             product_description_override: Optional[str] = None) -> Optional[PurchaseDocumentItem]:
+                             product_description_override: Optional[str] = None,
+                             note: str | None = None) -> Optional[PurchaseDocumentItem]:
         """Updates an existing document item. If unit_price is provided for an RFQ item, status may change to Quoted."""
         item_to_update = self.get_purchase_document_item_details(item_id)
         if not item_to_update:
@@ -167,6 +170,7 @@ class PurchaseLogic:
         item_to_update.product_description = final_description
         item_to_update.quantity = quantity
         item_to_update.unit_price = unit_price
+        item_to_update.note = note if note is not None else item_to_update.note
         item_to_update.calculate_total_price()
 
         self.purchase_repo.update_purchase_document_item(
@@ -175,7 +179,8 @@ class PurchaseLogic:
             product_description=item_to_update.product_description,
             quantity=item_to_update.quantity,
             unit_price=item_to_update.unit_price,
-            total_price=item_to_update.total_price
+            total_price=item_to_update.total_price,
+            note=item_to_update.note
         )
 
         if unit_price is not None:
@@ -350,7 +355,8 @@ class PurchaseLogic:
                 product_description=item_data['product_description'],
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
-                total_price=item_data.get('total_price')
+                total_price=item_data.get('total_price'),
+                note=item_data.get('note')
             ))
         return result_list
 
@@ -364,7 +370,8 @@ class PurchaseLogic:
                 product_description=item_data['product_description'],
                 quantity=item_data['quantity'],
                 unit_price=item_data.get('unit_price'),
-                total_price=item_data.get('total_price')
+                total_price=item_data.get('total_price'),
+                note=item_data.get('note')
             )
         return None
 

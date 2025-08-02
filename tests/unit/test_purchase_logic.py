@@ -102,7 +102,7 @@ class TestPurchaseLogic(unittest.TestCase):
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
             "id": 50, "purchase_document_id": doc_id, "product_id": product_id_to_add,
             "product_description": mock_product_name, # Description from fetched product
-            "quantity": 2.0, "unit_price": None, "total_price": None
+            "quantity": 2.0, "unit_price": None, "total_price": None, "note": None
         }
 
         item = self.purchase_logic.add_item_to_document(doc_id, product_id=product_id_to_add, quantity=2.0)
@@ -114,7 +114,7 @@ class TestPurchaseLogic(unittest.TestCase):
         self.mock_db_handler.add_purchase_document_item.assert_called_with(
             doc_id=doc_id, product_id=product_id_to_add,
             product_description=mock_product_name, quantity=2.0,
-            unit_price=None, total_price=None
+            unit_price=None, total_price=None, note=None
         )
 
     def test_add_item_to_document_doc_not_found(self):
@@ -150,6 +150,9 @@ class TestPurchaseLogic(unittest.TestCase):
             "product_id": 101,
             "product_description": "Item",
             "quantity": 1.0,
+            "unit_price": None,
+            "total_price": None,
+            "note": None,
         }
         # Mock parent document with non-editable status
         self.mock_db_handler.get_purchase_document_by_id.return_value = {
@@ -178,7 +181,7 @@ class TestPurchaseLogic(unittest.TestCase):
         # Mock return for get_purchase_document_item_details
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
             "id": 1, "purchase_document_id": 1, "product_id":101,
-            "product_description": "Test", "quantity": 1
+            "product_description": "Test", "quantity": 1, "unit_price": None, "total_price": None, "note": None
         }
         with self.assertRaisesRegex(ValueError, "Unit price cannot be negative if provided."): # Adjusted message
             self.purchase_logic.update_document_item(item_id=1, product_id=101, quantity=1, unit_price=-5.0)
@@ -210,6 +213,7 @@ class TestPurchaseLogic(unittest.TestCase):
                 "quantity": 5,
                 "unit_price": None,
                 "total_price": None,
+                "note": None,
             }
         ]
 
@@ -387,8 +391,8 @@ class TestPurchaseLogic(unittest.TestCase):
     def test_get_items_for_document_logic(self):
         doc_id = 8
         mock_items_data = [
-            {"id": 1, "purchase_document_id": doc_id, "product_description": "Item A", "quantity": 1.0},
-            {"id": 2, "purchase_document_id": doc_id, "product_description": "Item B", "quantity": 2.0}
+            {"id": 1, "purchase_document_id": doc_id, "product_id": None, "product_description": "Item A", "quantity": 1.0, "unit_price": None, "total_price": None, "note": None},
+            {"id": 2, "purchase_document_id": doc_id, "product_id": None, "product_description": "Item B", "quantity": 2.0, "unit_price": None, "total_price": None, "note": None}
         ]
         self.mock_db_handler.get_items_for_document.return_value = mock_items_data
 
@@ -405,7 +409,7 @@ class TestPurchaseLogic(unittest.TestCase):
         original_item_data = {
             "id": item_id, "purchase_document_id": doc_id, "product_id": 101,
             "product_description": "Test Product", "quantity": 2.0,
-            "unit_price": None, "total_price": None
+            "unit_price": None, "total_price": None, "note": None
         }
         # Mock for initial get_purchase_document_item_details
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = original_item_data
@@ -419,7 +423,7 @@ class TestPurchaseLogic(unittest.TestCase):
         updated_item_data_after_save = {
             "id": item_id, "purchase_document_id": doc_id, "product_id": 101,
             "product_description": "Test Product", "quantity": 2.0,
-            "unit_price": 10.0, "total_price": 20.0
+            "unit_price": 10.0, "total_price": 20.0, "note": None
         }
         # get_purchase_document_by_id will be called to check status, then potentially to re-fetch doc for return (not strictly needed for this test focus)
         # get_purchase_document_item_by_id will be called to fetch item, then again to return the updated item.
@@ -442,7 +446,7 @@ class TestPurchaseLogic(unittest.TestCase):
         self.assertEqual(updated_item.total_price, 20.0)
         self.mock_db_handler.update_purchase_document_item.assert_called_with(
             item_id=item_id, product_id=101, product_description="Test Product",
-            quantity=2.0, unit_price=10.0, total_price=20.0
+            quantity=2.0, unit_price=10.0, total_price=20.0, note=None
         )
         # Verify status update for parent document
         self.mock_db_handler.update_purchase_document_status.assert_called_with(doc_id, PurchaseDocumentStatus.QUOTED.value)
@@ -453,7 +457,7 @@ class TestPurchaseLogic(unittest.TestCase):
         original_item_data = {
             "id": item_id, "purchase_document_id": doc_id, "product_id": 102,
             "product_description": "Another Product", "quantity": 5.0,
-            "unit_price": 4.0, "total_price": 20.0 # Already quoted
+            "unit_price": 4.0, "total_price": 20.0, "note": None # Already quoted
         }
         self.mock_db_handler.get_purchase_document_item_by_id.return_value = original_item_data
 
@@ -464,7 +468,7 @@ class TestPurchaseLogic(unittest.TestCase):
         updated_item_data_after_save = {
             "id": item_id, "purchase_document_id": doc_id, "product_id": 102,
             "product_description": "Another Product", "quantity": 7.0,
-            "unit_price": 4.0, "total_price": 28.0
+            "unit_price": 4.0, "total_price": 28.0, "note": None
         }
         self.mock_db_handler.get_purchase_document_by_id.return_value = parent_doc_data_quoted
 
@@ -483,7 +487,7 @@ class TestPurchaseLogic(unittest.TestCase):
         self.assertEqual(updated_item.total_price, 28.0)
         self.mock_db_handler.update_purchase_document_item.assert_called_with(
             item_id=item_id, product_id=102, product_description="Another Product",
-            quantity=7.0, unit_price=4.0, total_price=28.0
+            quantity=7.0, unit_price=4.0, total_price=28.0, note=None
         )
         self.mock_db_handler.update_purchase_document_status.assert_not_called() # Status should not change
 

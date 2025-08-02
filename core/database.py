@@ -809,7 +809,7 @@ class DatabaseHandler:
 # --- Sales Document Item CRUD Methods ---
     def add_sales_document_item(self, sales_doc_id: int, product_id: int, product_description: str,
                                 quantity: float, unit_price: float, discount_percentage: float = 0.0,
-                                line_total: float = None) -> int:
+                                line_total: float = None, note: str | None = None) -> int:
         """Adds a new item to a sales document."""
         # Calculate line_total if not provided
         if line_total is None:
@@ -818,9 +818,9 @@ class DatabaseHandler:
 
         self.cursor.execute("""
             INSERT INTO sales_document_items (sales_document_id, product_id, product_description,
-                                              quantity, unit_price, discount_percentage, line_total)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (sales_doc_id, product_id, product_description, quantity, unit_price, discount_percentage, line_total))
+                                              quantity, unit_price, discount_percentage, line_total, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (sales_doc_id, product_id, product_description, quantity, unit_price, discount_percentage, line_total, note))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -1081,12 +1081,12 @@ class DatabaseHandler:
         self.conn.commit()
 
 # Purchase Document Item related methods
-    def add_purchase_document_item(self, doc_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None) -> int:
+    def add_purchase_document_item(self, doc_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None, note: str | None = None) -> int:
         """Adds a new item to a purchase document and returns its ID."""
         self.cursor.execute("""
-            INSERT INTO purchase_document_items (purchase_document_id, product_description, quantity, product_id, unit_price, total_price)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (doc_id, product_description, quantity, product_id, unit_price, total_price))
+            INSERT INTO purchase_document_items (purchase_document_id, product_description, quantity, product_id, unit_price, total_price, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (doc_id, product_description, quantity, product_id, unit_price, total_price, note))
         self.conn.commit()
         return self.cursor.lastrowid
 
@@ -1096,13 +1096,13 @@ class DatabaseHandler:
         columns = [desc[0] for desc in self.cursor.description]
         return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
 
-    def update_purchase_document_item(self, item_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None):
+    def update_purchase_document_item(self, item_id: int, product_description: str, quantity: float, product_id: int = None, unit_price: float = None, total_price: float = None, note: str | None = None):
         """Updates an existing purchase document item."""
         self.cursor.execute("""
             UPDATE purchase_document_items
-            SET product_description = ?, quantity = ?, product_id = ?, unit_price = ?, total_price = ?
+            SET product_description = ?, quantity = ?, product_id = ?, unit_price = ?, total_price = ?, note = ?
             WHERE id = ?
-        """, (product_description, quantity, product_id, unit_price, total_price, item_id))
+        """, (product_description, quantity, product_id, unit_price, total_price, note, item_id))
         self.conn.commit()
 
     def delete_purchase_document_item(self, item_id: int):

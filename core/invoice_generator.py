@@ -194,11 +194,11 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
                     desc_text = "\n".join(
                         filter(
                             None,
-                            [product_info.get("name"), product_info.get("description")],
+                            [product_info.get("name"), product_info.get("description"), item.note],
                         )
                     )
                 else:
-                    desc_text = item.product_description or ""
+                    desc_text = "\n".join(filter(None, [item.product_description, item.note]))
                 pdf.multi_cell(desc_col, line_height, desc_text, 1, "L")
                 end_y_desc = pdf.get_y()
 

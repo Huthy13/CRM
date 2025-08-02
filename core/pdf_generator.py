@@ -84,7 +84,7 @@ def get_company_pdf_context(service: CompanyService):
     """Fetch company details via the service layer for PDF headers.
 
     Returns a tuple of:
-        (company_name, company_phone, shipping_lines, billing_lines)
+        (company_name, company_phone, shipping_lines, remittance_lines, billing_lines)
     """
     company = service.load_company_information()
     company_name = company.name or "Your Company Name"
@@ -98,12 +98,21 @@ def get_company_pdf_context(service: CompanyService):
         (a for a in company.addresses if a.address_type == "Shipping" and getattr(a, "is_primary", False)),
         None,
     )
+    remittance_addr = next(
+        (a for a in company.addresses if a.address_type == "Remittance" and getattr(a, "is_primary", False)),
+        None,
+    )
 
     if not shipping_addr and billing_addr:
         shipping_lines = ["Shipping address not set, using Billing Address:"] + _format_address_lines(billing_addr)
     else:
         shipping_lines = _format_address_lines(shipping_addr)
 
+    if not remittance_addr and billing_addr:
+        remittance_lines = ["Remittance address not set, using Billing Address:"] + _format_address_lines(billing_addr)
+    else:
+        remittance_lines = _format_address_lines(remittance_addr)
+
     billing_lines = _format_address_lines(billing_addr)
 
-    return company_name, company_phone, shipping_lines, billing_lines
+    return company_name, company_phone, shipping_lines, remittance_lines, billing_lines

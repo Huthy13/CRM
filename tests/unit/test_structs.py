@@ -101,6 +101,8 @@ class TestPurchaseDocumentItemClass(unittest.TestCase):
         self.assertIsNone(item.unit_price)
         self.assertIsNone(item.total_price)
         self.assertIsNone(item.note)
+        self.assertEqual(item.received_quantity, 0.0)
+        self.assertFalse(item.is_received)
 
     def test_item_creation_with_values(self):
         item = PurchaseDocumentItem(item_id=100, purchase_document_id=1, product_description="Test Product",
@@ -112,6 +114,8 @@ class TestPurchaseDocumentItemClass(unittest.TestCase):
         self.assertEqual(item.unit_price, 2.0)
         self.assertEqual(item.total_price, 21.0)
         self.assertEqual(item.note, "Sample")
+        self.assertEqual(item.received_quantity, 0.0)
+        self.assertFalse(item.is_received)
 
     def test_item_calculate_total_price(self):
         item = PurchaseDocumentItem(quantity=5, unit_price=10.0)
@@ -136,7 +140,8 @@ class TestPurchaseDocumentItemClass(unittest.TestCase):
         expected_dict = {
             "id": 1, "purchase_document_id": 2, "product_id": None, # Added product_id
             "product_description": "Another Product",
-            "quantity": 3, "unit_price": 5.0, "total_price": 15.0, "note": None
+            "quantity": 3, "unit_price": 5.0, "total_price": 15.0, "note": None,
+            "received_quantity": 0.0, "is_received": False,
         }
         self.assertEqual(item_dict, expected_dict)
 

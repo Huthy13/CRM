@@ -31,6 +31,10 @@ class TestPurchaseLogic(unittest.TestCase):
             # Add other fields if PurchaseLogic starts checking them more deeply
         }
         self.mock_db_handler.get_account_details.return_value = self.mock_vendor_account_dict
+        self.mock_db_handler.get_total_received_for_item.return_value = 0
+        self.mock_db_handler.get_total_received_for_item.side_effect = None
+        self.mock_db_handler.are_all_items_received.return_value = False
+        self.mock_db_handler.are_all_items_received.side_effect = None
 
     def test_generate_document_number_first(self):
         self.mock_db_handler.get_all_purchase_documents.return_value = []
@@ -169,6 +173,80 @@ class TestPurchaseLogic(unittest.TestCase):
 
     # Removed test_update_item_quote_success as its functionality is covered by
     # test_update_document_item_success_price_change_rfq_to_quoted
+
+    def test_record_item_receipt_partial(self):
+        item_id = 10
+        doc_id = 1
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
+            "id": item_id,
+            "purchase_document_id": doc_id,
+            "product_id": 101,
+            "product_description": "Item",
+            "quantity": 10,
+            "unit_price": None,
+            "total_price": None,
+            "note": None,
+            "is_received": 0,
+        }
+        self.mock_db_handler.get_purchase_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "P00001",
+            "vendor_id": 1,
+            "created_date": "2023-01-01",
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "notes": "",
+        }
+        self.mock_db_handler.get_items_for_document.return_value = [
+            self.mock_db_handler.get_purchase_document_item_by_id.return_value
+        ]
+        self.mock_db_handler.get_total_received_for_item.side_effect = [0, 0, 4]
+
+        updated_item = self.purchase_logic.record_item_receipt(item_id, 4)
+        self.mock_db_handler.add_purchase_receipt.assert_called_once_with(item_id, 4, None)
+        self.mock_inventory_service.record_purchase_order.assert_called_once_with(
+            101, -4, reference="PO#P00001"
+        )
+        self.mock_inventory_service.adjust_stock.assert_called_once_with(
+            101, 4, InventoryTransactionType.PURCHASE, reference="PO#P00001"
+        )
+        self.mock_db_handler.mark_purchase_item_received.assert_not_called()
+        self.mock_db_handler.update_purchase_document_status.assert_not_called()
+        self.assertEqual(updated_item.received_quantity, 4)
+
+    def test_record_item_receipt_completes_document(self):
+        item_id = 10
+        doc_id = 1
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
+            "id": item_id,
+            "purchase_document_id": doc_id,
+            "product_id": 101,
+            "product_description": "Item",
+            "quantity": 5,
+            "unit_price": None,
+            "total_price": None,
+            "note": None,
+            "is_received": 0,
+        }
+        self.mock_db_handler.get_purchase_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "P00001",
+            "vendor_id": 1,
+            "created_date": "2023-01-01",
+            "status": PurchaseDocumentStatus.PO_ISSUED.value,
+            "notes": "",
+        }
+        self.mock_db_handler.get_items_for_document.return_value = [
+            self.mock_db_handler.get_purchase_document_item_by_id.return_value
+        ]
+        self.mock_db_handler.get_total_received_for_item.side_effect = [3, 3, 5]
+        self.mock_db_handler.are_all_items_received.return_value = True
+
+        updated_item = self.purchase_logic.record_item_receipt(item_id, 2)
+        self.mock_db_handler.mark_purchase_item_received.assert_called_once_with(item_id)
+        self.mock_db_handler.update_purchase_document_status.assert_called_once_with(
+            doc_id, PurchaseDocumentStatus.RECEIVED.value
+        )
+        self.assertEqual(updated_item.received_quantity, 5)
 
     def test_update_document_item_item_not_found(self): # Renamed
         self.mock_db_handler.get_purchase_document_item_by_id.side_effect = None
@@ -516,6 +594,18 @@ class TestPurchaseLogic(unittest.TestCase):
                 "total_price": None,
             }
         ]
+        self.mock_db_handler.get_purchase_document_item_by_id.return_value = {
+            "id": 1,
+            "purchase_document_id": doc_id,
+            "product_id": 10,
+            "product_description": "Item",
+            "quantity": 3,
+            "unit_price": None,
+            "total_price": None,
+            "note": None,
+            "is_received": 0,
+        }
+        self.mock_db_handler.are_all_items_received.return_value = True
         purchase_logic.receive_purchase_order(doc_id)
         mock_inventory_service.record_purchase_order.assert_called_once_with(
             10, -3, reference="PO#P00001"
@@ -523,6 +613,8 @@ class TestPurchaseLogic(unittest.TestCase):
         mock_inventory_service.adjust_stock.assert_called_once_with(
             10, 3, InventoryTransactionType.PURCHASE, reference="PO#P00001"
         )
+        self.mock_db_handler.add_purchase_receipt.assert_called_once_with(1, 3, None)
+        self.mock_db_handler.mark_purchase_item_received.assert_called_once_with(1)
         self.mock_db_handler.update_purchase_document_status.assert_called_with(
             doc_id, PurchaseDocumentStatus.RECEIVED.value
         )

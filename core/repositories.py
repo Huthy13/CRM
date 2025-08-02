@@ -240,6 +240,18 @@ class PurchaseRepository:
     def get_items_for_document(self, doc_id: int):
         return self.db.get_items_for_document(doc_id)
 
+    def add_purchase_receipt(self, item_id: int, quantity: float, received_date: str | None = None):
+        return self.db.add_purchase_receipt(item_id, quantity, received_date)
+
+    def get_total_received_for_item(self, item_id: int) -> float:
+        return self.db.get_total_received_for_item(item_id)
+
+    def mark_item_fully_received(self, item_id: int):
+        self.db.mark_purchase_item_received(item_id)
+
+    def are_all_items_received(self, doc_id: int) -> bool:
+        return self.db.are_all_items_received(doc_id)
+
 
 class InteractionRepository:
     """Repository for interaction-related operations."""
@@ -317,6 +329,9 @@ class InventoryRepository:
 
     def get_on_order_level(self, product_id: int) -> float:
         return self.db.get_on_order_quantity(product_id)
+
+    def get_all_on_order_levels(self):
+        return self.db.get_all_on_order_quantities()
 
     def add_replenishment_item(self, product_id: int, quantity_needed: float):
         return self.db.add_replenishment_item(product_id, quantity_needed)

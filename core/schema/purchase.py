@@ -27,10 +27,23 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             unit_price REAL,
             total_price REAL,
             note TEXT,
+            is_received BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (purchase_document_id) REFERENCES purchase_documents(id),
             FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS purchase_receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_document_item_id INTEGER NOT NULL,
+            quantity REAL NOT NULL,
+            received_date TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (purchase_document_item_id) REFERENCES purchase_document_items(id)
         )
     """)
 
@@ -49,5 +62,14 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
         FOR EACH ROW
         BEGIN
             UPDATE purchase_document_items SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+        END;
+    """)
+
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS update_purchase_receipts_updated_at
+        AFTER UPDATE ON purchase_receipts
+        FOR EACH ROW
+        BEGIN
+            UPDATE purchase_receipts SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
         END;
     """)

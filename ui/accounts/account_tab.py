@@ -19,29 +19,45 @@ class AccountTab(TabBase):
         self.bind("<FocusIn>", lambda event: self.load_accounts())
 
     def setup_account_tab(self):
-        """Setup the Account Administration tab with account fields and account list."""
+        """Setup the Accounts tab with account fields and account list."""
         tk.Label(self, text="Accounts").grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
         button_width = 20
 
-        # Add account buttons
+        # Button bar
+        button_frame = tk.Frame(self)
+        button_frame.grid(row=1, column=0, columnspan=3, pady=5, sticky="w")
+
         self.add_account_button = tk.Button(
-            self, text="Add New Account",
-            command=self.create_new_account, width=button_width)
-        self.add_account_button.grid(row=3, column=0, padx=5, pady=5)
+            button_frame,
+            text="New",
+            command=self.create_new_account,
+            width=button_width,
+        )
+        self.add_account_button.pack(side=tk.LEFT, padx=5)
 
         self.edit_account_button = tk.Button(
-            self, text="Edit Account",
-            command=self.edit_existing_account, width=button_width)
-        self.edit_account_button.grid(row=3, column=1, padx=5, pady=5)
+            button_frame,
+            text="Edit",
+            command=self.edit_existing_account,
+            width=button_width,
+        )
+        self.edit_account_button.pack(side=tk.LEFT, padx=5)
 
         self.remove_account_button = tk.Button(
-            self, text="Remove Account",
-            command=self.remove_account, width=button_width)
-        self.remove_account_button.grid(row=3, column=2, padx=5, pady=5)
+            button_frame,
+            text="Delete",
+            command=self.remove_account,
+            width=button_width,
+        )
+        self.remove_account_button.pack(side=tk.LEFT, padx=5)
 
         # Treeview for displaying accounts
-        self.tree = ttk.Treeview(self, columns=("id", "name", "phone", "description", "account_type"), show="headings")
+        self.tree = ttk.Treeview(
+            self,
+            columns=("id", "name", "phone", "description", "account_type"),
+            show="headings",
+        )
         self.tree.column("id", width=0, stretch=False)  # Hidden ID column
         self.tree.heading("name", text="Account Name", command=lambda: self.sort_column("name", False))
         self.tree.heading("phone", text="Phone", command=lambda: self.sort_column("phone", False))
@@ -51,11 +67,11 @@ class AccountTab(TabBase):
         self.tree.column("phone", width=100)
         self.tree.column("description", width=150)
         self.tree.column("account_type", width=100)
-        self.tree.grid(row=7, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")  # Increased columnspan
+        self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.select_account)
 
         # Configure the grid row and column containing the tree to expand
-        self.grid_rowconfigure(7, weight=1)
+        self.grid_rowconfigure(2, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
     def remove_account(self):

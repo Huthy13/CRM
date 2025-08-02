@@ -19,14 +19,23 @@ class PricingRuleTab:
 
         button_width = 20
 
-        self.add_button = tk.Button(self.frame, text="New Rule", command=self.create_new_rule, width=button_width)
-        self.add_button.grid(row=1, column=0, padx=5, pady=5)
+        button_frame = tk.Frame(self.frame)
+        button_frame.grid(row=1, column=0, columnspan=3, pady=5, sticky="w")
 
-        self.edit_button = tk.Button(self.frame, text="Edit Rule", command=self.edit_existing_rule, width=button_width)
-        self.edit_button.grid(row=1, column=1, padx=5, pady=5)
+        self.add_button = tk.Button(
+            button_frame, text="New", command=self.create_new_rule, width=button_width
+        )
+        self.add_button.pack(side=tk.LEFT, padx=5)
 
-        self.delete_button = tk.Button(self.frame, text="Delete Rule", command=self.delete_rule, width=button_width)
-        self.delete_button.grid(row=1, column=2, padx=5, pady=5)
+        self.edit_button = tk.Button(
+            button_frame, text="Edit", command=self.edit_existing_rule, width=button_width
+        )
+        self.edit_button.pack(side=tk.LEFT, padx=5)
+
+        self.delete_button = tk.Button(
+            button_frame, text="Delete", command=self.delete_rule, width=button_width
+        )
+        self.delete_button.pack(side=tk.LEFT, padx=5)
 
         self.tree = ttk.Treeview(self.frame, columns=("id", "name", "markup", "fixed_price"), show="headings")
         self.tree.column("id", width=0, stretch=False)

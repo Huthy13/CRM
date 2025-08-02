@@ -237,9 +237,17 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             messagebox.showerror("Error", f"An error occurred during conversion: {e}", parent=self)
 
     def update_export_button_state(self):
-        # PDF export enabled only if document exists and is of a type we can export (e.g. Quote or Invoice)
-        can_export = self.document_id and self.document_data and \
-                     self.document_data.document_type in [SalesDocumentType.QUOTE, SalesDocumentType.INVOICE]
+        """Enable PDF export for supported document types once saved."""
+        can_export = (
+            self.document_id
+            and self.document_data
+            and self.document_data.document_type
+            in [
+                SalesDocumentType.QUOTE,
+                SalesDocumentType.SALES_ORDER,
+                SalesDocumentType.INVOICE,
+            ]
+        )
         self.export_pdf_button.config(state=tk.NORMAL if can_export else tk.DISABLED)
 
     def export_to_pdf(self):
@@ -249,31 +257,50 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         doc_type = self.document_data.document_type
         generator_module = None
-        if doc_type == SalesDocumentType.QUOTE:
-            try:
-                from core.quote_generator import generate_quote_pdf # Placeholder
+        try:
+            if doc_type == SalesDocumentType.QUOTE:
+                from core.quote_generator import generate_quote_pdf
+
                 generator_module = generate_quote_pdf
-            except ImportError:
-                messagebox.showerror("Error", "Quote PDF generator not found.", parent=self)
-                return
-        elif doc_type == SalesDocumentType.INVOICE:
-            try:
-                from core.invoice_generator import generate_invoice_pdf # Placeholder
+            elif doc_type == SalesDocumentType.SALES_ORDER:
+                from core.sales_order_generator import generate_sales_order_pdf
+
+                generator_module = generate_sales_order_pdf
+            elif doc_type == SalesDocumentType.INVOICE:
+                from core.invoice_generator import generate_invoice_pdf
+
                 generator_module = generate_invoice_pdf
-            except ImportError:
-                messagebox.showerror("Error", "Invoice PDF generator not found.", parent=self)
+            else:
+                messagebox.showwarning(
+                    "Not Supported",
+                    f"PDF export not supported for document type: {doc_type.value}",
+                    parent=self,
+                )
                 return
-        else:
-            messagebox.showwarning("Not Supported", f"PDF export not supported for document type: {doc_type.value}", parent=self)
+        except ImportError:
+            messagebox.showerror(
+                "Error",
+                f"{doc_type.value} PDF generator not found.",
+                parent=self,
+            )
             return
 
         try:
-            file_prefix = "quote" if doc_type == SalesDocumentType.QUOTE else "invoice"
+            if doc_type == SalesDocumentType.QUOTE:
+                file_prefix = "quote"
+            elif doc_type == SalesDocumentType.SALES_ORDER:
+                file_prefix = "SalesOrder"
+            else:
+                file_prefix = "invoice"
             output_filename = f"{file_prefix}_{self.doc_number_var.get()}.pdf"
             # TODO: Use filedialog.asksaveasfilename for better UX
 
-            generator_module(self.document_id, output_path=output_filename) # Call the specific generator
-            messagebox.showinfo("PDF Exported", f"{doc_type.value} exported to {output_filename}", parent=self)
+            generator_module(self.document_id, output_path=output_filename)
+            messagebox.showinfo(
+                "PDF Exported",
+                f"{doc_type.value} exported to {output_filename}",
+                parent=self,
+            )
         except Exception as e:
             messagebox.showerror("PDF Export Error", f"An error occurred: {e}", parent=self)
             import traceback

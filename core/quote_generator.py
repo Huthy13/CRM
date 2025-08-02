@@ -156,7 +156,21 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         y_after_billing_info = pdf.get_y()
 
         pdf.set_y(max(y_after_shipping_info, y_after_billing_info))
-        pdf.ln(line_height * 1.5)
+
+        # Reference number and payment terms
+        if doc.reference_number:
+            pdf.set_font("Arial", "B", 11)
+            pdf.cell(0, line_height, f"Customer Reference: {doc.reference_number}", 0, 1, "L")
+        term_name = None
+        if customer and getattr(customer, "payment_term_id", None):
+            term = address_book_logic.get_payment_term(customer.payment_term_id)
+            if term:
+                term_name = term.term_name
+        if term_name:
+            pdf.set_font("Arial", "", 11)
+            pdf.cell(0, line_height, f"Terms: {term_name}", 0, 1, "L")
+
+        pdf.ln(line_height)
 
         pdf.set_font("Arial", "B", 10)
         desc_col = col_width_full * 0.50

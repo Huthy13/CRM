@@ -86,7 +86,7 @@ class AddressBookView:
             self.notebook, self.sales_logic, self.address_book_logic, self.product_logic
         )  # Add Sales Documents tab
         self.inventory_tab = InventoryTab(
-            self.notebook, self.purchase_logic, self.product_logic
+            self.notebook, self.purchase_logic, self.product_logic, self.sales_logic
         )
 
 

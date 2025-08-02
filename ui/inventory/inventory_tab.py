@@ -2,15 +2,27 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from core.purchase_logic import PurchaseLogic
 from core.logic.product_management import ProductLogic
-from shared.structs import PurchaseDocumentStatus
+from core.sales_logic import SalesLogic
+from shared.structs import (
+    PurchaseDocumentStatus,
+    SalesDocumentStatus,
+    SalesDocumentType,
+)
 from ui.inventory.record_receipt_popup import RecordReceiptPopup
 
 
 class InventoryTab:
-    def __init__(self, master, purchase_logic: PurchaseLogic, product_logic: ProductLogic):
+    def __init__(
+        self,
+        master,
+        purchase_logic: PurchaseLogic,
+        product_logic: ProductLogic,
+        sales_logic: SalesLogic,
+    ):
         self.frame = tk.Frame(master)
         self.purchase_logic = purchase_logic
         self.product_logic = product_logic
+        self.sales_logic = sales_logic
         self.selected_item_id = None
 
         self.setup_to_receive_section()
@@ -47,19 +59,17 @@ class InventoryTab:
         tk.Label(self.frame, text="Ready to Ship").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.ready_tree = ttk.Treeview(
             self.frame,
-            columns=("product", "on_hand", "on_order", "reorder", "safety"),
+            columns=("doc", "product", "ordered", "on_hand"),
             show="headings",
         )
+        self.ready_tree.heading("doc", text="SO Number")
         self.ready_tree.heading("product", text="Product")
+        self.ready_tree.heading("ordered", text="Ordered")
         self.ready_tree.heading("on_hand", text="On Hand")
-        self.ready_tree.heading("on_order", text="On Order")
-        self.ready_tree.heading("reorder", text="Reorder Point")
-        self.ready_tree.heading("safety", text="Safety Stock")
+        self.ready_tree.column("doc", width=100)
         self.ready_tree.column("product", width=200)
+        self.ready_tree.column("ordered", width=80, anchor=tk.E)
         self.ready_tree.column("on_hand", width=80, anchor=tk.E)
-        self.ready_tree.column("on_order", width=80, anchor=tk.E)
-        self.ready_tree.column("reorder", width=100, anchor=tk.E)
-        self.ready_tree.column("safety", width=100, anchor=tk.E)
         self.ready_tree.grid(row=4, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.frame.grid_rowconfigure(4, weight=1)
 
@@ -103,18 +113,27 @@ class InventoryTab:
 
     def refresh_ready_to_ship(self):
         self.ready_tree.delete(*self.ready_tree.get_children())
-        products = self.product_logic.get_all_products()
-        on_order_list = self.purchase_logic.get_products_on_order()
-        on_order_map = {p["product_id"]: p["on_order"] for p in on_order_list}
-        for product in products:
-            on_order = on_order_map.get(product.product_id, 0)
-            if product.quantity_on_hand > 0 or on_order > 0:
+        orders = self.sales_logic.get_all_sales_documents_by_criteria(
+            doc_type=SalesDocumentType.SALES_ORDER,
+            status=SalesDocumentStatus.SO_OPEN,
+        )
+        for doc in orders:
+            items = self.sales_logic.get_items_for_sales_document(doc.id)
+            for item in items:
+                product = (
+                    self.product_logic.get_product_details(item.product_id)
+                    if item.product_id
+                    else None
+                )
+                on_hand = product.quantity_on_hand if product else 0
                 self.ready_tree.insert(
-                    "", "end", iid=product.product_id, values=(
-                        product.name,
-                        product.quantity_on_hand,
-                        on_order,
-                        product.reorder_point,
-                        product.safety_stock,
-                    )
+                    "",
+                    "end",
+                    iid=item.id,
+                    values=(
+                        doc.document_number,
+                        item.product_description,
+                        item.quantity,
+                        on_hand,
+                    ),
                 )

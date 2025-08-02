@@ -739,15 +739,16 @@ class DatabaseHandler:
 
 # --- Sales Document CRUD Methods ---
     def add_sales_document(self, doc_number: str, customer_id: int, document_type: str,
-                           created_date: str, status: str, expiry_date: str = None, due_date: str = None,
+                           created_date: str, status: str, reference_number: str = None,
+                           expiry_date: str = None, due_date: str = None,
                            notes: str = None, subtotal: float = 0.0, taxes: float = 0.0, total_amount: float = 0.0,
                            related_quote_id: int = None) -> int:
         """Adds a new sales document and returns its ID."""
         self.cursor.execute("""
             INSERT INTO sales_documents (document_number, customer_id, document_type, created_date, status,
-                                         expiry_date, due_date, notes, subtotal, taxes, total_amount, related_quote_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (doc_number, customer_id, document_type, created_date, status, expiry_date, due_date,
+                                         reference_number, expiry_date, due_date, notes, subtotal, taxes, total_amount, related_quote_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (doc_number, customer_id, document_type, created_date, status, reference_number, expiry_date, due_date,
               notes, subtotal, taxes, total_amount, related_quote_id))
         self.conn.commit()
         return self.cursor.lastrowid

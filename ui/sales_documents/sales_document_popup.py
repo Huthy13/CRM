@@ -35,6 +35,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         # Sales specific fields
         self.expiry_date_var = tk.StringVar() # For Quotes
         self.due_date_var = tk.StringVar()    # For Invoices
+        self.reference_number_var = tk.StringVar()
         self.subtotal_var = tk.StringVar(value="$0.00")
         self.taxes_var = tk.StringVar(value="$0.00") # New field for display
         self.total_amount_var = tk.StringVar(value="$0.00") # New field for display
@@ -52,6 +53,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             self.doc_type_var.set(self.current_doc_type.value)
             self.doc_number_var.set("(Auto-generated)")
             self.created_date_var.set(datetime.date.today().isoformat())
+            self.reference_number_var.set("")
 
             if self.current_doc_type == SalesDocumentType.QUOTE:
                 self.current_status = SalesDocumentStatus.QUOTE_DRAFT
@@ -88,6 +90,11 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         ttk.Label(self.content_frame, text="Document #:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
         ttk.Entry(self.content_frame, textvariable=self.doc_number_var, state=tk.DISABLED, width=40).grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
+        current_row += 1
+
+        ttk.Label(self.content_frame, text="Reference #:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W)
+        self.reference_entry = ttk.Entry(self.content_frame, textvariable=self.reference_number_var, width=40)
+        self.reference_entry.grid(row=current_row, column=1, padx=5, pady=5, sticky=tk.EW)
         current_row += 1
 
         ttk.Label(self.content_frame, text="Customer:").grid(row=current_row, column=0, padx=5, pady=5, sticky=tk.W) # Changed from Vendor
@@ -337,6 +344,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.doc_number_var.set(self.document_data.document_number)
         self.doc_type_var.set(self.current_doc_type.value if self.current_doc_type else "")
         self.created_date_var.set(self.document_data.created_date.split("T")[0] if self.document_data.created_date else "")
+        self.reference_number_var.set(self.document_data.reference_number or "")
 
         if self.current_doc_type == SalesDocumentType.QUOTE:
             self.expiry_date_var.set(self.document_data.expiry_date.split("T")[0] if self.document_data.expiry_date else "")
@@ -412,6 +420,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         customer_combo_state = "readonly"
         notes_text_state = tk.NORMAL
         conditional_date_entry_state = tk.NORMAL # For expiry/due date
+        reference_entry_state = tk.NORMAL
 
         if self.current_doc_type == SalesDocumentType.QUOTE:
             self.conditional_date_label.config(text="Expiry Date:")
@@ -421,6 +430,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 customer_combo_state = tk.DISABLED
                 notes_text_state = tk.DISABLED
                 conditional_date_entry_state = tk.DISABLED
+                reference_entry_state = tk.DISABLED
         elif self.current_doc_type == SalesDocumentType.SALES_ORDER:
             self.conditional_date_label.config(text="Order Date:")
             self.conditional_date_entry.config(textvariable=self.created_date_var) # No specific date for SO
@@ -429,6 +439,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 customer_combo_state = tk.DISABLED
                 notes_text_state = tk.DISABLED
                 conditional_date_entry_state = tk.DISABLED
+                reference_entry_state = tk.DISABLED
         elif self.current_doc_type == SalesDocumentType.INVOICE:
             self.conditional_date_label.config(text="Due Date:")
             self.conditional_date_entry.config(textvariable=self.due_date_var)
@@ -437,6 +448,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 customer_combo_state = tk.DISABLED
                 notes_text_state = tk.DISABLED
                 conditional_date_entry_state = tk.DISABLED
+                reference_entry_state = tk.DISABLED
         else: # Should not happen if type is always set
             relevant_statuses = [s.value for s in SalesDocumentStatus] # Show all as fallback
 
@@ -447,6 +459,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.customer_combobox.config(state=customer_combo_state)
         self.notes_text.config(state=notes_text_state)
         self.conditional_date_entry.config(state=conditional_date_entry_state)
+        self.reference_entry.config(state=reference_entry_state)
 
         # Status combobox state
         status_combo_state = "readonly" # Generally allow changing status unless it's terminal like PAID/VOID/CLOSED
@@ -559,6 +572,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             return False
 
         notes_content = self.notes_text.get("1.0", tk.END).strip()
+        reference_number_value = self.reference_number_var.get().strip() or None
 
         # Document Type (already set in self.current_doc_type)
         if self.current_doc_type is None: # Should be set on init or _on_doc_type_changed
@@ -594,7 +608,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                     new_doc = self.sales_logic.create_quote(
                         customer_id=current_customer_id,
                         notes=notes_content,
-                        expiry_date_iso=expiry_date_iso
+                        expiry_date_iso=expiry_date_iso,
+                        reference_number=reference_number_value
                     )
                 elif self.current_doc_type == SalesDocumentType.INVOICE:
                     # For now, direct invoice creation. Later, might only come from Quote conversion.
@@ -610,7 +625,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                     new_doc_id = self.sales_logic.db.add_sales_document(
                         doc_number=temp_invoice_number, customer_id=current_customer_id,
                         document_type=SalesDocumentType.INVOICE.value, created_date=created_date_iso,
-                        status=selected_status_enum.value, notes=notes_content, due_date=due_date_iso
+                        status=selected_status_enum.value, reference_number=reference_number_value,
+                        notes=notes_content, due_date=due_date_iso
                     )
                     if new_doc_id:
                         new_doc = self.sales_logic.get_sales_document_details(new_doc_id)
@@ -645,9 +661,12 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 if (self.document_data.notes or "") != notes_content:
                     updates["notes"] = notes_content
 
+                if (self.document_data.reference_number or "") != (reference_number_value or ""):
+                    updates["reference_number"] = reference_number_value
+                convert_to_so = False
                 if self.document_data.status != selected_status_enum:
                     if self.current_doc_type == SalesDocumentType.QUOTE and selected_status_enum == SalesDocumentStatus.QUOTE_ACCEPTED:
-                        self.sales_logic.convert_quote_to_sales_order(self.document_id)
+                        convert_to_so = True
                     else:
                         updates["status"] = selected_status_enum.value
 
@@ -658,6 +677,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
                 if updates:
                     self.sales_logic.db.update_sales_document(self.document_id, updates)
+                if convert_to_so:
+                    self.sales_logic.convert_quote_to_sales_order(self.document_id)
 
                 # Reload data to reflect all changes (including status if it was changed by logic)
                 self.load_document_and_items()
@@ -728,11 +749,12 @@ if __name__ == '__main__':
         def __init__(self, db_handler): self.db = db_handler
         def _generate_sales_document_number(self, doc_type): return f"{doc_type.value[:3].upper()}-MOCK-001"
 
-        def create_quote(self, customer_id, notes, expiry_date_iso):
+        def create_quote(self, customer_id, notes, expiry_date_iso, reference_number=None):
             doc_id = self.db.add_sales_document(
                 document_number=self._generate_sales_document_number(SalesDocumentType.QUOTE),
                 customer_id=customer_id, document_type=SalesDocumentType.QUOTE.value,
                 created_date=datetime.datetime.now().isoformat(), status=SalesDocumentStatus.QUOTE_DRAFT.value,
+                reference_number=reference_number,
                 notes=notes, expiry_date=expiry_date_iso, subtotal=0, taxes=0, total_amount=0)
             return self.get_sales_document_details(doc_id)
 

@@ -272,7 +272,7 @@ class TestSalesLogic(unittest.TestCase):
     def test_convert_quote_to_sales_order_success(self):
         mock_quote_id = 1
         mock_customer_id = 5
-        mock_quote_data = {"id": mock_quote_id, "document_number": "S00000", "customer_id": mock_customer_id, "document_type": SalesDocumentType.QUOTE.value, "created_date": "date", "status": SalesDocumentStatus.QUOTE_ACCEPTED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0}
+        mock_quote_data = {"id": mock_quote_id, "document_number": "S00000", "customer_id": mock_customer_id, "document_type": SalesDocumentType.QUOTE.value, "created_date": "date", "status": SalesDocumentStatus.QUOTE_ACCEPTED.value, "notes": "N", "subtotal": 200.0, "taxes": 20.0, "total_amount": 220.0, "reference_number": "PO123"}
 
         self.mock_db_handler.get_sales_document_by_id.side_effect = [mock_quote_data, {**mock_quote_data, "document_type": SalesDocumentType.SALES_ORDER.value, "status": SalesDocumentStatus.SO_OPEN.value}]
 
@@ -299,6 +299,7 @@ class TestSalesLogic(unittest.TestCase):
             "subtotal": 0.0,
             "taxes": 0.0,
             "total_amount": 0.0,
+            "reference_number": "PO123",
         }
         item_dict = {
             "id": 10,
@@ -329,6 +330,25 @@ class TestSalesLogic(unittest.TestCase):
 
         self.assertIsNotNone(sales_order)
         mock_inv_repo.add_replenishment_item.assert_called_once_with(100, 5.0)
+
+    def test_convert_quote_to_sales_order_requires_reference_number(self):
+        mock_quote_id = 1
+        mock_quote_data = {
+            "id": mock_quote_id,
+            "document_number": "S00000",
+            "customer_id": 5,
+            "document_type": SalesDocumentType.QUOTE.value,
+            "created_date": "date",
+            "status": SalesDocumentStatus.QUOTE_ACCEPTED.value,
+            "notes": "N",
+            "subtotal": 0.0,
+            "taxes": 0.0,
+            "total_amount": 0.0,
+            "reference_number": None,
+        }
+        self.mock_db_handler.get_sales_document_by_id.return_value = mock_quote_data
+        with self.assertRaisesRegex(ValueError, "Reference number is required"):
+            self.sales_logic.convert_quote_to_sales_order(mock_quote_id)
 
     def test_convert_quote_to_sales_order_quote_not_found(self):
         self.mock_db_handler.get_sales_document_by_id.return_value = None

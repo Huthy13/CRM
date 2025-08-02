@@ -287,11 +287,11 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
         try:
             if doc_type == SalesDocumentType.QUOTE:
-                file_prefix = "quote"
+                file_prefix = "Quote"
             elif doc_type == SalesDocumentType.SALES_ORDER:
                 file_prefix = "SalesOrder"
             else:
-                file_prefix = "invoice"
+                file_prefix = "Invoice"
             output_filename = f"{file_prefix}_{self.doc_number_var.get()}.pdf"
             # TODO: Use filedialog.asksaveasfilename for better UX
 

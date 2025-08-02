@@ -159,7 +159,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
 
         # Reference number and payment terms
         if doc.reference_number:
-            pdf.set_font("Arial", "B", 11)
+            pdf.set_font("Arial", "", 11)
             pdf.cell(0, line_height, f"Customer Reference: {doc.reference_number}", 0, 1, "L")
         term_name = None
         if customer and getattr(customer, "payment_term_id", None):
@@ -256,7 +256,7 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             filename = output_path
         else:
             sanitized_doc_number = sanitize_filename(doc.document_number)
-            filename = f"invoice_{sanitized_doc_number}.pdf"
+            filename = f"Invoice_{sanitized_doc_number}.pdf"
 
         pdf.output(filename, "F")
         print(f"PDF generated: {filename}")

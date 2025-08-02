@@ -274,18 +274,7 @@ class SalesLogic:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
         if not quote_doc.reference_number:
             raise ValueError("Reference number is required to convert a Quote to a Sales Order.")
-        # Record inventory reductions for each item, triggering replenishment when needed
-        items = self.get_items_for_sales_document(quote_id)
-        for item in items:
-            if item.product_id is None:
-                continue
-            self.inventory_service.adjust_stock(
-                item.product_id,
-                -item.quantity,
-                InventoryTransactionType.SALE,
-                reference=f"SO-{quote_id}",
-            )
-        # Update the document type and status
+        # Update the document type and status without affecting inventory
         updates = {
             "document_type": SalesDocumentType.SALES_ORDER.value,
             "status": SalesDocumentStatus.SO_OPEN.value,
@@ -570,6 +559,18 @@ class SalesLogic:
             raise ValueError(
                 f"Sales order must be in status '{SalesDocumentStatus.SO_OPEN.value}' to confirm."
             )
+
+        items = self.get_items_for_sales_document(doc_id)
+        for item in items:
+            if item.product_id is None:
+                continue
+            self.inventory_service.adjust_stock(
+                item.product_id,
+                -item.quantity,
+                InventoryTransactionType.SALE,
+                reference=f"SHIP-{doc_id}",
+            )
+
         self.sales_repo.update_sales_document(
             doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
         )

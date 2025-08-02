@@ -35,18 +35,20 @@ class InventoryTab:
         tk.Label(self.frame, text="To Order").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.to_order_tree = ttk.Treeview(
             self.frame,
-            columns=("product", "ordered", "on_hand", "to_order"),
+            columns=("product", "ordered", "on_hand", "on_order", "to_order"),
             show="tree headings",
         )
         self.to_order_tree.heading("#0", text="SO Number")
         self.to_order_tree.heading("product", text="Product")
         self.to_order_tree.heading("ordered", text="Ordered")
         self.to_order_tree.heading("on_hand", text="On Hand")
+        self.to_order_tree.heading("on_order", text="On Order")
         self.to_order_tree.heading("to_order", text="To Order")
         self.to_order_tree.column("#0", width=100)
         self.to_order_tree.column("product", width=200)
         self.to_order_tree.column("ordered", width=80, anchor=tk.E)
         self.to_order_tree.column("on_hand", width=80, anchor=tk.E)
+        self.to_order_tree.column("on_order", width=80, anchor=tk.E)
         self.to_order_tree.column("to_order", width=80, anchor=tk.E)
         self.to_order_tree.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.frame.grid_rowconfigure(1, weight=1)
@@ -144,7 +146,12 @@ class InventoryTab:
                     else None
                 )
                 on_hand = product.quantity_on_hand if product else 0
-                to_order = item.quantity - on_hand
+                on_order = (
+                    self.purchase_logic.inventory_service.get_on_order_level(item.product_id)
+                    if item.product_id
+                    else 0
+                )
+                to_order = item.quantity - (on_hand + on_order)
                 if to_order > 0:
                     if not doc_inserted:
                         self.to_order_tree.insert(
@@ -160,6 +167,7 @@ class InventoryTab:
                             item.product_description,
                             item.quantity,
                             on_hand,
+                            on_order,
                             to_order,
                         ),
                     )

@@ -74,7 +74,7 @@ class AddressBookView:
         self.notebook.add(self.interaction_log_tab, text="Interaction Log")
         self.notebook.add(self.task_tab, text="Tasks")
         self.notebook.add(self.product_tab.frame, text="Products")
-        self.notebook.add(self.purchase_document_tab.frame, text="Purchase Documents")
-        self.notebook.add(self.sales_document_tab.frame, text="Sales Documents") # Add Sales Documents tab
+        self.notebook.add(self.purchase_document_tab.frame, text="Purchase")
+        self.notebook.add(self.sales_document_tab.frame, text="Sales") # Add Sales Documents tab
         self.notebook.add(self.company_info_tab.frame, text="Company Information") # Add the new tab to the notebook
         self.notebook.add(self.pricing_rule_tab.frame, text="Pricing Rules")

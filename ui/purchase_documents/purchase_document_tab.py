@@ -23,15 +23,15 @@ class PurchaseDocumentTab:
     def _setup_ui(self):
         # Button frame
         button_frame = ttk.Frame(self.frame)
-        button_frame.pack(pady=10, padx=10, fill=tk.X)
+        button_frame.pack(pady=10, padx=10, fill=tk.X, anchor=tk.W)
 
-        self.add_button = ttk.Button(button_frame, text="New RFQ/PO", command=self.open_new_document_popup)
+        self.add_button = ttk.Button(button_frame, text="New", command=self.open_new_document_popup)
         self.add_button.pack(side=tk.LEFT, padx=5)
 
-        self.edit_button = ttk.Button(button_frame, text="Edit Document", command=self.open_edit_document_popup, state=tk.DISABLED)
+        self.edit_button = ttk.Button(button_frame, text="Edit", command=self.open_edit_document_popup, state=tk.DISABLED)
         self.edit_button.pack(side=tk.LEFT, padx=5)
 
-        self.delete_button = ttk.Button(button_frame, text="Delete Document", command=self.delete_selected_document, state=tk.DISABLED)
+        self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_selected_document, state=tk.DISABLED)
         self.delete_button.pack(side=tk.LEFT, padx=5)
 
         # Treeview for displaying documents

@@ -26,6 +26,7 @@ class InventoryTab:
         self.sales_logic = sales_logic
         self.selected_item_id = None
         self.selected_ready_item_id = None
+        self.selected_ready_doc_id = None
 
         self.setup_to_order_section()
         self.setup_to_receive_section()
@@ -117,12 +118,22 @@ class InventoryTab:
     def on_select_ready_item(self, event=None):
         selection = self.ready_tree.selection()
         if selection:
-            try:
-                self.selected_ready_item_id = int(selection[0])
-            except ValueError:
+            iid = selection[0]
+            if iid.startswith("doc_"):
+                try:
+                    self.selected_ready_doc_id = int(iid.split("_")[1])
+                except ValueError:
+                    self.selected_ready_doc_id = None
                 self.selected_ready_item_id = None
+            else:
+                try:
+                    self.selected_ready_item_id = int(iid)
+                except ValueError:
+                    self.selected_ready_item_id = None
+                self.selected_ready_doc_id = None
         else:
             self.selected_ready_item_id = None
+            self.selected_ready_doc_id = None
 
     def open_receipt_popup(self):
         if not self.selected_item_id:
@@ -136,21 +147,39 @@ class InventoryTab:
         self.frame.master.wait_window(popup)
 
     def open_shipping_popup(self):
-        if not self.selected_ready_item_id:
-            messagebox.showwarning("No Selection", "Please select an item to ship.", parent=self.frame)
+        doc_id = None
+        if self.selected_ready_doc_id:
+            doc_id = self.selected_ready_doc_id
+        elif self.selected_ready_item_id:
+            item = self.sales_logic.get_sales_document_item_details(self.selected_ready_item_id)
+            if not item:
+                messagebox.showerror("Error", "Could not load item details.", parent=self.frame)
+                return
+            doc_id = item.sales_document_id
+        else:
+            messagebox.showwarning("No Selection", "Please select an order or item to ship.", parent=self.frame)
             return
-        item = self.sales_logic.get_sales_document_item_details(self.selected_ready_item_id)
-        if not item:
-            messagebox.showerror("Error", "Could not load item details.", parent=self.frame)
+
+        items = self.sales_logic.get_items_for_sales_document(doc_id)
+        item_data = []
+        for item in items:
+            remaining = item.quantity - item.shipped_quantity
+            if remaining <= 0:
+                continue
+            product = (
+                self.product_logic.get_product_details(item.product_id)
+                if item.product_id
+                else None
+            )
+            on_hand = product.quantity_on_hand if product else 0
+            item_data.append((item, on_hand))
+
+        if not item_data:
+            messagebox.showinfo("No Items", "No items remaining to ship.", parent=self.frame)
             return
-        product = (
-            self.product_logic.get_product_details(item.product_id)
-            if item.product_id
-            else None
-        )
-        on_hand = product.quantity_on_hand if product else 0
+
         popup = RecordShippingPopup(
-            self.frame.master, self.sales_logic, item, on_hand, self.refresh_lists
+            self.frame.master, self.sales_logic, doc_id, item_data, self.refresh_lists
         )
         self.frame.master.wait_window(popup)
 

@@ -435,7 +435,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             shipments = self.sales_logic.get_shipments_for_order(self.document_data.id)
             for shipment in shipments:
                 parent = self.shipments_tree.insert(
-                    "", tk.END, text=f"Shipment {shipment['id']} - {shipment['created_at']}", open=True
+                    "", tk.END, text=f"Shipment {shipment['number']} - {shipment['created_at']}", open=True
                 )
                 for item in shipment["items"]:
                     self.shipments_tree.insert(

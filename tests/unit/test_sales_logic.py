@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 import datetime
 
 # Assuming core.sales_logic and shared.structs are importable
@@ -569,6 +569,7 @@ class TestSalesLogic(unittest.TestCase):
         updated_item_dict = {**item_dict, "shipped_quantity": 4}
         self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
             item_dict,
+            item_dict,
             updated_item_dict,
         ]
         self.mock_db_handler.get_sales_document_by_id.return_value = {
@@ -582,6 +583,7 @@ class TestSalesLogic(unittest.TestCase):
             "taxes": 0,
             "total_amount": 0,
         }
+        self.mock_db_handler.get_shipment_references_for_sales_document.return_value = []
         self.mock_db_handler.are_all_items_shipped.return_value = False
         self.sales_logic.inventory_service.adjust_stock = MagicMock()
         self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
@@ -594,7 +596,7 @@ class TestSalesLogic(unittest.TestCase):
             item_id, {"shipped_quantity": 4, "is_shipped": 0}
         )
         self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(
-            101, -4, InventoryTransactionType.SALE, reference="SO#S00001"
+            101, -4, InventoryTransactionType.SALE, reference="S00001.001"
         )
         self.mock_db_handler.update_sales_document.assert_not_called()
         self.assertEqual(updated_item.shipped_quantity, 4)
@@ -618,6 +620,7 @@ class TestSalesLogic(unittest.TestCase):
         updated_item_dict = {**item_dict, "shipped_quantity": 5, "is_shipped": 1}
         self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
             item_dict,
+            item_dict,
             updated_item_dict,
         ]
         self.mock_db_handler.get_sales_document_by_id.return_value = {
@@ -631,6 +634,7 @@ class TestSalesLogic(unittest.TestCase):
             "taxes": 0,
             "total_amount": 0,
         }
+        self.mock_db_handler.get_shipment_references_for_sales_document.return_value = []
         self.mock_db_handler.are_all_items_shipped.return_value = True
         self.sales_logic.inventory_service.adjust_stock = MagicMock()
         self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
@@ -643,7 +647,7 @@ class TestSalesLogic(unittest.TestCase):
             item_id, {"shipped_quantity": 5, "is_shipped": 1}
         )
         self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(
-            101, -2, InventoryTransactionType.SALE, reference="SO#S00001"
+            101, -2, InventoryTransactionType.SALE, reference="S00001.001"
         )
         self.mock_db_handler.update_sales_document.assert_called_once_with(
             doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
@@ -678,11 +682,72 @@ class TestSalesLogic(unittest.TestCase):
             "taxes": 0,
             "total_amount": 0,
         }
+        self.mock_db_handler.get_shipment_references_for_sales_document.return_value = []
         self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
             return_value=1
         )
         with self.assertRaises(ValueError):
             self.sales_logic.record_item_shipment(item_id, 2)
+
+    def test_record_shipment_multiple_items(self):
+        doc_id = 1
+        item1_id = 10
+        item2_id = 11
+        item1 = {
+            "id": item1_id,
+            "sales_document_id": doc_id,
+            "product_id": 101,
+            "product_description": "Item1",
+            "quantity": 5,
+            "unit_price": 0,
+            "discount_percentage": 0,
+            "line_total": 0,
+            "note": None,
+            "shipped_quantity": 0,
+            "is_shipped": 0,
+        }
+        item2 = {
+            "id": item2_id,
+            "sales_document_id": doc_id,
+            "product_id": 102,
+            "product_description": "Item2",
+            "quantity": 3,
+            "unit_price": 0,
+            "discount_percentage": 0,
+            "line_total": 0,
+            "note": None,
+            "shipped_quantity": 0,
+            "is_shipped": 0,
+        }
+        self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
+            item1,
+            item2,
+        ]
+        self.mock_db_handler.get_sales_document_by_id.return_value = {
+            "id": doc_id,
+            "document_number": "S00001",
+            "customer_id": 1,
+            "document_type": SalesDocumentType.SALES_ORDER.value,
+            "status": SalesDocumentStatus.SO_OPEN.value,
+            "created_date": "2023-01-01",
+            "subtotal": 0,
+            "taxes": 0,
+            "total_amount": 0,
+        }
+        self.mock_db_handler.get_shipment_references_for_sales_document.return_value = []
+        self.mock_db_handler.are_all_items_shipped.return_value = False
+        self.sales_logic.inventory_service.adjust_stock = MagicMock()
+        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(return_value=10)
+
+        self.sales_logic.record_shipment(doc_id, {item1_id: 2, item2_id: 1})
+
+        expected_calls = [
+            call(101, -2, InventoryTransactionType.SALE, reference="S00001.001"),
+            call(102, -1, InventoryTransactionType.SALE, reference="S00001.001"),
+        ]
+        self.sales_logic.inventory_service.adjust_stock.assert_has_calls(
+            expected_calls, any_order=True
+        )
 
 if __name__ == '__main__':
     unittest.main()
@@ -759,7 +824,7 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
     def test_get_shipments_for_order(self):
         mock_data = [
             {
-                "shipment_id": 1,
+                "shipment_number": "S00001.001",
                 "created_at": "2024-01-01",
                 "item_id": 10,
                 "product_description": "Widget",
@@ -772,7 +837,7 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
         shipments = self.sales_logic.get_shipments_for_order(5)
         expected = [
             {
-                "id": 1,
+                "number": "S00001.001",
                 "created_at": "2024-01-01",
                 "items": [
                     {

@@ -1227,10 +1227,11 @@ class DatabaseHandler:
         row = self.cursor.fetchone()
         if not row:
             return []
-        reference = f"SO#{row['document_number']}"
+        doc_number = row["document_number"]
+        pattern = f"{doc_number}.%"
         self.cursor.execute(
             """
-            SELECT it.id AS shipment_id,
+            SELECT it.reference AS shipment_number,
                    it.created_at,
                    sdi.id AS item_id,
                    sdi.product_description,
@@ -1238,12 +1239,29 @@ class DatabaseHandler:
             FROM inventory_transactions it
             JOIN sales_document_items sdi
               ON sdi.product_id = it.product_id AND sdi.sales_document_id = ?
-            WHERE it.transaction_type = ? AND it.reference = ?
-            ORDER BY it.id
+            WHERE it.transaction_type = ? AND it.reference LIKE ?
+            ORDER BY it.reference, it.id
             """,
-            (sales_doc_id, InventoryTransactionType.SALE.value, reference),
+            (sales_doc_id, InventoryTransactionType.SALE.value, pattern),
         )
         return [dict(r) for r in self.cursor.fetchall()]
+
+    def get_shipment_references_for_sales_document(self, sales_doc_id: int) -> list[str]:
+        """Return existing shipment reference numbers for a sales document."""
+        self.cursor.execute(
+            "SELECT document_number FROM sales_documents WHERE id = ?",
+            (sales_doc_id,),
+        )
+        row = self.cursor.fetchone()
+        if not row:
+            return []
+        doc_number = row["document_number"]
+        pattern = f"{doc_number}.%"
+        self.cursor.execute(
+            "SELECT DISTINCT reference FROM inventory_transactions WHERE reference LIKE ?",
+            (pattern,),
+        )
+        return [r["reference"] for r in self.cursor.fetchall()]
 
     # delete_items_for_document is not strictly needed if ON DELETE CASCADE is reliable,
     # but can be implemented for explicit control if desired.

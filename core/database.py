@@ -1218,6 +1218,33 @@ class DatabaseHandler:
         )
         return self.cursor.fetchone()[0] == 0
 
+    def get_shipments_for_sales_document(self, sales_doc_id: int) -> list[dict]:
+        """Retrieve shipment entries and their items for a sales document."""
+        self.cursor.execute(
+            "SELECT document_number FROM sales_documents WHERE id = ?",
+            (sales_doc_id,),
+        )
+        row = self.cursor.fetchone()
+        if not row:
+            return []
+        reference = f"SO#{row['document_number']}"
+        self.cursor.execute(
+            """
+            SELECT it.id AS shipment_id,
+                   it.created_at,
+                   sdi.id AS item_id,
+                   sdi.product_description,
+                   -it.quantity_change AS quantity
+            FROM inventory_transactions it
+            JOIN sales_document_items sdi
+              ON sdi.product_id = it.product_id AND sdi.sales_document_id = ?
+            WHERE it.transaction_type = ? AND it.reference = ?
+            ORDER BY it.id
+            """,
+            (sales_doc_id, InventoryTransactionType.SALE.value, reference),
+        )
+        return [dict(r) for r in self.cursor.fetchall()]
+
     # delete_items_for_document is not strictly needed if ON DELETE CASCADE is reliable,
     # but can be implemented for explicit control if desired.
     # def delete_items_for_document(self, doc_id: int):

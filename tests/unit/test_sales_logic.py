@@ -755,3 +755,33 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
 
         self.assertEqual(updated_item.unit_price, 110.0)
         self.assertEqual(updated_item.quantity, 2)
+
+    def test_get_shipments_for_order(self):
+        mock_data = [
+            {
+                "shipment_id": 1,
+                "created_at": "2024-01-01",
+                "item_id": 10,
+                "product_description": "Widget",
+                "quantity": 2,
+            }
+        ]
+        self.sales_logic.sales_repo.get_shipments_for_sales_document = MagicMock(
+            return_value=mock_data
+        )
+        shipments = self.sales_logic.get_shipments_for_order(5)
+        expected = [
+            {
+                "id": 1,
+                "created_at": "2024-01-01",
+                "items": [
+                    {
+                        "item_id": 10,
+                        "product_description": "Widget",
+                        "quantity": 2,
+                    }
+                ],
+            }
+        ]
+        self.assertEqual(shipments, expected)
+        self.sales_logic.sales_repo.get_shipments_for_sales_document.assert_called_once_with(5)

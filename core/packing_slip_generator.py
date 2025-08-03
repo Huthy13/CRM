@@ -89,6 +89,18 @@ def generate_packing_slip_pdf(
                     description = prod["name"]
             shipped_items.append((description, qty))
 
+        outstanding_items: list[tuple[str, float]] = []
+        all_items = sales_logic.get_items_for_sales_document(sales_document_id)
+        for item in all_items:
+            remaining_qty = item.quantity - item.shipped_quantity
+            if remaining_qty > 0:
+                description = item.product_description
+                if item.product_id:
+                    prod = sales_logic.product_repo.get_product_details(item.product_id)
+                    if prod and prod.get("name"):
+                        description = prod["name"]
+                outstanding_items.append((description, remaining_qty))
+
         pdf = PDF(
             document_number=shipment_number,
             company_name=company_name_for_header,
@@ -144,6 +156,22 @@ def generate_packing_slip_pdf(
                 pdf.cell(qty_col, line_height, f"{qty:.2f}", 1, 1, "R")
         else:
             pdf.cell(col_width_full, line_height, "No items in this shipment.", 1, 1, "C")
+
+        pdf.ln(line_height * 1.5)
+
+        pdf.set_font("Arial", "B", 11)
+        pdf.cell(0, line_height, "Items Remaining to Ship", 0, 1, "L")
+        pdf.set_font("Arial", "B", 10)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.cell(desc_col, line_height, "Product/Service Description", 1, 0, "C", 1)
+        pdf.cell(qty_col, line_height, "Qty Remaining", 1, 1, "C", 1)
+        pdf.set_font("Arial", "", 9)
+        if outstanding_items:
+            for desc, qty in outstanding_items:
+                pdf.cell(desc_col, line_height, desc, 1, 0, "L")
+                pdf.cell(qty_col, line_height, f"{qty:.2f}", 1, 1, "R")
+        else:
+            pdf.cell(col_width_full, line_height, "No remaining items to ship.", 1, 1, "C")
 
         pdf.ln(line_height * 1.5)
 

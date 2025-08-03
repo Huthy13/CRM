@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch, call
 import datetime
 import os
 import tempfile
+import zlib
 
 # Assuming core.sales_logic and shared.structs are importable
 # Add project root to sys.path if necessary for imports, or configure test runner
@@ -910,4 +911,12 @@ class TestPackingSlipGeneration(unittest.TestCase):
         )
         self.assertTrue(os.path.exists(tmp.name))
         self.assertGreater(os.path.getsize(tmp.name), 0)
+        with open(tmp.name, "rb") as f:
+            raw = f.read()
+        stream_start = raw.find(b"stream")
+        stream_start = raw.find(b"\n", stream_start) + 1
+        stream_end = raw.find(b"endstream", stream_start)
+        decompressed = zlib.decompress(raw[stream_start:stream_end])
+        self.assertIn(b"Qty Remaining", decompressed)
+        self.assertNotIn(b"No remaining items", decompressed)
         os.unlink(tmp.name)

@@ -1,57 +1,100 @@
 import tkinter as tk
 from tkinter import messagebox
+from typing import List, Tuple
+
 from core.sales_logic import SalesLogic
 from shared.structs import SalesDocumentItem
 
 
 class RecordShippingPopup(tk.Toplevel):
-    def __init__(self, master, sales_logic: SalesLogic, item: SalesDocumentItem, on_hand: float, refresh_callback=None):
+    def __init__(
+        self,
+        master,
+        sales_logic: SalesLogic,
+        doc_id: int,
+        items: List[Tuple[SalesDocumentItem, float]],
+        refresh_callback=None,
+    ):
         super().__init__(master)
         self.sales_logic = sales_logic
-        self.item = item
-        self.on_hand = on_hand
+        self.doc_id = doc_id
+        self.items = items
         self.refresh_callback = refresh_callback
 
         self.title("Record Shipping")
-        self.geometry("300x240")
+        self.geometry("480x300")
 
-        tk.Label(self, text=f"Product: {item.product_description}").grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
-        tk.Label(self, text=f"Ordered: {item.quantity}").grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
-        tk.Label(self, text=f"Shipped: {item.shipped_quantity}").grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="w")
-        tk.Label(self, text=f"On Hand: {on_hand}").grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="w")
-        remaining = item.quantity - item.shipped_quantity
-        tk.Label(self, text=f"Remaining: {remaining}").grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        tk.Label(self, text="Enter quantities to ship:").grid(
+            row=0, column=0, columnspan=4, padx=5, pady=5, sticky="w"
+        )
 
-        tk.Label(self, text="Quantity to Ship:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-        self.qty_entry = tk.Entry(self, width=10)
-        self.qty_entry.grid(row=5, column=1, padx=5, pady=5, sticky="w")
+        headers = ["Product", "Remaining", "On Hand", "Ship Qty"]
+        for col, text in enumerate(headers):
+            tk.Label(self, text=text, font=("Arial", 10, "bold")).grid(
+                row=1, column=col, padx=5, pady=5, sticky="w"
+            )
 
-        tk.Button(self, text="Record", command=self.record_shipping).grid(row=6, column=0, padx=5, pady=10, sticky="e")
-        tk.Button(self, text="Cancel", command=self.destroy).grid(row=6, column=1, padx=5, pady=10, sticky="w")
+        self.entries: dict[int, tuple[tk.Entry, float, float]] = {}
+        for idx, (item, on_hand) in enumerate(self.items, start=2):
+            remaining = item.quantity - item.shipped_quantity
+            tk.Label(self, text=item.product_description).grid(
+                row=idx, column=0, padx=5, pady=2, sticky="w"
+            )
+            tk.Label(self, text=f"{remaining}").grid(
+                row=idx, column=1, padx=5, pady=2, sticky="e"
+            )
+            tk.Label(self, text=f"{on_hand}").grid(
+                row=idx, column=2, padx=5, pady=2, sticky="e"
+            )
+            entry = tk.Entry(self, width=10)
+            entry.grid(row=idx, column=3, padx=5, pady=2, sticky="e")
+            self.entries[item.id] = (entry, remaining, on_hand)
+
+        row = len(self.items) + 2
+        tk.Button(self, text="Record", command=self.record_shipping).grid(
+            row=row, column=2, padx=5, pady=10, sticky="e"
+        )
+        tk.Button(self, text="Cancel", command=self.destroy).grid(
+            row=row, column=3, padx=5, pady=10, sticky="w"
+        )
 
     def record_shipping(self):
-        qty_str = self.qty_entry.get().strip()
-        try:
-            qty = float(qty_str)
-        except ValueError:
-            messagebox.showerror("Validation Error", "Quantity must be a number.", parent=self)
-            return
+        shipments: dict[int, float] = {}
+        for item_id, (entry, remaining, on_hand) in self.entries.items():
+            qty_str = entry.get().strip()
+            if not qty_str:
+                continue
+            try:
+                qty = float(qty_str)
+            except ValueError:
+                messagebox.showerror(
+                    "Validation Error", "Quantity must be a number.", parent=self
+                )
+                return
+            if qty <= 0 or qty > remaining:
+                messagebox.showerror(
+                    "Validation Error",
+                    f"Quantity for item {item_id} must be between 0 and {remaining}.",
+                    parent=self,
+                )
+                return
+            if qty > on_hand:
+                messagebox.showerror(
+                    "Validation Error",
+                    f"Cannot ship more than on-hand ({on_hand}).",
+                    parent=self,
+                )
+                return
+            shipments[item_id] = qty
 
-        remaining = self.item.quantity - self.item.shipped_quantity
-        if qty <= 0 or qty > remaining:
-            messagebox.showerror("Validation Error", f"Quantity must be between 0 and {remaining}.", parent=self)
-            return
-
-        if qty > self.on_hand:
-            messagebox.showerror(
-                "Validation Error",
-                f"Cannot ship more than on-hand ({self.on_hand}).",
-                parent=self,
+        if not shipments:
+            messagebox.showwarning(
+                "No Quantities", "Enter quantities to ship.", parent=self
             )
             return
 
         try:
-            self.sales_logic.record_item_shipment(self.item.id, qty)
+            self.sales_logic.record_shipment(self.doc_id, shipments)
             messagebox.showinfo("Success", "Shipment recorded.", parent=self)
             if self.refresh_callback:
                 self.refresh_callback()

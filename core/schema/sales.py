@@ -46,6 +46,18 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
         )
     """)
 
+    # --- Backwards compatibility: ensure new columns exist ---
+    cursor.execute("PRAGMA table_info(sales_document_items)")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+    if "shipped_quantity" not in existing_cols:
+        cursor.execute(
+            "ALTER TABLE sales_document_items ADD COLUMN shipped_quantity REAL DEFAULT 0.0"
+        )
+    if "is_shipped" not in existing_cols:
+        cursor.execute(
+            "ALTER TABLE sales_document_items ADD COLUMN is_shipped BOOLEAN DEFAULT FALSE"
+        )
+
     cursor.execute("""
         CREATE TRIGGER IF NOT EXISTS update_sales_documents_updated_at
         AFTER UPDATE ON sales_documents

@@ -550,27 +550,16 @@ class TestSalesLogic(unittest.TestCase):
         self.assertIsNotNone(so)
         mock_inv_repo.add_replenishment_item.assert_called_once_with(100, 5.0)
 
-    def test_record_item_shipment_partial(self):
-        item_id = 10
+    def test_create_shipment_partial(self):
         doc_id = 1
-        item_dict = {
-            "id": item_id,
-            "sales_document_id": doc_id,
-            "product_id": 101,
-            "product_description": "Item",
-            "quantity": 10,
-            "unit_price": 0,
-            "discount_percentage": 0,
-            "line_total": 0,
-            "note": None,
-            "shipped_quantity": 0,
-            "is_shipped": 0,
-        }
-        updated_item_dict = {**item_dict, "shipped_quantity": 4}
-        self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
-            item_dict,
-            updated_item_dict,
-        ]
+        item = SalesDocumentItem(
+            item_id=10,
+            sales_document_id=doc_id,
+            product_id=101,
+            product_description="Item",
+            quantity=10,
+        )
+        self.sales_logic.get_items_for_sales_document = MagicMock(return_value=[item])
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": doc_id,
             "document_number": "S00001",
@@ -582,44 +571,32 @@ class TestSalesLogic(unittest.TestCase):
             "taxes": 0,
             "total_amount": 0,
         }
+        self.sales_logic.inventory_service.adjust_stock = MagicMock()
+        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(return_value=10)
+        self.sales_logic.shipment_repo.add_shipment = MagicMock(return_value=1)
+        self.sales_logic.shipment_repo.add_shipment_item = MagicMock(return_value=1)
         self.mock_db_handler.are_all_items_shipped.return_value = False
-        self.sales_logic.inventory_service.adjust_stock = MagicMock()
-        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
-            return_value=10
-        )
 
-        updated_item = self.sales_logic.record_item_shipment(item_id, 4)
+        shipment_id = self.sales_logic.create_shipment(doc_id, {10: 4})
 
-        self.mock_db_handler.update_sales_document_item.assert_called_once_with(
-            item_id, {"shipped_quantity": 4, "is_shipped": 0}
-        )
-        self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(
-            101, -4, InventoryTransactionType.SALE, reference="SO#S00001"
-        )
+        self.sales_logic.shipment_repo.add_shipment.assert_called_once_with(doc_id)
+        self.sales_logic.shipment_repo.add_shipment_item.assert_called_once_with(1, 10, 4)
+        self.mock_db_handler.update_sales_document_item.assert_called_once_with(10, {"shipped_quantity": 4, "is_shipped": 0})
+        self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(101, -4, InventoryTransactionType.SALE, reference="SO#S00001")
         self.mock_db_handler.update_sales_document.assert_not_called()
-        self.assertEqual(updated_item.shipped_quantity, 4)
+        self.assertEqual(shipment_id, 1)
 
-    def test_record_item_shipment_completes_document(self):
-        item_id = 10
+    def test_create_shipment_completes_document(self):
         doc_id = 1
-        item_dict = {
-            "id": item_id,
-            "sales_document_id": doc_id,
-            "product_id": 101,
-            "product_description": "Item",
-            "quantity": 5,
-            "unit_price": 0,
-            "discount_percentage": 0,
-            "line_total": 0,
-            "note": None,
-            "shipped_quantity": 3,
-            "is_shipped": 0,
-        }
-        updated_item_dict = {**item_dict, "shipped_quantity": 5, "is_shipped": 1}
-        self.mock_db_handler.get_sales_document_item_by_id.side_effect = [
-            item_dict,
-            updated_item_dict,
-        ]
+        item = SalesDocumentItem(
+            item_id=10,
+            sales_document_id=doc_id,
+            product_id=101,
+            product_description="Item",
+            quantity=5,
+            shipped_quantity=3,
+        )
+        self.sales_logic.get_items_for_sales_document = MagicMock(return_value=[item])
         self.mock_db_handler.get_sales_document_by_id.return_value = {
             "id": doc_id,
             "document_number": "S00001",
@@ -631,58 +608,18 @@ class TestSalesLogic(unittest.TestCase):
             "taxes": 0,
             "total_amount": 0,
         }
-        self.mock_db_handler.are_all_items_shipped.return_value = True
         self.sales_logic.inventory_service.adjust_stock = MagicMock()
-        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
-            return_value=5
-        )
+        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(return_value=5)
+        self.sales_logic.shipment_repo.add_shipment = MagicMock(return_value=1)
+        self.sales_logic.shipment_repo.add_shipment_item = MagicMock(return_value=1)
+        self.mock_db_handler.are_all_items_shipped.return_value = True
 
-        updated_item = self.sales_logic.record_item_shipment(item_id, 2)
+        shipment_id = self.sales_logic.create_shipment(doc_id, {10: 2})
 
-        self.mock_db_handler.update_sales_document_item.assert_called_once_with(
-            item_id, {"shipped_quantity": 5, "is_shipped": 1}
-        )
-        self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(
-            101, -2, InventoryTransactionType.SALE, reference="SO#S00001"
-        )
-        self.mock_db_handler.update_sales_document.assert_called_once_with(
-            doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
-        )
-        self.assertEqual(updated_item.shipped_quantity, 5)
-
-    def test_record_item_shipment_insufficient_stock(self):
-        item_id = 10
-        doc_id = 1
-        item_dict = {
-            "id": item_id,
-            "sales_document_id": doc_id,
-            "product_id": 101,
-            "product_description": "Item",
-            "quantity": 5,
-            "unit_price": 0,
-            "discount_percentage": 0,
-            "line_total": 0,
-            "note": None,
-            "shipped_quantity": 0,
-            "is_shipped": 0,
-        }
-        self.mock_db_handler.get_sales_document_item_by_id.return_value = item_dict
-        self.mock_db_handler.get_sales_document_by_id.return_value = {
-            "id": doc_id,
-            "document_number": "S00001",
-            "customer_id": 1,
-            "document_type": SalesDocumentType.SALES_ORDER.value,
-            "status": SalesDocumentStatus.SO_OPEN.value,
-            "created_date": "2023-01-01",
-            "subtotal": 0,
-            "taxes": 0,
-            "total_amount": 0,
-        }
-        self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(
-            return_value=1
-        )
-        with self.assertRaises(ValueError):
-            self.sales_logic.record_item_shipment(item_id, 2)
+        self.mock_db_handler.update_sales_document_item.assert_called_once_with(10, {"shipped_quantity": 5, "is_shipped": 1})
+        self.sales_logic.inventory_service.adjust_stock.assert_called_once_with(101, -2, InventoryTransactionType.SALE, reference="SO#S00001")
+        self.mock_db_handler.update_sales_document.assert_called_once_with(doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value})
+        self.assertEqual(shipment_id, 1)
 
 if __name__ == '__main__':
     unittest.main()

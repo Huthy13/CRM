@@ -424,4 +424,37 @@ class ReplenishmentItem:
             "created_at": self.created_at,
         }
 
+# --- Shipment Structures ---
+
+@dataclass
+class Shipment:
+    id: Optional[int] = None
+    sales_document_id: Optional[int] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "sales_document_id": self.sales_document_id,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
+class ShipmentItem:
+    id: Optional[int] = None
+    shipment_id: Optional[int] = None
+    sales_document_item_id: Optional[int] = None
+    quantity: float = 0.0
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "shipment_id": self.shipment_id,
+            "sales_document_item_id": self.sales_document_item_id,
+            "quantity": self.quantity,
+            "created_at": self.created_at,
+        }
+
 # --- End Inventory Management Structures ---

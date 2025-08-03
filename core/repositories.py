@@ -313,6 +313,49 @@ class SalesRepository:
         self.db.delete_sales_document(doc_id)
 
 
+class ShipmentRepository:
+    """Repository for shipment-related operations."""
+
+    def __init__(self, db: DatabaseHandler):
+        self.db = db
+
+    def add_shipment(self, sales_document_id: int) -> int:
+        self.db.cursor.execute(
+            "INSERT INTO shipments (sales_document_id) VALUES (?)",
+            (sales_document_id,),
+        )
+        self.db.conn.commit()
+        return self.db.cursor.lastrowid
+
+    def add_shipment_item(
+        self, shipment_id: int, sales_document_item_id: int, quantity: float
+    ) -> int:
+        self.db.cursor.execute(
+            """
+            INSERT INTO shipment_items (shipment_id, sales_document_item_id, quantity)
+            VALUES (?, ?, ?)
+            """,
+            (shipment_id, sales_document_item_id, quantity),
+        )
+        self.db.conn.commit()
+        return self.db.cursor.lastrowid
+
+    def get_shipment(self, shipment_id: int):
+        self.db.cursor.execute(
+            "SELECT * FROM shipments WHERE id = ?", (shipment_id,)
+        )
+        row = self.db.cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_shipment_items(self, shipment_id: int):
+        self.db.cursor.execute(
+            "SELECT * FROM shipment_items WHERE shipment_id = ?",
+            (shipment_id,),
+        )
+        cols = [desc[0] for desc in self.db.cursor.description]
+        return [dict(zip(cols, r)) for r in self.db.cursor.fetchall()]
+
+
 class InventoryRepository:
     """Repository for inventory management operations."""
     def __init__(self, db: DatabaseHandler):

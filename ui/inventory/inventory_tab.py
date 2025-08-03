@@ -9,7 +9,7 @@ from shared.structs import (
     SalesDocumentType,
 )
 from ui.inventory.record_receipt_popup import RecordReceiptPopup
-from ui.inventory.record_shipping_popup import RecordShippingPopup
+from ui.inventory.create_shipment_popup import CreateShipmentPopup
 
 
 class InventoryTab:
@@ -102,7 +102,7 @@ class InventoryTab:
         self.ready_tree.bind("<<TreeviewSelect>>", self.on_select_ready_item)
         self.frame.grid_rowconfigure(6, weight=1)
 
-        tk.Button(self.frame, text="Record Shipping", command=self.open_shipping_popup).grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        tk.Button(self.frame, text="Create Packing Slip", command=self.open_create_shipment_popup).grid(row=7, column=0, padx=5, pady=5, sticky="w")
 
     def on_select_item(self, event=None):
         selection = self.to_receive_tree.selection()
@@ -135,7 +135,7 @@ class InventoryTab:
         popup = RecordReceiptPopup(self.frame.master, self.purchase_logic, item, self.refresh_lists)
         self.frame.master.wait_window(popup)
 
-    def open_shipping_popup(self):
+    def open_create_shipment_popup(self):
         if not self.selected_ready_item_id:
             messagebox.showwarning("No Selection", "Please select an item to ship.", parent=self.frame)
             return
@@ -143,15 +143,9 @@ class InventoryTab:
         if not item:
             messagebox.showerror("Error", "Could not load item details.", parent=self.frame)
             return
-        product = (
-            self.product_logic.get_product_details(item.product_id)
-            if item.product_id
-            else None
-        )
-        on_hand = product.quantity_on_hand if product else 0
-        popup = RecordShippingPopup(
-            self.frame.master, self.sales_logic, item, on_hand, self.refresh_lists
-        )
+        doc = self.sales_logic.get_sales_document_details(item.sales_document_id)
+        items = self.sales_logic.get_items_for_sales_document(doc.id)
+        popup = CreateShipmentPopup(self.frame.master, self.sales_logic, doc, items, self.refresh_lists)
         self.frame.master.wait_window(popup)
 
     def refresh_lists(self, event=None):

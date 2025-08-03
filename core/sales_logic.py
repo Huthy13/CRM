@@ -9,6 +9,7 @@ from core.repositories import (
     AccountRepository,
     ProductRepository,
     InventoryRepository,
+    ShipmentRepository,
 )
 from shared.structs import (
     SalesDocument,
@@ -47,6 +48,7 @@ class SalesLogic:
         self.inventory_service = inventory_service or InventoryService(
             inv_repo, self.product_repo
         )
+        self.shipment_repo = ShipmentRepository(db_handler)
         # Expose the underlying database handler for legacy callers
         self.db = db_handler
         self._db = db_handler
@@ -551,48 +553,68 @@ class SalesLogic:
         self.sales_repo.delete_sales_document_item(item_id)
         self._recalculate_sales_document_totals(doc.id)
 
-    def record_item_shipment(self, item_id: int, quantity: float) -> SalesDocumentItem:
-        """Record the shipment of a quantity for a specific sales document item."""
-        if quantity <= 0:
-            raise ValueError("Quantity must be positive.")
+    def create_shipment(self, doc_id: int, item_qty_map: dict[int, float]) -> int:
+        """Create a shipment for multiple items in a sales order.
 
-        item = self.get_sales_document_item_details(item_id)
-        if not item:
-            raise ValueError(f"Item with ID {item_id} not found.")
+        Args:
+            doc_id: ID of the sales document (sales order).
+            item_qty_map: Mapping of sales document item IDs to quantities to ship.
 
-        doc = self.get_sales_document_details(item.sales_document_id)
+        Returns:
+            The newly created shipment ID.
+        """
+        if not item_qty_map:
+            raise ValueError("No items provided for shipment.")
+
+        doc = self.get_sales_document_details(doc_id)
+        if not doc:
+            raise ValueError(f"Sales document with ID {doc_id} not found.")
         if doc.document_type != SalesDocumentType.SALES_ORDER or doc.status != SalesDocumentStatus.SO_OPEN:
             raise ValueError("Can only ship items from open sales orders.")
 
-        if item.shipped_quantity + quantity > item.quantity:
-            raise ValueError("Shipped quantity exceeds ordered quantity.")
+        items = {i.id: i for i in self.get_items_for_sales_document(doc_id)}
+        shipment_id = self.shipment_repo.add_shipment(doc_id)
+        for item_id, qty in item_qty_map.items():
+            if qty <= 0:
+                raise ValueError("Quantity must be positive.")
+            if item_id not in items:
+                raise ValueError(f"Item ID {item_id} not found in document.")
+            item = items[item_id]
+            remaining = item.quantity - item.shipped_quantity
+            if qty > remaining:
+                raise ValueError("Shipped quantity exceeds ordered quantity.")
+            if item.product_id:
+                on_hand = self.inventory_service.inventory_repo.get_stock_level(
+                    item.product_id
+                )
+                if qty > on_hand:
+                    raise ValueError("Not enough stock on hand to ship.")
 
-        if item.product_id:
-            on_hand = self.inventory_service.inventory_repo.get_stock_level(
-                item.product_id
+            self.shipment_repo.add_shipment_item(shipment_id, item_id, qty)
+            new_shipped = item.shipped_quantity + qty
+            is_shipped = new_shipped >= item.quantity
+            self.sales_repo.update_sales_document_item(
+                item_id,
+                {"shipped_quantity": new_shipped, "is_shipped": int(is_shipped)},
             )
-            if quantity > on_hand:
-                raise ValueError("Not enough stock on hand to ship.")
+            if item.product_id:
+                self.inventory_service.adjust_stock(
+                    item.product_id,
+                    -qty,
+                    InventoryTransactionType.SALE,
+                    reference=f"SO#{doc.document_number}",
+                )
 
-        new_shipped = item.shipped_quantity + quantity
-        is_shipped = new_shipped >= item.quantity
-        self.sales_repo.update_sales_document_item(
-            item_id, {"shipped_quantity": new_shipped, "is_shipped": int(is_shipped)}
-        )
-
-        if item.product_id:
-            self.inventory_service.adjust_stock(
-                item.product_id,
-                -quantity,
-                InventoryTransactionType.SALE,
-                reference=f"SO#{doc.document_number}",
-            )
-
-        if is_shipped and self.sales_repo.are_all_items_shipped(doc.id):
+        if self.sales_repo.are_all_items_shipped(doc_id):
             self.sales_repo.update_sales_document(
-                doc.id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
+                doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
             )
+        return shipment_id
 
+    def record_item_shipment(self, item_id: int, quantity: float) -> SalesDocumentItem:
+        """Backward-compatible method to record shipment for a single item."""
+        item = self.get_sales_document_item_details(item_id)
+        self.create_shipment(item.sales_document_id, {item_id: quantity})
         return self.get_sales_document_item_details(item_id)
 
 

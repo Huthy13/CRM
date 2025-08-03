@@ -16,6 +16,9 @@ class SalesPreferencesPopup(tk.Toplevel):
         self.require_ref_var = tk.BooleanVar(
             value=prefs.get('require_reference_on_quote_accept', False)
         )
+        self.quote_expiry_days_var = tk.IntVar(
+            value=prefs.get('default_quote_expiry_days', 30)
+        )
 
         chk = ttk.Checkbutton(
             self,
@@ -23,6 +26,17 @@ class SalesPreferencesPopup(tk.Toplevel):
             variable=self.require_ref_var,
         )
         chk.pack(padx=10, pady=10, anchor="w")
+
+        expiry_frame = ttk.Frame(self)
+        expiry_frame.pack(padx=10, pady=(0,10), anchor="w")
+        ttk.Label(expiry_frame, text="Default quote expiration (days):").pack(side="left")
+        ttk.Spinbox(
+            expiry_frame,
+            from_=1,
+            to=365,
+            width=5,
+            textvariable=self.quote_expiry_days_var,
+        ).pack(side="left", padx=(5,0))
 
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill="x", padx=10, pady=(0, 10))
@@ -35,5 +49,6 @@ class SalesPreferencesPopup(tk.Toplevel):
     def save(self):
         prefs = load_preferences()
         prefs['require_reference_on_quote_accept'] = self.require_ref_var.get()
+        prefs['default_quote_expiry_days'] = int(self.quote_expiry_days_var.get())
         save_preferences(prefs)
         self.destroy()

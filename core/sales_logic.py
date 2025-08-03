@@ -84,9 +84,11 @@ class SalesLogic:
 
         doc_number = self._generate_sales_document_number(SalesDocumentType.QUOTE)
         created_date_str = datetime.datetime.now().isoformat()
-        # Default expiry if not provided (e.g., 30 days from creation)
+        # Default expiry if not provided
         if not expiry_date_iso:
-            expiry_date_iso = (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat()
+            prefs = load_preferences()
+            days = prefs.get('default_quote_expiry_days', 30)
+            expiry_date_iso = (datetime.datetime.now() + datetime.timedelta(days=days)).isoformat()
 
 
         new_doc_id = self.sales_repo.add_sales_document(

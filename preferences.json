@@ -1,3 +1,4 @@
 {
-  "require_reference_on_quote_accept": false
+  "require_reference_on_quote_accept": false,
+  "default_quote_expiry_days": 30
 }

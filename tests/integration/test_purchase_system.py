@@ -128,9 +128,9 @@ class TestPurchaseSystemIntegration(unittest.TestCase):
         po_doc = self.purchase_logic.convert_rfq_to_po(rfq_doc.id)
         self.assertIsNotNone(po_doc)
         self.assertEqual(po_doc.status, PurchaseDocumentStatus.PO_ISSUED)
-        # Document number should now be a new PO number
+        # Document number should remain the same
         self.assertTrue(po_doc.document_number.startswith("P"))
-        self.assertNotEqual(po_doc.document_number, rfq_doc.document_number)
+        self.assertEqual(po_doc.document_number, rfq_doc.document_number)
 
         # 5. Mark PO as Received
         received_doc = self.purchase_logic.mark_document_received(po_doc.id)

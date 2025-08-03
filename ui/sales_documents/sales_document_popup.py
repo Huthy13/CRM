@@ -8,6 +8,7 @@ from shared.structs import (
     AccountType
 )
 from shared.utils import address_has_type, address_is_primary_for
+from core.preferences import load_preferences
 
 NO_CUSTOMER_LABEL = "<Select Customer>" # Changed from Vendor
 DEFAULT_DOC_TYPE = SalesDocumentType.QUOTE # Default for new documents
@@ -56,10 +57,12 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             self.created_date_var.set(datetime.date.today().isoformat())
             self.reference_number_var.set("")
 
+            prefs = load_preferences()
+            default_expiry_days = prefs.get('default_quote_expiry_days', 30)
             if self.current_doc_type == SalesDocumentType.QUOTE:
                 self.current_status = SalesDocumentStatus.QUOTE_DRAFT
                 self.status_var.set(self.current_status.value)
-                self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
+                self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=default_expiry_days)).isoformat())
             elif self.current_doc_type == SalesDocumentType.INVOICE:
                 self.current_status = SalesDocumentStatus.INVOICE_DRAFT
                 self.status_var.set(self.current_status.value)
@@ -226,7 +229,9 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                 if not self.document_id: # Only if creating new
                     if self.current_doc_type == SalesDocumentType.QUOTE:
                         self.status_var.set(SalesDocumentStatus.QUOTE_DRAFT.value)
-                        self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=30)).isoformat())
+                        prefs = load_preferences()
+                        days = prefs.get('default_quote_expiry_days', 30)
+                        self.expiry_date_var.set((datetime.date.today() + datetime.timedelta(days=days)).isoformat())
                         self.due_date_var.set("")
                     elif self.current_doc_type == SalesDocumentType.SALES_ORDER:
                         self.status_var.set(SalesDocumentStatus.SO_OPEN.value)

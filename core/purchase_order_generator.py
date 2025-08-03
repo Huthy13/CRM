@@ -82,6 +82,12 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
                     f"Warning: Vendor with ID {doc.vendor_id} not found for document {doc.document_number}."
                 )
 
+        term_name = None
+        if vendor and getattr(vendor, "payment_term_id", None):
+            term = address_book_logic.get_payment_term(vendor.payment_term_id)
+            if term:
+                term_name = term.term_name
+
         # 4. Fetch Line Items
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
@@ -174,6 +180,9 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
 
         # Ensure the cursor is below the taller of the two columns before proceeding
         pdf.set_y(max(y_after_company_info, y_after_vendor_info))
+        if term_name:
+            pdf.set_font("Arial", "", 11)
+            pdf.cell(0, line_height, f"Terms: {term_name}", 0, 1, "L")
         pdf.ln(line_height * 1.5) # Add some space before the line items table
 
         # Line Items Table

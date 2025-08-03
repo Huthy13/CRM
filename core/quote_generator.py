@@ -93,6 +93,8 @@ def generate_quote_pdf(sales_document_id: int, output_path: str = None):
         pdf.set_font("Arial", "", 11)
         date_str = f"Date: {doc.created_date.split('T')[0] if doc.created_date else 'N/A'}"
         pdf.cell(0, line_height, date_str, 0, 1, "R")
+        expiry_str = f"Expiration Date: {doc.expiry_date.split('T')[0] if doc.expiry_date else 'N/A'}"
+        pdf.cell(0, line_height, expiry_str, 0, 1, "R")
         pdf.ln(line_height * 1.5)
 
         col_width_half = col_width_full / 2 - 5

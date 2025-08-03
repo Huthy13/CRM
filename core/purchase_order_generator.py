@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from fpdf import FPDF
+import sqlite3
 
 # Ensure the project root is in sys.path for absolute imports like 'from shared.structs'
 # This helps when the script is run directly or imported by other modules.
@@ -13,7 +13,14 @@ if PROJECT_ROOT not in sys.path:
 from .database import DatabaseHandler # Relative import for modules within the same package (core)
 from .purchase_logic import PurchaseLogic # Relative import
 from .address_book_logic import AddressBookLogic # Relative import
-from shared.structs import PurchaseDocument, PurchaseDocumentItem, Account, Address, PurchaseDocumentStatus # Absolute import from project root
+from shared.structs import (
+    PurchaseDocument,
+    PurchaseDocumentItem,
+    Account,
+    Address,
+    PurchaseDocumentStatus,
+)
+from shared.utils import address_has_type, address_is_primary_for
 from .pdf_generator import PDF, get_company_pdf_context
 from .company_repository import CompanyRepository
 from .company_service import CompanyService
@@ -56,16 +63,24 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         
         # 3. Fetch Vendor details
 
-        vendor: Account = None
-        vendor_address: Address = None
+        vendor: Account | None = None
+        vendor_address: Address | None = None
         if doc.vendor_id:
-            vendor = address_book_logic.get_account_details(doc.vendor_id) # Use AddressBookLogic
+            vendor = address_book_logic.get_account_details(doc.vendor_id)  # Use AddressBookLogic
             if vendor:
-                if vendor.billing_address_id:
-                    # get_address_obj returns an Address object or None
-                    vendor_address = address_book_logic.get_address_obj(vendor.billing_address_id)
+                for address in vendor.addresses:
+                    if address_is_primary_for(address, "Billing"):
+                        vendor_address = address
+                        break
+                if not vendor_address:
+                    vendor_address = next(
+                        (addr for addr in vendor.addresses if address_has_type(addr, "Billing")),
+                        None,
+                    )
             else:
-                print(f"Warning: Vendor with ID {doc.vendor_id} not found for document {doc.document_number}.")
+                print(
+                    f"Warning: Vendor with ID {doc.vendor_id} not found for document {doc.document_number}."
+                )
 
         # 4. Fetch Line Items
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)

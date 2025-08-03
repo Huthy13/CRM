@@ -195,21 +195,19 @@ class PurchaseLogic:
         if not doc:
             raise ValueError(f"Document with ID {doc_id} not found.")
 
-        if doc.status != PurchaseDocumentStatus.QUOTED:
-            raise ValueError(f"Only RFQs with status 'Quoted' can be converted to PO. Current status: {doc.status.value}")
+        if doc.status not in [PurchaseDocumentStatus.RFQ, PurchaseDocumentStatus.QUOTED]:
+            raise ValueError(
+                f"Only RFQs can be converted to PO. Current status: {doc.status.value}"
+            )
 
-        # When converting, we can either update the status and keep the number,
-        # or generate a new PO number. Generating a new PO number is often cleaner.
-        new_po_number = self._generate_document_number()
-        self.purchase_repo.update_purchase_document(doc_id, {
-            "status": PurchaseDocumentStatus.PO_ISSUED.value,
-            "document_number": new_po_number
-        })
+        self.purchase_repo.update_purchase_document(
+            doc_id, {"status": PurchaseDocumentStatus.PO_ISSUED.value}
+        )
         items = self.get_items_for_document(doc_id)
         for item in items:
             if item.product_id:
                 self.inventory_service.record_purchase_order(
-                    item.product_id, item.quantity, reference=f"PO#{new_po_number}"
+                    item.product_id, item.quantity, reference=f"PO#{doc.document_number}"
                 )
         return self.get_purchase_document_details(doc_id)
 

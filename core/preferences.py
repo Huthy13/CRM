@@ -10,6 +10,7 @@ PREFERENCES_FILE = Path(__file__).resolve().parent.parent / 'preferences.json'
 # Default preferences
 DEFAULT_PREFERENCES: Dict[str, Any] = {
     'require_reference_on_quote_accept': False,
+    'default_quote_expiry_days': 30,
 }
 
 def load_preferences() -> Dict[str, Any]:

@@ -50,7 +50,9 @@ class TestSalesLogic(unittest.TestCase):
         mock_new_doc_id = 100
         self.mock_db_handler.add_sales_document.return_value = mock_new_doc_id
 
-        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="S00000") as mock_gen_num:
+        prefs = {'require_reference_on_quote_accept': False, 'default_quote_expiry_days': 30}
+        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="S00000") as mock_gen_num, \
+             patch('core.sales_logic.load_preferences', return_value=prefs):
             self.mock_db_handler.get_sales_document_by_id.return_value = {
                 "id": mock_new_doc_id,
                 "document_number": "S00000",
@@ -82,6 +84,39 @@ class TestSalesLogic(unittest.TestCase):
             self.assertEqual(call_args['notes'], mock_notes)
             self.assertTrue(call_args['created_date'].startswith(datetime.date.today().isoformat()))
             self.assertTrue(call_args['expiry_date'].startswith((datetime.date.today() + datetime.timedelta(days=30)).isoformat()[:10]))
+
+    def test_create_quote_respects_expiry_preference(self):
+        mock_customer_id = 1
+        self.mock_db_handler.get_account_details.return_value = {
+            "id": mock_customer_id,
+            "name": "Test Customer",
+            "account_type": AccountType.CUSTOMER.value,
+        }
+        mock_new_doc_id = 101
+        self.mock_db_handler.add_sales_document.return_value = mock_new_doc_id
+        prefs = {'require_reference_on_quote_accept': False, 'default_quote_expiry_days': 45}
+        with patch.object(self.sales_logic, '_generate_sales_document_number', return_value="S00001") as mock_gen_num, \
+             patch('core.sales_logic.load_preferences', return_value=prefs):
+            self.mock_db_handler.get_sales_document_by_id.return_value = {
+                "id": mock_new_doc_id,
+                "document_number": "S00001",
+                "customer_id": mock_customer_id,
+                "document_type": SalesDocumentType.QUOTE.value,
+                "created_date": datetime.datetime.now().isoformat(),
+                "expiry_date": (datetime.datetime.now() + datetime.timedelta(days=45)).isoformat(),
+                "status": SalesDocumentStatus.QUOTE_DRAFT.value,
+                "notes": None,
+                "subtotal": 0.0, "taxes": 0.0, "total_amount": 0.0, "related_quote_id": None
+            }
+
+            self.sales_logic.create_quote(customer_id=mock_customer_id)
+
+            call_args = self.mock_db_handler.add_sales_document.call_args[1]
+            self.assertTrue(
+                call_args['expiry_date'].startswith(
+                    (datetime.date.today() + datetime.timedelta(days=45)).isoformat()[:10]
+                )
+            )
 
     def test_create_quote_customer_not_found(self):
         self.mock_db_handler.get_account_details.return_value = None

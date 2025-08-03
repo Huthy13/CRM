@@ -2,6 +2,7 @@ import datetime
 from typing import Optional, List
 import logging
 from core.database import DatabaseHandler
+from core.preferences import load_preferences
 from core.address_book_logic import AddressBookLogic
 from core.inventory_service import InventoryService
 from core.repositories import (
@@ -272,7 +273,8 @@ class SalesLogic:
             raise ValueError(f"Quote with ID {quote_id} not found.")
         if quote_doc.document_type != SalesDocumentType.QUOTE:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
-        if not quote_doc.reference_number:
+        prefs = load_preferences()
+        if prefs.get('require_reference_on_quote_accept') and not quote_doc.reference_number:
             raise ValueError("Reference number is required to convert a Quote to a Sales Order.")
         # Update the document type and status without affecting inventory
         updates = {

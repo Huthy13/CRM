@@ -11,11 +11,19 @@ The codebase follows a repository and service pattern to separate concerns:
 
 For example, `CompanyService` coordinates address validation and persistence through `CompanyRepository` and `AddressService`.
 
+## Seeding the Database
+
+Populate the application with sample data for local development:
+
+```bash
+Python .\scripts\sandbox_data.py
+```
+
 ## Running Tests
 
-Install dependencies and run the test suite from the repository root:
+Install dependencies and execute the test suite:
 
 ```bash
 pip install -r requirements.txt
-pytest
+python .\scripts\test.py
 ```

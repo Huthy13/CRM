@@ -200,6 +200,37 @@ class TestAddressBookLogic(unittest.TestCase):
         primary_remittance_addresses = [addr for addr in addresses if addr['address_type'] == 'Remittance' and addr['is_primary']]
         self.assertEqual(len(primary_remittance_addresses), 1)
 
+    def test_save_address_multiple_types(self):
+        """An address can be associated with multiple types."""
+        from shared.structs import Address, Account
+
+        account = Account(name="MultiType", account_type=AccountType.CUSTOMER)
+        self.logic.save_account(account)
+
+        addr_id = self.logic.add_address("123 Combo St", "ComboCity", "CS", "11111", "CC")
+        address = Address(
+            address_id=addr_id,
+            street="123 Combo St",
+            city="ComboCity",
+            state="CS",
+            zip_code="11111",
+            country="CC",
+        )
+        address.address_types = ["Billing", "Shipping"]
+        address.primary_types = ["Billing"]
+        account.addresses.append(address)
+        self.logic.save_account_addresses(account)
+
+        rows = self.db_handler.get_account_addresses(account.account_id)
+        types = sorted((row['address_type'], row['is_primary']) for row in rows)
+        self.assertEqual(types, [("Billing", 1), ("Shipping", 0)])
+
+        retrieved = self.logic.get_account_details(account.account_id)
+        self.assertEqual(len(retrieved.addresses), 1)
+        addr = retrieved.addresses[0]
+        self.assertEqual(sorted(getattr(addr, 'address_types', [])), ["Billing", "Shipping"])
+        self.assertIn("Billing", getattr(addr, 'primary_types', []))
+
 if __name__ == '__main__':
     unittest.main()
 

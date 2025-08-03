@@ -24,18 +24,30 @@ class CompanyService:
             addresses=[],
         )
         addresses_data = self.repo.get_company_addresses(company.company_id)
+        address_map: dict[int, Address] = {}
         for addr_data in addresses_data:
-            address = Address(
-                address_id=addr_data["address_id"],
-                street=addr_data["street"],
-                city=addr_data["city"],
-                state=addr_data["state"],
-                zip_code=addr_data["zip"],
-                country=addr_data["country"],
-            )
-            address.address_type = addr_data["address_type"]
-            address.is_primary = addr_data["is_primary"]
-            company.addresses.append(address)
+            addr_id = addr_data["address_id"]
+            address = address_map.get(addr_id)
+            if not address:
+                address = Address(
+                    address_id=addr_id,
+                    street=addr_data["street"],
+                    city=addr_data["city"],
+                    state=addr_data["state"],
+                    zip_code=addr_data["zip"],
+                    country=addr_data["country"],
+                )
+                address.address_types = []
+                address.primary_types = []
+                address_map[addr_id] = address
+            address.address_types.append(addr_data["address_type"])
+            if addr_data["is_primary"]:
+                address.primary_types.append(addr_data["address_type"])
+
+        company.addresses = list(address_map.values())
+        for addr in company.addresses:
+            addr.address_type = addr.address_types[0] if addr.address_types else ""
+            addr.is_primary = addr.address_type in addr.primary_types
         return company
 
     def save_company_information(self, company: CompanyInformation) -> None:
@@ -61,7 +73,16 @@ class CompanyService:
                     address.zip_code,
                     address.country,
                 )
-            self.repo.add_company_address(
-                company.company_id, addr_id, address.address_type, getattr(address, "is_primary", False)
-            )
+
+            types = getattr(address, "address_types", None) or [
+                t for t in [getattr(address, "address_type", "")] if t
+            ]
+            primary_types = getattr(address, "primary_types", [])
+            for addr_type in types:
+                self.repo.add_company_address(
+                    company.company_id,
+                    addr_id,
+                    addr_type,
+                    addr_type in primary_types,
+                )
         self.repo.update_company_information(company.company_id, company.name, company.phone)

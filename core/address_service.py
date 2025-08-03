@@ -11,15 +11,36 @@ class AddressService:
 
     @staticmethod
     def enforce_single_primary(addresses):
-        """Ensure only one primary address exists per address type."""
-        primary_found = set()
+        """Ensure only one primary address exists per address type.
+
+        Supports both the legacy single ``address_type``/``is_primary`` attributes
+        and the newer ``address_types``/``primary_types`` lists. When multiple
+        addresses claim to be primary for the same type, only the last one is kept
+        as primary.
+        """
+        seen_types: set[str] = set()
         for address in reversed(addresses):
-            if getattr(address, "is_primary", False):
-                addr_type = getattr(address, "address_type", None)
-                if addr_type in primary_found:
-                    address.is_primary = False
-                else:
-                    primary_found.add(addr_type)
+            types = getattr(address, "address_types", None) or [
+                t for t in [getattr(address, "address_type", "")] if t
+            ]
+            primary_types = getattr(address, "primary_types", None)
+            if not primary_types:
+                primary_types = [
+                    getattr(address, "address_type", "")
+                    if getattr(address, "is_primary", False)
+                    else None
+                ]
+                primary_types = [t for t in primary_types if t]
+
+            cleaned_primary = []
+            for addr_type in primary_types:
+                if addr_type not in seen_types:
+                    seen_types.add(addr_type)
+                    cleaned_primary.append(addr_type)
+            address.address_types = types
+            address.primary_types = cleaned_primary
+            address.address_type = types[0] if types else ""
+            address.is_primary = address.address_type in address.primary_types
 
     def add_address(self, street, city, state, zip_code, country):
         """Add a new address and return its ID."""
@@ -57,23 +78,24 @@ class AddressService:
                     address.zip_code,
                     address.country,
                 )
-                self.account_repo.add_account_address(
-                    account.account_id,
-                    address.address_id,
-                    address.address_type,
-                    address.is_primary,
-                )
+                addr_id = address.address_id
             else:
-                address_id = self.address_repo.add_address(
+                addr_id = self.address_repo.add_address(
                     address.street,
                     address.city,
                     address.state,
                     address.zip_code,
                     address.country,
                 )
+
+            types = getattr(address, "address_types", None) or [
+                t for t in [getattr(address, "address_type", "")] if t
+            ]
+            primary_types = getattr(address, "primary_types", [])
+            for addr_type in types:
                 self.account_repo.add_account_address(
                     account.account_id,
-                    address_id,
-                    address.address_type,
-                    address.is_primary,
+                    addr_id,
+                    addr_type,
+                    addr_type in primary_types,
                 )

@@ -133,19 +133,30 @@ class AddressBookLogic:
                 except ValueError:
                     logger.warning("Invalid account type string '%s' in DB for account ID %s", account_type_str, data.get('id'))
 
-            addresses = []
+            address_map: dict[int, Address] = {}
             for addr_data in data.get('addresses', []):
-                address = Address(
-                    address_id=addr_data['address_id'],
-                    street=addr_data['street'],
-                    city=addr_data['city'],
-                    state=addr_data['state'],
-                    zip_code=addr_data['zip'],
-                    country=addr_data['country']
-                )
-                address.address_type = addr_data['address_type']
-                address.is_primary = addr_data['is_primary']
-                addresses.append(address)
+                addr_id = addr_data['address_id']
+                address = address_map.get(addr_id)
+                if not address:
+                    address = Address(
+                        address_id=addr_id,
+                        street=addr_data['street'],
+                        city=addr_data['city'],
+                        state=addr_data['state'],
+                        zip_code=addr_data['zip'],
+                        country=addr_data['country'],
+                    )
+                    address.address_types = []
+                    address.primary_types = []
+                    address_map[addr_id] = address
+                address.address_types.append(addr_data['address_type'])
+                if addr_data['is_primary']:
+                    address.primary_types.append(addr_data['address_type'])
+
+            addresses = list(address_map.values())
+            for address in addresses:
+                address.address_type = address.address_types[0] if address.address_types else ""
+                address.is_primary = address.address_type in address.primary_types
 
             return Account(
                 account_id=data.get("id"),  # Ensure key matches db output

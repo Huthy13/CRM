@@ -12,7 +12,7 @@ from core.database import DatabaseHandler
 from core.sales_logic import SalesLogic
 from core.address_book_logic import AddressBookLogic
 from shared.structs import SalesDocument, SalesDocumentItem, Account, Address
-from shared.utils import sanitize_filename
+from shared.utils import sanitize_filename, address_has_type, address_is_primary_for
 from core.pdf_generator import PDF, get_company_pdf_context
 from core.company_repository import CompanyRepository
 from core.company_service import CompanyService
@@ -53,14 +53,24 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             customer = address_book_logic.get_account_details(doc.customer_id)
             if customer:
                 for address in customer.addresses:
-                    if address.address_type == 'Billing' and address.is_primary:
+                    if address_is_primary_for(address, 'Billing'):
                         customer_billing_address = address
-                    if address.address_type == 'Shipping' and address.is_primary:
+                    if address_is_primary_for(address, 'Shipping'):
                         customer_shipping_address = address
-                if not customer_billing_address and any(addr.address_type == 'Billing' for addr in customer.addresses):
-                    customer_billing_address = next(addr for addr in customer.addresses if addr.address_type == 'Billing')
-                if not customer_shipping_address and any(addr.address_type == 'Shipping' for addr in customer.addresses):
-                    customer_shipping_address = next(addr for addr in customer.addresses if addr.address_type == 'Shipping')
+                if (
+                    not customer_billing_address
+                    and any(address_has_type(addr, 'Billing') for addr in customer.addresses)
+                ):
+                    customer_billing_address = next(
+                        addr for addr in customer.addresses if address_has_type(addr, 'Billing')
+                    )
+                if (
+                    not customer_shipping_address
+                    and any(address_has_type(addr, 'Shipping') for addr in customer.addresses)
+                ):
+                    customer_shipping_address = next(
+                        addr for addr in customer.addresses if address_has_type(addr, 'Shipping')
+                    )
 
         items: list[SalesDocumentItem] = sales_logic.get_items_for_sales_document(doc.id)
 

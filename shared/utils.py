@@ -35,6 +35,35 @@ def sanitize_filename(filename: str) -> str:
     return filename or "unnamed_file"
 
 
+def address_has_type(address, addr_type: str) -> bool:
+    """Return True if the address is associated with the given type.
+
+    The address may store its types in ``address.address_types`` (a list) or
+    in the legacy ``address.address_type`` attribute. This helper normalises
+    both representations.
+    """
+    types = getattr(address, "address_types", None)
+    if types:
+        return addr_type in types
+    return getattr(address, "address_type", "") == addr_type
+
+
+def address_is_primary_for(address, addr_type: str) -> bool:
+    """Return True if the address is the primary one for ``addr_type``.
+
+    Similar to :func:`address_has_type`, this helper understands both the list
+    based ``primary_types`` attribute and the legacy ``is_primary``/``address_type``
+    combination.
+    """
+    primary_types = getattr(address, "primary_types", None)
+    if primary_types is not None:
+        return addr_type in primary_types
+    return (
+        getattr(address, "is_primary", False)
+        and getattr(address, "address_type", "") == addr_type
+    )
+
+
 def example_utility_function():
     """
     An example utility function.

@@ -9,6 +9,7 @@ if PROJECT_ROOT not in sys.path:
 
 from core.company_service import CompanyService
 from shared.structs import Address
+from shared.utils import address_has_type, address_is_primary_for
 
 class PDF(FPDF):
     def __init__(self, document_number=None, company_name="Your Company Name", company_billing_address_lines=None, document_type="Purchase Order"):
@@ -91,15 +92,27 @@ def get_company_pdf_context(service: CompanyService):
     company_phone = company.phone or ""
 
     billing_addr = next(
-        (a for a in company.addresses if a.address_type == "Billing" and getattr(a, "is_primary", False)),
+        (
+            a
+            for a in company.addresses
+            if address_has_type(a, "Billing") and address_is_primary_for(a, "Billing")
+        ),
         None,
     )
     shipping_addr = next(
-        (a for a in company.addresses if a.address_type == "Shipping" and getattr(a, "is_primary", False)),
+        (
+            a
+            for a in company.addresses
+            if address_has_type(a, "Shipping") and address_is_primary_for(a, "Shipping")
+        ),
         None,
     )
     remittance_addr = next(
-        (a for a in company.addresses if a.address_type == "Remittance" and getattr(a, "is_primary", False)),
+        (
+            a
+            for a in company.addresses
+            if address_has_type(a, "Remittance") and address_is_primary_for(a, "Remittance")
+        ),
         None,
     )
 

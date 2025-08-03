@@ -8,7 +8,7 @@ from shared.structs import (
     SalesDocumentStatus,
     SalesDocumentType,
 )
-from ui.inventory.record_receipt_popup import RecordReceiptPopup
+from ui.inventory.record_receipts_popup import RecordReceiptsPopup
 from ui.inventory.record_shipping_popup import RecordShippingPopup
 
 
@@ -25,6 +25,7 @@ class InventoryTab:
         self.product_logic = product_logic
         self.sales_logic = sales_logic
         self.selected_item_id = None
+        self.selected_doc_id = None
         self.selected_ready_item_id = None
         self.selected_ready_doc_id = None
 
@@ -108,12 +109,22 @@ class InventoryTab:
     def on_select_item(self, event=None):
         selection = self.to_receive_tree.selection()
         if selection:
-            try:
-                self.selected_item_id = int(selection[0])
-            except ValueError:
+            iid = selection[0]
+            if iid.startswith("doc_"):
+                try:
+                    self.selected_doc_id = int(iid.split("_")[1])
+                except ValueError:
+                    self.selected_doc_id = None
                 self.selected_item_id = None
+            else:
+                try:
+                    self.selected_item_id = int(iid)
+                except ValueError:
+                    self.selected_item_id = None
+                self.selected_doc_id = None
         else:
             self.selected_item_id = None
+            self.selected_doc_id = None
 
     def on_select_ready_item(self, event=None):
         selection = self.ready_tree.selection()
@@ -136,14 +147,40 @@ class InventoryTab:
             self.selected_ready_doc_id = None
 
     def open_receipt_popup(self):
-        if not self.selected_item_id:
-            messagebox.showwarning("No Selection", "Please select an item to receive.", parent=self.frame)
+        doc_id = None
+        if self.selected_doc_id:
+            doc_id = self.selected_doc_id
+        elif self.selected_item_id:
+            item = self.purchase_logic.get_purchase_document_item_details(
+                self.selected_item_id
+            )
+            if not item:
+                messagebox.showerror(
+                    "Error", "Could not load item details.", parent=self.frame
+                )
+                return
+            doc_id = item.purchase_document_id
+        else:
+            messagebox.showwarning(
+                "No Selection", "Please select an order or item to receive.", parent=self.frame
+            )
             return
-        item = self.purchase_logic.get_purchase_document_item_details(self.selected_item_id)
-        if not item:
-            messagebox.showerror("Error", "Could not load item details.", parent=self.frame)
+
+        items = self.purchase_logic.get_items_for_document(doc_id)
+        item_data = [
+            item
+            for item in items
+            if item.quantity - item.received_quantity > 0
+        ]
+        if not item_data:
+            messagebox.showinfo(
+                "No Items", "No items remaining to receive.", parent=self.frame
+            )
             return
-        popup = RecordReceiptPopup(self.frame.master, self.purchase_logic, item, self.refresh_lists)
+
+        popup = RecordReceiptsPopup(
+            self.frame.master, self.purchase_logic, doc_id, item_data, self.refresh_lists
+        )
         self.frame.master.wait_window(popup)
 
     def open_shipping_popup(self):
@@ -244,6 +281,7 @@ class InventoryTab:
         }
         self.to_receive_tree.delete(*self.to_receive_tree.get_children())
         self.selected_item_id = None
+        self.selected_doc_id = None
         docs = self.purchase_logic.get_all_documents_by_criteria(
             status=PurchaseDocumentStatus.PO_ISSUED
         )

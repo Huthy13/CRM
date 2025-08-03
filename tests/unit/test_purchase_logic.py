@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 import datetime
 
 # Before importing PurchaseLogic, ensure shared.structs and core.database can be found
@@ -247,6 +247,51 @@ class TestPurchaseLogic(unittest.TestCase):
             doc_id, PurchaseDocumentStatus.RECEIVED.value
         )
         self.assertEqual(updated_item.received_quantity, 5)
+
+    def test_record_receipts_multiple_items(self):
+        doc_id = 1
+        item1_id = 10
+        item2_id = 11
+        doc = PurchaseDocument(
+            doc_id=doc_id,
+            document_number="P00001",
+            vendor_id=1,
+            created_date="2023-01-01",
+            status=PurchaseDocumentStatus.PO_ISSUED,
+            notes="",
+        )
+        item1 = PurchaseDocumentItem(
+            item_id=item1_id,
+            purchase_document_id=doc_id,
+            product_id=101,
+            product_description="Item1",
+            quantity=5,
+            received_quantity=0,
+        )
+        item2 = PurchaseDocumentItem(
+            item_id=item2_id,
+            purchase_document_id=doc_id,
+            product_id=102,
+            product_description="Item2",
+            quantity=3,
+            received_quantity=0,
+        )
+        self.purchase_logic.get_purchase_document_details = MagicMock(return_value=doc)
+        self.purchase_logic.get_purchase_document_item_details = MagicMock(
+            side_effect=[item1, item2]
+        )
+        self.purchase_logic.record_item_receipt = MagicMock()
+
+        self.purchase_logic.record_receipts(doc_id, {item1_id: 2, item2_id: 1})
+
+        expected_calls = [call(item1_id, 2), call(item2_id, 1)]
+        self.purchase_logic.record_item_receipt.assert_has_calls(
+            expected_calls, any_order=True
+        )
+
+    def test_record_receipts_no_items(self):
+        with self.assertRaises(ValueError):
+            self.purchase_logic.record_receipts(1, {})
 
     def test_update_document_item_item_not_found(self): # Renamed
         self.mock_db_handler.get_purchase_document_item_by_id.side_effect = None

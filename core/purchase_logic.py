@@ -398,6 +398,23 @@ class PurchaseLogic:
 
         self.purchase_repo.delete_purchase_document_item(item_id)
 
+    def record_receipts(self, doc_id: int, items: dict[int, float]) -> None:
+        """Record receipts for multiple purchase document items."""
+        if not items:
+            raise ValueError("No items provided for receipt.")
+
+        doc = self.get_purchase_document_details(doc_id)
+        if not doc or doc.status != PurchaseDocumentStatus.PO_ISSUED:
+            raise ValueError("Can only receive items from issued purchase orders.")
+
+        for item_id, qty in items.items():
+            if qty <= 0:
+                raise ValueError("Quantity must be positive.")
+            item = self.get_purchase_document_item_details(item_id)
+            if not item or item.purchase_document_id != doc_id:
+                raise ValueError("Invalid item for receipt.")
+            self.record_item_receipt(item_id, qty)
+
     def record_item_receipt(self, item_id: int, quantity: float) -> PurchaseDocumentItem:
         """Record the receipt of a quantity for a specific purchase document item."""
         if quantity <= 0:

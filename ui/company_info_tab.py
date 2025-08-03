@@ -137,22 +137,33 @@ class AddressPopup(tk.Toplevel):
         self.state_entry = self._create_entry("State:", 2, self.address.state)
         self.zip_entry = self._create_entry("Zip:", 3, self.address.zip_code)
         self.country_entry = self._create_entry("Country:", 4, self.address.country)
-        tk.Label(self, text="Type:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
-        self.type_var = tk.StringVar(self)
-        self.type_dropdown = ttk.Combobox(
-            self,
-            textvariable=self.type_var,
-            values=["Billing", "Shipping", "Remittance"],
-            state="readonly",
-            width=37,
-        )
-        if hasattr(self.address, 'address_type'):
-            self.type_dropdown.set(self.address.address_type)
-        self.type_dropdown.grid(row=5, column=1, padx=5, pady=5)
-        self.primary_var = tk.BooleanVar(value=self.address.is_primary if hasattr(self.address, 'is_primary') else False)
-        self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
-        self.primary_check.grid(row=6, column=0, columnspan=2)
-        tk.Button(self, text="Save", command=self.save).grid(row=7, column=0, columnspan=2)
+
+        tk.Label(self, text="Type").grid(row=5, column=0, padx=5, pady=(10, 5))
+        tk.Label(self, text="Use").grid(row=5, column=1, padx=5, pady=(10, 5))
+        tk.Label(self, text="Primary").grid(row=5, column=2, padx=5, pady=(10, 5))
+
+        self.type_vars: dict[str, tk.BooleanVar] = {}
+        self.primary_vars: dict[str, tk.BooleanVar] = {}
+        self.primary_checks: dict[str, tk.Checkbutton] = {}
+        address_types = ["Billing", "Shipping", "Remittance"]
+        current_type = getattr(self.address, 'address_type', "")
+        is_primary = getattr(self.address, 'is_primary', False)
+        for i, atype in enumerate(address_types):
+            row = 6 + i
+            tk.Label(self, text=atype + ":").grid(row=row, column=0, sticky="e", padx=5, pady=2)
+            type_var = tk.BooleanVar(value=current_type == atype)
+            type_cb = tk.Checkbutton(self, variable=type_var, command=lambda a=atype: self._on_type_select(a))
+            type_cb.grid(row=row, column=1, padx=5, pady=2)
+            primary_var = tk.BooleanVar(value=current_type == atype and is_primary)
+            primary_cb = tk.Checkbutton(self, variable=primary_var)
+            primary_cb.grid(row=row, column=2, padx=5, pady=2)
+            if not type_var.get():
+                primary_cb.config(state="disabled")
+            self.type_vars[atype] = type_var
+            self.primary_vars[atype] = primary_var
+            self.primary_checks[atype] = primary_cb
+
+        tk.Button(self, text="Save", command=self.save).grid(row=9, column=0, columnspan=3, pady=5)
 
     def _create_entry(self, label_text, row, initial_value=""):
         label = tk.Label(self, text=label_text)
@@ -168,9 +179,23 @@ class AddressPopup(tk.Toplevel):
         self.address.state = self.state_entry.get()
         self.address.zip_code = self.zip_entry.get()
         self.address.country = self.country_entry.get()
-        self.address.address_type = self.type_var.get()
-        self.address.is_primary = self.primary_var.get()
+        selected_type = next((t for t, v in self.type_vars.items() if v.get()), "")
+        self.address.address_type = selected_type
+        self.address.is_primary = self.primary_vars.get(selected_type, tk.BooleanVar(value=False)).get()
         self.destroy()
+
+    def _on_type_select(self, selected):
+        for atype, var in self.type_vars.items():
+            if atype != selected:
+                var.set(False)
+                self.primary_vars[atype].set(False)
+                self.primary_checks[atype].config(state="disabled")
+            else:
+                if var.get():
+                    self.primary_checks[atype].config(state="normal")
+                else:
+                    self.primary_vars[atype].set(False)
+                    self.primary_checks[atype].config(state="disabled")
 
 if __name__ == '__main__':
     # This is example code for testing the tab independently.

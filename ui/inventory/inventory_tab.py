@@ -37,18 +37,16 @@ class InventoryTab:
         tk.Label(self.frame, text="To Order").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.to_order_tree = ttk.Treeview(
             self.frame,
-            columns=("product", "ordered", "on_hand", "on_order", "to_order"),
+            columns=("product", "on_hand", "on_order", "to_order"),
             show="tree headings",
         )
         self.to_order_tree.heading("#0", text="SO Number")
         self.to_order_tree.heading("product", text="Product")
-        self.to_order_tree.heading("ordered", text="Ordered")
         self.to_order_tree.heading("on_hand", text="On Hand")
         self.to_order_tree.heading("on_order", text="On Order")
         self.to_order_tree.heading("to_order", text="To Order")
         self.to_order_tree.column("#0", width=100)
         self.to_order_tree.column("product", width=200)
-        self.to_order_tree.column("ordered", width=80, anchor=tk.E)
         self.to_order_tree.column("on_hand", width=80, anchor=tk.E)
         self.to_order_tree.column("on_order", width=80, anchor=tk.E)
         self.to_order_tree.column("to_order", width=80, anchor=tk.E)
@@ -85,20 +83,20 @@ class InventoryTab:
         tk.Label(self.frame, text="Ready to Ship").grid(row=5, column=0, padx=5, pady=5, sticky="w")
         self.ready_tree = ttk.Treeview(
             self.frame,
-            columns=("doc", "product", "ordered", "shipped", "remaining", "on_hand"),
-            show="headings",
+            columns=("product", "ordered", "shipped", "remaining", "on_hand"),
+            show="tree headings",
         )
-        self.ready_tree.heading("doc", text="SO Number")
+        self.ready_tree.heading("#0", text="SO Number")
         self.ready_tree.heading("product", text="Product")
-        self.ready_tree.heading("ordered", text="Ordered")
+        self.ready_tree.heading("ordered", text="Customer Ordered")
         self.ready_tree.heading("shipped", text="Shipped")
-        self.ready_tree.heading("remaining", text="Remaining")
+        self.ready_tree.heading("remaining", text="Remaining to Ship")
         self.ready_tree.heading("on_hand", text="On Hand")
-        self.ready_tree.column("doc", width=100)
+        self.ready_tree.column("#0", width=100)
         self.ready_tree.column("product", width=200)
         self.ready_tree.column("ordered", width=80, anchor=tk.E)
         self.ready_tree.column("shipped", width=80, anchor=tk.E)
-        self.ready_tree.column("remaining", width=80, anchor=tk.E)
+        self.ready_tree.column("remaining", width=120, anchor=tk.E)
         self.ready_tree.column("on_hand", width=80, anchor=tk.E)
         self.ready_tree.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.ready_tree.bind("<<TreeviewSelect>>", self.on_select_ready_item)
@@ -204,7 +202,6 @@ class InventoryTab:
                         text="",
                         values=(
                             item.product_description,
-                            item.quantity,
                             on_hand,
                             on_order,
                             to_order,
@@ -245,6 +242,11 @@ class InventoryTab:
                     )
 
     def refresh_ready_to_ship(self):
+        expanded_docs = {
+            iid
+            for iid in self.ready_tree.get_children()
+            if self.ready_tree.item(iid, "open")
+        }
         self.ready_tree.delete(*self.ready_tree.get_children())
         self.selected_ready_item_id = None
         orders = self.sales_logic.get_all_sales_documents_by_criteria(
@@ -252,7 +254,10 @@ class InventoryTab:
             status=SalesDocumentStatus.SO_OPEN,
         )
         for doc in orders:
+            doc_iid = f"doc_{doc.id}"
+            is_open = doc_iid in expanded_docs
             items = self.sales_logic.get_items_for_sales_document(doc.id)
+            doc_inserted = False
             for item in items:
                 remaining = item.quantity - item.shipped_quantity
                 if remaining <= 0:
@@ -263,12 +268,21 @@ class InventoryTab:
                     else None
                 )
                 on_hand = product.quantity_on_hand if product else 0
+                if not doc_inserted:
+                    self.ready_tree.insert(
+                        "",
+                        "end",
+                        iid=doc_iid,
+                        text=doc.document_number,
+                        open=is_open,
+                    )
+                    doc_inserted = True
                 self.ready_tree.insert(
-                    "",
+                    doc_iid,
                     "end",
                     iid=item.id,
+                    text="",
                     values=(
-                        doc.document_number,
                         item.product_description,
                         item.quantity,
                         item.shipped_quantity,

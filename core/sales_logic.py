@@ -567,6 +567,13 @@ class SalesLogic:
         if item.shipped_quantity + quantity > item.quantity:
             raise ValueError("Shipped quantity exceeds ordered quantity.")
 
+        if item.product_id:
+            on_hand = self.inventory_service.inventory_repo.get_stock_level(
+                item.product_id
+            )
+            if quantity > on_hand:
+                raise ValueError("Not enough stock on hand to ship.")
+
         new_shipped = item.shipped_quantity + quantity
         is_shipped = new_shipped >= item.quantity
         self.sales_repo.update_sales_document_item(

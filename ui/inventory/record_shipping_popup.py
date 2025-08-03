@@ -42,6 +42,14 @@ class RecordShippingPopup(tk.Toplevel):
             messagebox.showerror("Validation Error", f"Quantity must be between 0 and {remaining}.", parent=self)
             return
 
+        if qty > self.on_hand:
+            messagebox.showerror(
+                "Validation Error",
+                f"Cannot ship more than on-hand ({self.on_hand}).",
+                parent=self,
+            )
+            return
+
         try:
             self.sales_logic.record_item_shipment(self.item.id, qty)
             messagebox.showinfo("Success", "Shipment recorded.", parent=self)

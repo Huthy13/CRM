@@ -461,8 +461,8 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             self.shipments_tree.delete(i)
         self.shipments_lookup.clear()
         if self.document_data and self.document_data.id:
-            shipments = self.sales_logic.get_shipments_for_order(self.document_data.id)
-            for shipment in shipments:
+            self.shipments_list = self.sales_logic.get_shipments_for_order(self.document_data.id)
+            for shipment in self.shipments_list:
                 parent = self.shipments_tree.insert(
                     "",
                     tk.END,
@@ -505,10 +505,23 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
             messagebox.showerror("Error", "Shipment data not found.", parent=self)
             return
         shipments_map = {item["item_id"]: item["quantity"] for item in shipment["items"]}
+        previous_shipments: dict[int, float] = {}
+        for s in getattr(self, "shipments_list", []):
+            if s["number"] == shipment["number"]:
+                break
+            for itm in s["items"]:
+                previous_shipments[itm["item_id"]] = (
+                    previous_shipments.get(itm["item_id"], 0) + itm["quantity"]
+                )
         try:
             from core.packing_slip_generator import generate_packing_slip_pdf
 
-            generate_packing_slip_pdf(self.document_data.id, shipments_map, shipment["number"])
+            generate_packing_slip_pdf(
+                self.document_data.id,
+                shipments_map,
+                shipment["number"],
+                previous_shipments=previous_shipments,
+            )
             messagebox.showinfo("Success", "Packing slip generated.", parent=self)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate packing slip: {e}", parent=self)

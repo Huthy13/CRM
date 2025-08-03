@@ -945,3 +945,25 @@ class TestPackingSlipGeneration(unittest.TestCase):
         self.assertIn(b"Qty Remaining", decompressed)
         self.assertNotIn(b"No remaining items", decompressed)
         os.unlink(tmp.name)
+
+    def test_packing_slip_no_remaining_items(self):
+        shipments = {self.item.id: 2}
+        shipment_number = self.sales_logic.record_shipment(
+            self.sales_order.id, shipments
+        )
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        tmp.close()
+        generate_packing_slip_pdf(
+            self.sales_order.id, shipments, shipment_number, tmp.name, self.db
+        )
+        self.assertTrue(os.path.exists(tmp.name))
+        self.assertGreater(os.path.getsize(tmp.name), 0)
+        with open(tmp.name, "rb") as f:
+            raw = f.read()
+        stream_start = raw.find(b"stream")
+        stream_start = raw.find(b"\n", stream_start) + 1
+        stream_end = raw.find(b"endstream", stream_start)
+        decompressed = zlib.decompress(raw[stream_start:stream_end])
+        self.assertNotIn(b"Items Remaining to Ship", decompressed)
+        self.assertNotIn(b"Qty Remaining", decompressed)
+        os.unlink(tmp.name)

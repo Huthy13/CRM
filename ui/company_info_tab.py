@@ -66,7 +66,15 @@ class CompanyInfoTab:
         if self.company_info and hasattr(self.company_info, 'addresses'):
             for i, addr in enumerate(self.company_info.addresses):
                 address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
-                self.address_tree.insert("", "end", values=(addr.address_type, addr.is_primary, address_str), iid=i)
+                types = getattr(addr, 'address_types', [])
+                if not types and getattr(addr, 'address_type', ""):
+                    types = [addr.address_type]
+                type_str = ", ".join([t for t in types if t])
+                primary_types = getattr(addr, 'primary_types', [])
+                if not primary_types and getattr(addr, 'is_primary', False) and getattr(addr, 'address_type', ""):
+                    primary_types = [addr.address_type]
+                primary_str = ", ".join(primary_types)
+                self.address_tree.insert("", "end", values=(type_str, primary_str, address_str), iid=i)
 
     def add_address(self):
         address_popup = AddressPopup(self.frame)
@@ -74,10 +82,18 @@ class CompanyInfoTab:
         if hasattr(address_popup, 'address'):
             if not hasattr(address_popup.address, 'address_id'):
                 address_popup.address.address_id = None
+            if not hasattr(address_popup.address, 'address_types'):
+                address_popup.address.address_types = []
+            if not hasattr(address_popup.address, 'primary_types'):
+                address_popup.address.primary_types = []
             if not hasattr(address_popup.address, 'address_type'):
-                address_popup.address.address_type = ''
+                address_popup.address.address_type = (
+                    address_popup.address.address_types[0] if address_popup.address.address_types else ""
+                )
             if not hasattr(address_popup.address, 'is_primary'):
-                address_popup.address.is_primary = False
+                address_popup.address.is_primary = (
+                    address_popup.address.address_type in address_popup.address.primary_types
+                )
             self.company_info.addresses.append(address_popup.address)
             self.populate_address_tree()
 
@@ -146,15 +162,19 @@ class AddressPopup(tk.Toplevel):
         self.primary_vars: dict[str, tk.BooleanVar] = {}
         self.primary_checks: dict[str, tk.Checkbutton] = {}
         address_types = ["Billing", "Shipping", "Remittance"]
-        current_type = getattr(self.address, 'address_type', "")
-        is_primary = getattr(self.address, 'is_primary', False)
+        current_types = getattr(self.address, 'address_types', [])
+        if not current_types and getattr(self.address, 'address_type', ""):
+            current_types = [self.address.address_type]
+        primary_types = getattr(self.address, 'primary_types', [])
+        if not primary_types and getattr(self.address, 'is_primary', False) and getattr(self.address, 'address_type', ""):
+            primary_types = [self.address.address_type]
         for i, atype in enumerate(address_types):
             row = 6 + i
             tk.Label(self, text=atype + ":").grid(row=row, column=0, sticky="e", padx=5, pady=2)
-            type_var = tk.BooleanVar(value=current_type == atype)
-            type_cb = tk.Checkbutton(self, variable=type_var, command=lambda a=atype: self._on_type_select(a))
+            type_var = tk.BooleanVar(value=atype in current_types)
+            type_cb = tk.Checkbutton(self, variable=type_var, command=lambda a=atype: self._on_type_toggle(a))
             type_cb.grid(row=row, column=1, padx=5, pady=2)
-            primary_var = tk.BooleanVar(value=current_type == atype and is_primary)
+            primary_var = tk.BooleanVar(value=atype in primary_types)
             primary_cb = tk.Checkbutton(self, variable=primary_var)
             primary_cb.grid(row=row, column=2, padx=5, pady=2)
             if not type_var.get():
@@ -179,23 +199,20 @@ class AddressPopup(tk.Toplevel):
         self.address.state = self.state_entry.get()
         self.address.zip_code = self.zip_entry.get()
         self.address.country = self.country_entry.get()
-        selected_type = next((t for t, v in self.type_vars.items() if v.get()), "")
-        self.address.address_type = selected_type
-        self.address.is_primary = self.primary_vars.get(selected_type, tk.BooleanVar(value=False)).get()
+        selected_types = [t for t, v in self.type_vars.items() if v.get()]
+        primary_types = [t for t in selected_types if self.primary_vars[t].get()]
+        self.address.address_types = selected_types
+        self.address.primary_types = primary_types
+        self.address.address_type = selected_types[0] if selected_types else ""
+        self.address.is_primary = self.address.address_type in primary_types
         self.destroy()
 
-    def _on_type_select(self, selected):
-        for atype, var in self.type_vars.items():
-            if atype != selected:
-                var.set(False)
-                self.primary_vars[atype].set(False)
-                self.primary_checks[atype].config(state="disabled")
-            else:
-                if var.get():
-                    self.primary_checks[atype].config(state="normal")
-                else:
-                    self.primary_vars[atype].set(False)
-                    self.primary_checks[atype].config(state="disabled")
+    def _on_type_toggle(self, atype):
+        if self.type_vars[atype].get():
+            self.primary_checks[atype].config(state="normal")
+        else:
+            self.primary_vars[atype].set(False)
+            self.primary_checks[atype].config(state="disabled")
 
 if __name__ == '__main__':
     # This is example code for testing the tab independently.

@@ -65,5 +65,19 @@ class InventoryServiceTest(unittest.TestCase):
         self.assertEqual(lookup[second_product]["on_order"], 2)
         self.assertEqual(lookup[self.product_id]["on_hand"], 8)
 
+    def test_get_products_below_reorder(self):
+        service = InventoryService(self.inventory_repo, self.product_repo)
+        # Reduce stock below reorder point
+        service.adjust_stock(
+            self.product_id, -4, InventoryTransactionType.SALE, reference="SO#1"
+        )
+        low_stock = service.get_products_below_reorder()
+        self.assertEqual(len(low_stock), 1)
+        item = low_stock[0]
+        self.assertEqual(item["product_id"], self.product_id)
+        self.assertEqual(item["on_hand"], 4)
+        self.assertEqual(item["on_order"], 0)
+        self.assertEqual(item["to_order"], 10)
+
 if __name__ == "__main__":
     unittest.main()

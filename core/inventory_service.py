@@ -79,3 +79,30 @@ class InventoryService:
                 }
             )
         return result
+
+    def get_products_below_reorder(self) -> list[dict]:
+        """Return products whose available stock is below their reorder point.
+
+        Each returned dict contains: product_id, name, on_hand, on_order and
+        the quantity that should be ordered based on reorder settings.
+        """
+        products = self.product_repo.get_all_products()
+        low_stock: list[dict] = []
+        for prod in products:
+            pid = prod.get("product_id")
+            on_hand = prod.get("quantity_on_hand", 0)
+            reorder_point = prod.get("reorder_point", 0)
+            reorder_qty = prod.get("reorder_quantity", 0)
+            on_order = self.inventory_repo.get_on_order_level(pid)
+            if on_hand + on_order < reorder_point:
+                to_order = max(reorder_qty, reorder_point - (on_hand + on_order))
+                low_stock.append(
+                    {
+                        "product_id": pid,
+                        "name": prod.get("name"),
+                        "on_hand": on_hand,
+                        "on_order": on_order,
+                        "to_order": to_order,
+                    }
+                )
+        return low_stock

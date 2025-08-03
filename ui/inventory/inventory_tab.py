@@ -232,6 +232,7 @@ class InventoryTab:
             if self.to_order_tree.item(iid, "open")
         }
         self.to_order_tree.delete(*self.to_order_tree.get_children())
+        added_products: set[int] = set()
         orders = self.sales_logic.get_all_sales_documents_by_criteria(
             doc_type=SalesDocumentType.SALES_ORDER,
             status=SalesDocumentStatus.SO_OPEN,
@@ -273,6 +274,27 @@ class InventoryTab:
                             to_order,
                         ),
                     )
+                    if item.product_id:
+                        added_products.add(item.product_id)
+        low_stock = (
+            self.purchase_logic.inventory_service.get_products_below_reorder()
+        )
+        for prod in low_stock:
+            pid = prod["product_id"]
+            if pid in added_products:
+                continue
+            self.to_order_tree.insert(
+                "",
+                "end",
+                iid=f"reorder_{pid}",
+                text="Reorder",
+                values=(
+                    prod["name"],
+                    prod["on_hand"],
+                    prod["on_order"],
+                    prod["to_order"],
+                ),
+            )
     def refresh_to_receive(self):
         expanded_docs = {
             iid

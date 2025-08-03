@@ -181,6 +181,27 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         ttk.Label(totals_frame, textvariable=self.total_amount_var, font=('TkDefaultFont', 10, 'bold')).grid(row=2, column=1, sticky=tk.E, padx=5, pady=(5,0))
         current_row += 1
 
+        shipments_label_frame = ttk.LabelFrame(self.content_frame, text="Shipments", padding="5")
+        shipments_label_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=(10,5), sticky=tk.NSEW)
+        self.content_frame.grid_rowconfigure(current_row, weight=1)
+        current_row += 1
+
+        shipment_columns = ("item", "qty")
+        self.shipments_tree = ttk.Treeview(
+            shipments_label_frame, columns=shipment_columns, show="tree headings", height=4
+        )
+        self.shipments_tree.heading("item", text="Item")
+        self.shipments_tree.heading("qty", text="Quantity")
+        self.shipments_tree.column("#0", width=200)
+        self.shipments_tree.column("item", width=300)
+        self.shipments_tree.column("qty", width=80, anchor=tk.E)
+        shipments_scrollbar = ttk.Scrollbar(
+            shipments_label_frame, orient="vertical", command=self.shipments_tree.yview
+        )
+        self.shipments_tree.configure(yscrollcommand=shipments_scrollbar.set)
+        self.shipments_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        shipments_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
         self.content_frame.grid_columnconfigure(1, weight=1)
 
         bottom_button_frame = ttk.Frame(self)
@@ -387,6 +408,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.populate_customer_dropdown() # Changed
         self.load_items_for_document() # Calls _update_document_totals_display and update_ui_states
         self.update_export_button_state()
+        self.load_shipments_for_document()
 
 
     def load_items_for_document(self):
@@ -405,6 +427,25 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.on_item_tree_select(None) # Update button states
         self._update_document_totals_display()
         self.update_ui_states()
+
+    def load_shipments_for_document(self):
+        for i in self.shipments_tree.get_children():
+            self.shipments_tree.delete(i)
+        if self.document_data and self.document_data.id:
+            shipments = self.sales_logic.get_shipments_for_order(self.document_data.id)
+            for shipment in shipments:
+                parent = self.shipments_tree.insert(
+                    "", tk.END, text=f"Shipment {shipment['id']} - {shipment['created_at']}", open=True
+                )
+                for item in shipment["items"]:
+                    self.shipments_tree.insert(
+                        parent,
+                        tk.END,
+                        values=(
+                            item["product_description"],
+                            f"{item['quantity']:.2f}",
+                        ),
+                    )
 
 
     def on_item_tree_select(self, event):

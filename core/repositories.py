@@ -300,6 +300,9 @@ class SalesRepository:
     def get_items_for_sales_document(self, doc_id: int):
         return self.db.get_items_for_sales_document(doc_id)
 
+    def get_shipments_for_sales_document(self, doc_id: int):
+        return self.db.get_shipments_for_sales_document(doc_id)
+
     def get_sales_document_item_by_id(self, item_id: int):
         return self.db.get_sales_document_item_by_id(item_id)
 

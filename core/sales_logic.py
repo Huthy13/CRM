@@ -538,6 +538,23 @@ class SalesLogic:
             )
         return None
 
+    def get_shipments_for_order(self, doc_id: int) -> List[dict]:
+        shipments_data = self.sales_repo.get_shipments_for_sales_document(doc_id)
+        shipments: dict[int, dict] = {}
+        for row in shipments_data:
+            sid = row["shipment_id"]
+            shipment = shipments.setdefault(
+                sid, {"id": sid, "created_at": row["created_at"], "items": []}
+            )
+            shipment["items"].append(
+                {
+                    "item_id": row["item_id"],
+                    "product_description": row["product_description"],
+                    "quantity": row["quantity"],
+                }
+            )
+        return list(shipments.values())
+
     def delete_sales_document_item(self, item_id: int):
         item = self.get_sales_document_item_details(item_id)
         if not item:

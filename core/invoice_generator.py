@@ -53,14 +53,14 @@ def generate_invoice_pdf(sales_document_id: int, output_path: str = None):
             customer = address_book_logic.get_account_details(doc.customer_id)
             if customer:
                 for address in customer.addresses:
-                    if address.address_type == 'Billing' and address.is_primary:
+                    if 'Billing' in address.types and 'Billing' in address.primary_types:
                         customer_billing_address = address
-                    if address.address_type == 'Shipping' and address.is_primary:
+                    if 'Shipping' in address.types and 'Shipping' in address.primary_types:
                         customer_shipping_address = address
-                if not customer_billing_address and any(addr.address_type == 'Billing' for addr in customer.addresses):
-                    customer_billing_address = next(addr for addr in customer.addresses if addr.address_type == 'Billing')
-                if not customer_shipping_address and any(addr.address_type == 'Shipping' for addr in customer.addresses):
-                    customer_shipping_address = next(addr for addr in customer.addresses if addr.address_type == 'Shipping')
+                if not customer_billing_address and any('Billing' in addr.types for addr in customer.addresses):
+                    customer_billing_address = next(addr for addr in customer.addresses if 'Billing' in addr.types)
+                if not customer_shipping_address and any('Shipping' in addr.types for addr in customer.addresses):
+                    customer_shipping_address = next(addr for addr in customer.addresses if 'Shipping' in addr.types)
 
         items: list[SalesDocumentItem] = sales_logic.get_items_for_sales_document(doc.id)
 

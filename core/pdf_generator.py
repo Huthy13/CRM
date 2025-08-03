@@ -91,15 +91,15 @@ def get_company_pdf_context(service: CompanyService):
     company_phone = company.phone or ""
 
     billing_addr = next(
-        (a for a in company.addresses if a.address_type == "Billing" and getattr(a, "is_primary", False)),
+        (a for a in company.addresses if "Billing" in a.types and "Billing" in a.primary_types),
         None,
     )
     shipping_addr = next(
-        (a for a in company.addresses if a.address_type == "Shipping" and getattr(a, "is_primary", False)),
+        (a for a in company.addresses if "Shipping" in a.types and "Shipping" in a.primary_types),
         None,
     )
     remittance_addr = next(
-        (a for a in company.addresses if a.address_type == "Remittance" and getattr(a, "is_primary", False)),
+        (a for a in company.addresses if "Remittance" in a.types and "Remittance" in a.primary_types),
         None,
     )
 

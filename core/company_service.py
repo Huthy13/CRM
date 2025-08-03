@@ -24,18 +24,25 @@ class CompanyService:
             addresses=[],
         )
         addresses_data = self.repo.get_company_addresses(company.company_id)
+        address_map: dict[int, Address] = {}
         for addr_data in addresses_data:
-            address = Address(
-                address_id=addr_data["address_id"],
-                street=addr_data["street"],
-                city=addr_data["city"],
-                state=addr_data["state"],
-                zip_code=addr_data["zip"],
-                country=addr_data["country"],
-            )
-            address.address_type = addr_data["address_type"]
-            address.is_primary = addr_data["is_primary"]
-            company.addresses.append(address)
+            addr_id = addr_data["address_id"]
+            address = address_map.get(addr_id)
+            if not address:
+                address = Address(
+                    address_id=addr_id,
+                    street=addr_data["street"],
+                    city=addr_data["city"],
+                    state=addr_data["state"],
+                    zip_code=addr_data["zip"],
+                    country=addr_data["country"],
+                )
+                address_map[addr_id] = address
+            atype = addr_data["address_type"]
+            address.types.append(atype)
+            if addr_data["is_primary"]:
+                address.primary_types.append(atype)
+        company.addresses = list(address_map.values())
         return company
 
     def save_company_information(self, company: CompanyInformation) -> None:
@@ -61,7 +68,11 @@ class CompanyService:
                     address.zip_code,
                     address.country,
                 )
-            self.repo.add_company_address(
-                company.company_id, addr_id, address.address_type, getattr(address, "is_primary", False)
-            )
+            for atype in address.types:
+                self.repo.add_company_address(
+                    company.company_id,
+                    addr_id,
+                    atype,
+                    atype in address.primary_types,
+                )
         self.repo.update_company_information(company.company_id, company.name, company.phone)

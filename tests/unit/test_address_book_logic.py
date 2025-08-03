@@ -200,6 +200,26 @@ class TestAddressBookLogic(unittest.TestCase):
         primary_remittance_addresses = [addr for addr in addresses if addr['address_type'] == 'Remittance' and addr['is_primary']]
         self.assertEqual(len(primary_remittance_addresses), 1)
 
+    def test_address_with_multiple_types(self):
+        """An address can be used for multiple types and be primary for each."""
+        from shared.structs import Account, Address
+        account = Account(name="Multi", account_type=AccountType.CUSTOMER)
+        self.logic.save_account(account)
+
+        address = Address(street="789 Multi St", city="Multicity", state="MS", zip_code="11111", country="MC")
+        address.types = ["Billing", "Shipping"]
+        address.primary_types = ["Billing", "Shipping"]
+        account.addresses.append(address)
+        self.logic.save_account_addresses(account)
+
+        rows = self.db_handler.get_account_addresses(account.account_id)
+        billing_rows = [r for r in rows if r['address_type'] == 'Billing']
+        shipping_rows = [r for r in rows if r['address_type'] == 'Shipping']
+        self.assertEqual(len(billing_rows), 1)
+        self.assertTrue(billing_rows[0]['is_primary'])
+        self.assertEqual(len(shipping_rows), 1)
+        self.assertTrue(shipping_rows[0]['is_primary'])
+
 if __name__ == '__main__':
     unittest.main()
 

@@ -102,12 +102,14 @@ class AccountDetailsPopup(PopupBase):
             self.address_tree.delete(i)
         for i, addr in enumerate(self.active_account.addresses):
             address_str = f"{addr.street}, {addr.city}, {addr.state} {addr.zip_code}, {addr.country}"
+            type_str = ", ".join(addr.types)
+            primary_str = ", ".join(addr.primary_types)
             self.address_tree.insert(
                 "",
                 "end",
                 values=(
-                    addr.address_type,
-                    "true" if getattr(addr, "is_primary", False) else "false",
+                    type_str,
+                    primary_str,
                     address_str,
                 ),
                 iid=i,
@@ -119,10 +121,6 @@ class AccountDetailsPopup(PopupBase):
         if hasattr(address_popup, 'address'):
             if not hasattr(address_popup.address, 'address_id'):
                 address_popup.address.address_id = None
-            if not hasattr(address_popup.address, 'address_type'):
-                address_popup.address.address_type = ''
-            if not hasattr(address_popup.address, 'is_primary'):
-                address_popup.address.is_primary = False
             self.active_account.addresses.append(address_popup.address)
             self.populate_address_tree()
 
@@ -202,22 +200,33 @@ class AddressPopup(PopupBase):
         self.state_entry = self._create_entry("State:", 2, self.address.state)
         self.zip_entry = self._create_entry("Zip:", 3, self.address.zip_code)
         self.country_entry = self._create_entry("Country:", 4, self.address.country)
-        tk.Label(self, text="Type:").grid(row=5, column=0, padx=5, pady=5, sticky="e")
-        self.type_var = tk.StringVar(self)
-        self.type_dropdown = ttk.Combobox(
-            self,
-            textvariable=self.type_var,
-            values=["Billing", "Shipping", "Remittance"],
-            state="readonly",
-            width=37,
-        )
-        if hasattr(self.address, 'address_type'):
-            self.type_dropdown.set(self.address.address_type)
-        self.type_dropdown.grid(row=5, column=1, padx=5, pady=5)
-        self.primary_var = tk.BooleanVar(value=self.address.is_primary if hasattr(self.address, 'is_primary') else False)
-        self.primary_check = tk.Checkbutton(self, text="Primary", variable=self.primary_var)
-        self.primary_check.grid(row=6, column=0, columnspan=2)
-        tk.Button(self, text="Save", command=self.save).grid(row=7, column=0, columnspan=2)
+
+        tk.Label(self, text="Type").grid(row=5, column=0, padx=5, pady=(10, 5))
+        tk.Label(self, text="Use").grid(row=5, column=1, padx=5, pady=(10, 5))
+        tk.Label(self, text="Primary").grid(row=5, column=2, padx=5, pady=(10, 5))
+
+        self.type_vars: dict[str, tk.BooleanVar] = {}
+        self.primary_vars: dict[str, tk.BooleanVar] = {}
+        self.primary_checks: dict[str, tk.Checkbutton] = {}
+        address_types = ["Billing", "Shipping", "Remittance"]
+        current_types = getattr(self.address, 'types', [])
+        current_primary = getattr(self.address, 'primary_types', [])
+        for i, atype in enumerate(address_types):
+            row = 6 + i
+            tk.Label(self, text=atype + ":").grid(row=row, column=0, sticky="e", padx=5, pady=2)
+            type_var = tk.BooleanVar(value=atype in current_types)
+            type_cb = tk.Checkbutton(self, variable=type_var, command=lambda a=atype: self._on_type_toggle(a))
+            type_cb.grid(row=row, column=1, padx=5, pady=2)
+            primary_var = tk.BooleanVar(value=atype in current_primary)
+            primary_cb = tk.Checkbutton(self, variable=primary_var)
+            primary_cb.grid(row=row, column=2, padx=5, pady=2)
+            if not type_var.get():
+                primary_cb.config(state="disabled")
+            self.type_vars[atype] = type_var
+            self.primary_vars[atype] = primary_var
+            self.primary_checks[atype] = primary_cb
+
+        tk.Button(self, text="Save", command=self.save).grid(row=9, column=0, columnspan=3, pady=5)
 
     def save(self):
         self.address.street = self.street_entry.get()
@@ -225,10 +234,13 @@ class AddressPopup(PopupBase):
         self.address.state = self.state_entry.get()
         self.address.zip_code = self.zip_entry.get()
         self.address.country = self.country_entry.get()
-        self.address.address_type = self.type_var.get()
-        self.address.is_primary = self.primary_var.get()
-        if self.address.is_primary:
-            for addr in getattr(self.master, "active_account", Account()).addresses:
-                if addr is not self.address and getattr(addr, "address_type", None) == self.address.address_type:
-                    addr.is_primary = False
+        self.address.types = [t for t, v in self.type_vars.items() if v.get()]
+        self.address.primary_types = [t for t, v in self.primary_vars.items() if v.get()]
         self.destroy()
+
+    def _on_type_toggle(self, atype):
+        if self.type_vars[atype].get():
+            self.primary_checks[atype].config(state="normal")
+        else:
+            self.primary_vars[atype].set(False)
+            self.primary_checks[atype].config(state="disabled")

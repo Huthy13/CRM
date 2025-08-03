@@ -13,13 +13,14 @@ class AddressService:
     def enforce_single_primary(addresses):
         """Ensure only one primary address exists per address type."""
         primary_found = set()
+        # Iterate in reverse so later addresses take precedence
         for address in reversed(addresses):
-            if getattr(address, "is_primary", False):
-                addr_type = getattr(address, "address_type", None)
-                if addr_type in primary_found:
-                    address.is_primary = False
+            # Work on a copy since we may mutate the list
+            for atype in list(address.primary_types):
+                if atype in primary_found:
+                    address.primary_types.remove(atype)
                 else:
-                    primary_found.add(addr_type)
+                    primary_found.add(atype)
 
     def add_address(self, street, city, state, zip_code, country):
         """Add a new address and return its ID."""
@@ -57,23 +58,20 @@ class AddressService:
                     address.zip_code,
                     address.country,
                 )
-                self.account_repo.add_account_address(
-                    account.account_id,
-                    address.address_id,
-                    address.address_type,
-                    address.is_primary,
-                )
+                addr_id = address.address_id
             else:
-                address_id = self.address_repo.add_address(
+                addr_id = self.address_repo.add_address(
                     address.street,
                     address.city,
                     address.state,
                     address.zip_code,
                     address.country,
                 )
+
+            for atype in address.types:
                 self.account_repo.add_account_address(
                     account.account_id,
-                    address_id,
-                    address.address_type,
-                    address.is_primary,
+                    addr_id,
+                    atype,
+                    atype in address.primary_types,
                 )

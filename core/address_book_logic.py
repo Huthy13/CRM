@@ -134,18 +134,25 @@ class AddressBookLogic:
                     logger.warning("Invalid account type string '%s' in DB for account ID %s", account_type_str, data.get('id'))
 
             addresses = []
+            address_map: dict[int, Address] = {}
             for addr_data in data.get('addresses', []):
-                address = Address(
-                    address_id=addr_data['address_id'],
-                    street=addr_data['street'],
-                    city=addr_data['city'],
-                    state=addr_data['state'],
-                    zip_code=addr_data['zip'],
-                    country=addr_data['country']
-                )
-                address.address_type = addr_data['address_type']
-                address.is_primary = addr_data['is_primary']
-                addresses.append(address)
+                addr_id = addr_data['address_id']
+                address = address_map.get(addr_id)
+                if not address:
+                    address = Address(
+                        address_id=addr_id,
+                        street=addr_data['street'],
+                        city=addr_data['city'],
+                        state=addr_data['state'],
+                        zip_code=addr_data['zip'],
+                        country=addr_data['country']
+                    )
+                    address_map[addr_id] = address
+                atype = addr_data['address_type']
+                address.types.append(atype)
+                if addr_data['is_primary']:
+                    address.primary_types.append(atype)
+            addresses = list(address_map.values())
 
             return Account(
                 account_id=data.get("id"),  # Ensure key matches db output

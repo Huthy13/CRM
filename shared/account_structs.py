@@ -15,15 +15,61 @@ class Address:
     state: str = ""
     zip_code: str = ""
     country: str = ""
+    # An address can serve multiple purposes (Billing, Shipping, etc.)
+    types: list[str] = field(default_factory=list)
+    # Tracks which types this address is the primary for
+    primary_types: list[str] = field(default_factory=list)
+
+    @property
+    def address_type(self) -> str:
+        """Backwards compatible single address type.
+
+        Many parts of the codebase still reference a single ``address_type``
+        attribute.  For compatibility we expose the first entry in ``types``
+        as ``address_type``.  Setting ``address_type`` will update the first
+        element in ``types`` accordingly.
+        """
+        return self.types[0] if self.types else ""
+
+    @address_type.setter
+    def address_type(self, value: str) -> None:
+        if self.types:
+            if value:
+                self.types[0] = value
+            else:
+                self.types.pop(0)
+        elif value:
+            self.types.append(value)
+
+    @property
+    def is_primary(self) -> bool:
+        """Backwards compatible primary flag for the first type."""
+        return bool(self.types) and self.types[0] in self.primary_types
+
+    @is_primary.setter
+    def is_primary(self, value: bool) -> None:
+        if not self.types:
+            return
+        atype = self.types[0]
+        if value:
+            if atype not in self.primary_types:
+                self.primary_types.append(atype)
+        else:
+            if atype in self.primary_types:
+                self.primary_types.remove(atype)
 
     def __str__(self) -> str:
+        type_str = ", ".join(self.types)
+        primary_str = ", ".join(self.primary_types)
         return (
             f"Address ID: {self.address_id}\n"
             f"Street: {self.street}\n"
             f"City: {self.city}\n"
             f"State: {self.state}\n"
             f"ZIP Code: {self.zip_code}\n"
-            f"Country: {self.country}"
+            f"Country: {self.country}\n"
+            f"Types: {type_str}\n"
+            f"Primary For: {primary_str}"
         )
 
     def to_dict(self) -> dict:
@@ -35,6 +81,11 @@ class Address:
             "state": self.state,
             "zip_code": self.zip_code,
             "country": self.country,
+            "types": list(self.types),
+            "primary_types": list(self.primary_types),
+            # Include legacy keys for compatibility
+            "address_type": self.address_type,
+            "is_primary": self.is_primary,
         }
 
 @dataclass

@@ -28,6 +28,7 @@ class TestCompanyService(unittest.TestCase):
 
     def test_save_company_information(self):
         company = self.service.load_company_information()
+        company.addresses.clear()
         company.name = "Service Test Co"
         company.phone = "555-1234"
         addr = Address(street="1 Test St", city="Testville", state="TS", zip_code="12345", country="Testland")
@@ -39,3 +40,19 @@ class TestCompanyService(unittest.TestCase):
         self.assertEqual(data['name'], "Service Test Co")
         self.assertEqual(data['phone'], "555-1234")
         self.assertEqual(len(data['addresses']), 1)
+
+    def test_address_with_multiple_types(self):
+        company = self.service.load_company_information()
+        company.addresses.clear()
+        addr = Address(street="2 Multi Ave", city="Town", state="TS", zip_code="22222", country="TC")
+        addr.types = ["Billing", "Shipping"]
+        addr.primary_types = ["Billing", "Shipping"]
+        company.addresses.append(addr)
+        self.service.save_company_information(company)
+        rows = self.db.get_company_addresses(company.company_id)
+        billing = [r for r in rows if r['address_type'] == 'Billing']
+        shipping = [r for r in rows if r['address_type'] == 'Shipping']
+        self.assertEqual(len(billing), 1)
+        self.assertTrue(billing[0]['is_primary'])
+        self.assertEqual(len(shipping), 1)
+        self.assertTrue(shipping[0]['is_primary'])

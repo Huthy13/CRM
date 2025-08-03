@@ -86,11 +86,12 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         items: list[PurchaseDocumentItem] = purchase_logic.get_items_for_document(doc.id)
 
         # 5. Initialize PDF (pass document number, company name, and billing address for header)
+        document_type = "Request for Quote" if doc.status == PurchaseDocumentStatus.RFQ else "Purchase Order"
         pdf = PDF(
             document_number=doc.document_number,
             company_name=company_name_for_header,
             company_billing_address_lines=company_billing_address_pdf_lines,
-            document_type="Purchase Order"
+            document_type=document_type
         )
         pdf.alias_nb_pages() # For total page numbers
         pdf.add_page()
@@ -263,7 +264,11 @@ def generate_po_pdf(purchase_document_id: int, output_path: str = None):
         # --- End PDF Content Generation ---
 
         # 5. Determine output filename and save
-        filename = output_path or f"purchase_order_{doc.document_number.replace('/', '_')}.pdf" # Sanitize filename
+        if output_path:
+            filename = output_path
+        else:
+            prefix = "RFQ" if doc.status == PurchaseDocumentStatus.RFQ else "PurchaseOrder"
+            filename = f"{prefix}_{doc.document_number.replace('/', '_')}.pdf"
         pdf.output(filename, "F")
         print(f"PDF generated: {filename}")
 

@@ -150,7 +150,10 @@ class PurchaseDocumentPopup(tk.Toplevel):
             # PDF generation module is now part of the 'core' package
             from core.purchase_order_generator import generate_po_pdf as call_generate_po_pdf
 
-            output_filename = f"purchase_order_{self.doc_number_var.get().replace('/', '_')}.pdf"
+            # Determine filename prefix based on document status
+            status_enum = PurchaseDocumentStatus(self.status_var.get())
+            prefix = "RFQ" if status_enum == PurchaseDocumentStatus.RFQ else "PurchaseOrder"
+            output_filename = f"{prefix}_{self.doc_number_var.get().replace('/', '_')}.pdf"
             # Consider using filedialog.asksaveasfilename here for better UX
 
             # Ensure the output directory exists or handle potential errors if it doesn't

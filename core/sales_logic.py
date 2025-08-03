@@ -274,18 +274,7 @@ class SalesLogic:
             raise ValueError(f"Document ID {quote_id} is not a Quote.")
         if not quote_doc.reference_number:
             raise ValueError("Reference number is required to convert a Quote to a Sales Order.")
-        # Record inventory reductions for each item, triggering replenishment when needed
-        items = self.get_items_for_sales_document(quote_id)
-        for item in items:
-            if item.product_id is None:
-                continue
-            self.inventory_service.adjust_stock(
-                item.product_id,
-                -item.quantity,
-                InventoryTransactionType.SALE,
-                reference=f"SO-{quote_id}",
-            )
-        # Update the document type and status
+        # Update the document type and status without affecting inventory
         updates = {
             "document_type": SalesDocumentType.SALES_ORDER.value,
             "status": SalesDocumentStatus.SO_OPEN.value,
@@ -525,7 +514,9 @@ class SalesLogic:
                 unit_price=item_data.get('unit_price'),
                 discount_percentage=item_data.get('discount_percentage'),
                 line_total=item_data.get('line_total'),
-                note=item_data.get('note')
+                note=item_data.get('note'),
+                shipped_quantity=item_data.get('shipped_quantity', 0.0),
+                is_shipped=bool(item_data.get('is_shipped', 0)),
             ))
         return result_list
 
@@ -541,7 +532,9 @@ class SalesLogic:
                 unit_price=item_data.get('unit_price'),
                 discount_percentage=item_data.get('discount_percentage'),
                 line_total=item_data.get('line_total'),
-                note=item_data.get('note')
+                note=item_data.get('note'),
+                shipped_quantity=item_data.get('shipped_quantity', 0.0),
+                is_shipped=bool(item_data.get('is_shipped', 0)),
             )
         return None
 
@@ -558,6 +551,50 @@ class SalesLogic:
         self.sales_repo.delete_sales_document_item(item_id)
         self._recalculate_sales_document_totals(doc.id)
 
+    def record_item_shipment(self, item_id: int, quantity: float) -> SalesDocumentItem:
+        """Record the shipment of a quantity for a specific sales document item."""
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive.")
+
+        item = self.get_sales_document_item_details(item_id)
+        if not item:
+            raise ValueError(f"Item with ID {item_id} not found.")
+
+        doc = self.get_sales_document_details(item.sales_document_id)
+        if doc.document_type != SalesDocumentType.SALES_ORDER or doc.status != SalesDocumentStatus.SO_OPEN:
+            raise ValueError("Can only ship items from open sales orders.")
+
+        if item.shipped_quantity + quantity > item.quantity:
+            raise ValueError("Shipped quantity exceeds ordered quantity.")
+
+        if item.product_id:
+            on_hand = self.inventory_service.inventory_repo.get_stock_level(
+                item.product_id
+            )
+            if quantity > on_hand:
+                raise ValueError("Not enough stock on hand to ship.")
+
+        new_shipped = item.shipped_quantity + quantity
+        is_shipped = new_shipped >= item.quantity
+        self.sales_repo.update_sales_document_item(
+            item_id, {"shipped_quantity": new_shipped, "is_shipped": int(is_shipped)}
+        )
+
+        if item.product_id:
+            self.inventory_service.adjust_stock(
+                item.product_id,
+                -quantity,
+                InventoryTransactionType.SALE,
+                reference=f"SO#{doc.document_number}",
+            )
+
+        if is_shipped and self.sales_repo.are_all_items_shipped(doc.id):
+            self.sales_repo.update_sales_document(
+                doc.id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
+            )
+
+        return self.get_sales_document_item_details(item_id)
+
 
     def confirm_sales_order(self, doc_id: int) -> SalesDocument:
         """Mark a sales order as fulfilled."""
@@ -570,6 +607,22 @@ class SalesLogic:
             raise ValueError(
                 f"Sales order must be in status '{SalesDocumentStatus.SO_OPEN.value}' to confirm."
             )
+
+        items = self.get_items_for_sales_document(doc_id)
+        for item in items:
+            if item.product_id is None:
+                continue
+            self.sales_repo.update_sales_document_item(
+                item.id,
+                {"shipped_quantity": item.quantity, "is_shipped": 1},
+            )
+            self.inventory_service.adjust_stock(
+                item.product_id,
+                -item.quantity,
+                InventoryTransactionType.SALE,
+                reference=f"SO#{doc.document_number}",
+            )
+
         self.sales_repo.update_sales_document(
             doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
         )

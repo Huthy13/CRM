@@ -22,6 +22,7 @@ from core.inventory_service import InventoryService
 from ui.pricing.pricing_rule_tab import PricingRuleTab
 from ui.payment_terms.payment_term_tab import PaymentTermTab
 from ui.category_popup import CategoryListPopup
+from ui.sales_preferences_popup import SalesPreferencesPopup
 
 
 class AddressBookView:
@@ -75,6 +76,7 @@ class AddressBookView:
         settings_menu.add_command(label="Payment Terms", command=self.open_payment_terms)
         settings_menu.add_command(label="Pricing Rules", command=self.open_pricing_rules)
         settings_menu.add_command(label="Product Categories", command=self.open_product_categories)
+        settings_menu.add_command(label="Sales Preferences", command=self.open_sales_preferences)
         menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
         # Initialize all tabs
@@ -126,4 +128,9 @@ class AddressBookView:
     def open_product_categories(self):
         """Open the product categories popup."""
         popup = CategoryListPopup(self.root, self.product_logic)
+        self.root.wait_window(popup)
+
+    def open_sales_preferences(self):
+        """Open the sales preferences popup."""
+        popup = SalesPreferencesPopup(self.root)
         self.root.wait_window(popup)

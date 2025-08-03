@@ -7,6 +7,7 @@ from shared.structs import (
     SalesDocument, SalesDocumentItem, SalesDocumentStatus, SalesDocumentType,
     AccountType
 )
+from shared.utils import address_has_type, address_is_primary_for
 
 NO_CUSTOMER_LABEL = "<Select Customer>" # Changed from Vendor
 DEFAULT_DOC_TYPE = SalesDocumentType.QUOTE # Default for new documents
@@ -339,19 +340,29 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         if customer_id:
             customer = self.account_logic.get_account_details(customer_id)
             if customer:
-                billing_addresses = [addr for addr in customer.addresses if addr.address_type == 'Billing']
-                shipping_addresses = [addr for addr in customer.addresses if addr.address_type == 'Shipping']
+                billing_addresses = [
+                    addr for addr in customer.addresses if address_has_type(addr, 'Billing')
+                ]
+                shipping_addresses = [
+                    addr for addr in customer.addresses if address_has_type(addr, 'Shipping')
+                ]
 
                 self.billing_address_combobox['values'] = [f"{addr.street}, {addr.city}" for addr in billing_addresses]
                 self.shipping_address_combobox['values'] = [f"{addr.street}, {addr.city}" for addr in shipping_addresses]
 
-                primary_billing = next((addr for addr in billing_addresses if addr.is_primary), None)
+                primary_billing = next(
+                    (addr for addr in billing_addresses if address_is_primary_for(addr, 'Billing')),
+                    None,
+                )
                 if primary_billing:
                     self.billing_address_combobox.set(f"{primary_billing.street}, {primary_billing.city}")
                 elif billing_addresses:
                     self.billing_address_combobox.set(f"{billing_addresses[0].street}, {billing_addresses[0].city}")
 
-                primary_shipping = next((addr for addr in shipping_addresses if addr.is_primary), None)
+                primary_shipping = next(
+                    (addr for addr in shipping_addresses if address_is_primary_for(addr, 'Shipping')),
+                    None,
+                )
                 if primary_shipping:
                     self.shipping_address_combobox.set(f"{primary_shipping.street}, {primary_shipping.city}")
                 elif shipping_addresses:

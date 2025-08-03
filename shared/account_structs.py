@@ -15,6 +15,10 @@ class Address:
     state: str = ""
     zip_code: str = ""
     country: str = ""
+    address_types: List[str] = field(default_factory=list)
+    primary_types: List[str] = field(default_factory=list)
+    address_type: str = ""
+    is_primary: bool = False
 
     def __str__(self) -> str:
         return (

@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import MagicMock, patch, call
 import datetime
+import os
+import tempfile
+import zlib
 
 # Assuming core.sales_logic and shared.structs are importable
 # Add project root to sys.path if necessary for imports, or configure test runner
@@ -21,7 +24,9 @@ from shared.structs import (
     AccountType,
     Product,
     InventoryTransactionType,
+    Address,
 )
+from core.packing_slip_generator import generate_packing_slip_pdf
 
 class TestSalesLogic(unittest.TestCase):
 
@@ -764,7 +769,10 @@ class TestSalesLogic(unittest.TestCase):
         self.sales_logic.inventory_service.adjust_stock = MagicMock()
         self.sales_logic.inventory_service.inventory_repo.get_stock_level = MagicMock(return_value=10)
 
-        self.sales_logic.record_shipment(doc_id, {item1_id: 2, item2_id: 1})
+        shipment_number = self.sales_logic.record_shipment(
+            doc_id, {item1_id: 2, item2_id: 1}
+        )
+        self.assertEqual(shipment_number, "S00001.001")
 
         expected_calls = [
             call(101, -2, InventoryTransactionType.SALE, reference="S00001.001"),
@@ -875,3 +883,65 @@ class TestSalesLogicWithPricingRules(unittest.TestCase):
         ]
         self.assertEqual(shipments, expected)
         self.sales_logic.sales_repo.get_shipments_for_sales_document.assert_called_once_with(5)
+
+
+class TestPackingSlipGeneration(unittest.TestCase):
+    def setUp(self):
+        self.db = DatabaseHandler(db_name=':memory:')
+        self.sales_logic = SalesLogic(self.db)
+        self.address_book_logic = AddressBookLogic(self.db)
+
+        addr = Address(
+            street="123 Main",
+            city="Town",
+            state="TS",
+            zip_code="12345",
+            country="USA",
+        )
+        addr.address_type = "Shipping"
+        addr.is_primary = True
+        self.customer = Account(
+            name="Cust", account_type=AccountType.CUSTOMER, addresses=[addr]
+        )
+        self.customer = self.address_book_logic.save_account(self.customer)
+
+        self.product = Product(name="Widget", cost=5.0, sale_price=10.0)
+        self.product.product_id = self.address_book_logic.save_product(self.product)
+        self.sales_logic.inventory_service.adjust_stock(
+            self.product.product_id, 5, InventoryTransactionType.ADJUSTMENT
+        )
+
+        self.quote = self.sales_logic.create_quote(
+            customer_id=self.customer.account_id, reference_number="REF1"
+        )
+        self.item = self.sales_logic.add_item_to_sales_document(
+            self.quote.id, self.product.product_id, 2
+        )
+        self.sales_order = self.sales_logic.convert_quote_to_sales_order(
+            self.quote.id
+        )
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_packing_slip_generation(self):
+        shipments = {self.item.id: 1}
+        shipment_number = self.sales_logic.record_shipment(
+            self.sales_order.id, shipments
+        )
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        tmp.close()
+        generate_packing_slip_pdf(
+            self.sales_order.id, shipments, shipment_number, tmp.name, self.db
+        )
+        self.assertTrue(os.path.exists(tmp.name))
+        self.assertGreater(os.path.getsize(tmp.name), 0)
+        with open(tmp.name, "rb") as f:
+            raw = f.read()
+        stream_start = raw.find(b"stream")
+        stream_start = raw.find(b"\n", stream_start) + 1
+        stream_end = raw.find(b"endstream", stream_start)
+        decompressed = zlib.decompress(raw[stream_start:stream_end])
+        self.assertIn(b"Qty Remaining", decompressed)
+        self.assertNotIn(b"No remaining items", decompressed)
+        os.unlink(tmp.name)

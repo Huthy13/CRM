@@ -3,6 +3,7 @@ from tkinter import messagebox
 from typing import List, Tuple
 
 from core.sales_logic import SalesLogic
+from core.packing_slip_generator import generate_packing_slip_pdf
 from shared.structs import SalesDocumentItem
 
 
@@ -20,6 +21,8 @@ class RecordShippingPopup(tk.Toplevel):
         self.doc_id = doc_id
         self.items = items
         self.refresh_callback = refresh_callback
+        self.last_shipments: dict[int, float] | None = None
+        self.last_shipment_number: str | None = None
 
         self.title("Record Shipping")
         self.geometry("480x300")
@@ -51,10 +54,14 @@ class RecordShippingPopup(tk.Toplevel):
             self.entries[item.id] = (entry, remaining, on_hand)
 
         row = len(self.items) + 2
+        self.export_button = tk.Button(
+            self, text="Export", state="disabled", command=self.export_packing_slip
+        )
+        self.export_button.grid(row=row, column=1, padx=5, pady=10, sticky="e")
         tk.Button(self, text="Record", command=self.record_shipping).grid(
             row=row, column=2, padx=5, pady=10, sticky="e"
         )
-        tk.Button(self, text="Cancel", command=self.destroy).grid(
+        tk.Button(self, text="Exit", command=self.destroy).grid(
             row=row, column=3, padx=5, pady=10, sticky="w"
         )
 
@@ -94,10 +101,30 @@ class RecordShippingPopup(tk.Toplevel):
             return
 
         try:
-            self.sales_logic.record_shipment(self.doc_id, shipments)
+            shipment_number = self.sales_logic.record_shipment(
+                self.doc_id, shipments
+            )
+            self.last_shipments = shipments
+            self.last_shipment_number = shipment_number
+            self.export_button.config(state="normal")
             messagebox.showinfo("Success", "Shipment recorded.", parent=self)
             if self.refresh_callback:
                 self.refresh_callback()
-            self.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to record shipment: {e}", parent=self)
+
+    def export_packing_slip(self):
+        if not self.last_shipments or not self.last_shipment_number:
+            messagebox.showwarning(
+                "No Shipment", "Record a shipment before exporting.", parent=self
+            )
+            return
+        try:
+            generate_packing_slip_pdf(
+                self.doc_id, self.last_shipments, self.last_shipment_number
+            )
+            messagebox.showinfo("Success", "Packing slip generated.", parent=self)
+        except Exception as e:
+            messagebox.showerror(
+                "Error", f"Failed to generate packing slip: {e}", parent=self
+            )

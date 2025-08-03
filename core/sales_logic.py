@@ -582,8 +582,8 @@ class SalesLogic:
                 continue
         return f"{doc_number}.{max_seq + 1:03d}"
 
-    def record_shipment(self, doc_id: int, items: dict[int, float]) -> None:
-        """Record shipment for multiple sales document items."""
+    def record_shipment(self, doc_id: int, items: dict[int, float]) -> str:
+        """Record shipment for multiple sales document items and return the shipment number."""
         if not items:
             raise ValueError("No items provided for shipment.")
 
@@ -622,6 +622,8 @@ class SalesLogic:
             self.sales_repo.update_sales_document(
                 doc_id, {"status": SalesDocumentStatus.SO_FULFILLED.value}
             )
+
+        return shipment_number
 
     def record_item_shipment(self, item_id: int, quantity: float) -> SalesDocumentItem:
         """Record shipment for a single item using multi-item shipment logic."""

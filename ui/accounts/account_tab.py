@@ -26,7 +26,7 @@ class AccountTab(TabBase):
 
         # Button bar
         button_frame = tk.Frame(self)
-        button_frame.grid(row=1, column=0, columnspan=3, pady=5, sticky="w")
+        button_frame.grid(row=1, column=0, columnspan=3, pady=5, sticky="ew")
 
         self.add_account_button = tk.Button(
             button_frame,
@@ -52,13 +52,31 @@ class AccountTab(TabBase):
         )
         self.remove_account_button.pack(side=tk.LEFT, padx=5)
 
+        # Customization button for toggling visible columns
+        self.customize_button = tk.Menubutton(button_frame, text="Columns", relief=tk.RAISED)
+        self.customize_button.pack(side=tk.RIGHT, padx=5)
+        self.column_menu = tk.Menu(self.customize_button, tearoff=0)
+        self.customize_button.configure(menu=self.column_menu)
+
+        self.column_vars = {}
+        for col, label in [
+            ("phone", "Phone"),
+            ("description", "Description"),
+            ("account_type", "Account Type"),
+        ]:
+            var = tk.BooleanVar(value=True)
+            self.column_vars[col] = var
+            self.column_menu.add_checkbutton(label=label, variable=var, command=self.update_columns)
+
         # Treeview for displaying accounts
         self.tree = ttk.Treeview(
             self,
             columns=("id", "name", "phone", "description", "account_type"),
             show="headings",
         )
-        self.tree.column("id", width=0, stretch=False)  # Hidden ID column
+        # Hide the ID column and configure displayed columns
+        self.tree.column("id", width=0, stretch=False)
+        self.tree["displaycolumns"] = ("name", "phone", "description", "account_type")
         self.tree.heading("name", text="Account Name", command=lambda: self.sort_column("name", False))
         self.tree.heading("phone", text="Phone", command=lambda: self.sort_column("phone", False))
         self.tree.heading("description", text="Description", command=lambda: self.sort_column("description", False))
@@ -73,6 +91,9 @@ class AccountTab(TabBase):
         # Configure the grid row and column containing the tree to expand
         self.grid_rowconfigure(2, weight=1)
         self.grid_columnconfigure(0, weight=1)
+
+        # Initialize column visibility
+        self.update_columns()
 
     def remove_account(self):
         if not self.selected_account_id:
@@ -134,3 +155,8 @@ class AccountTab(TabBase):
             self.selected_account_id = self.tree.item(selected_item[0], 'values')[0]
         else:
             self.selected_account_id = None
+
+    def update_columns(self):
+        """Update which columns are displayed based on menu selections."""
+        display_columns = ["name"] + [col for col, var in self.column_vars.items() if var.get()]
+        self.tree.config(displaycolumns=display_columns)

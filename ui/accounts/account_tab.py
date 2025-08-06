@@ -11,6 +11,18 @@ class AccountTab(TabBase):
         self.logic = logic
         self.selected_account_id = None  # Initialize selected_account_id as None
 
+        # Track which columns are visible in the treeview. "pricing_rule" and
+        # "payment_term" default to hidden and can be toggled on later. The
+        # order of insertion here determines the display order in the tree.
+        self.column_vars: dict[str, tk.BooleanVar] = {
+            "name": tk.BooleanVar(value=True),
+            "phone": tk.BooleanVar(value=True),
+            "description": tk.BooleanVar(value=True),
+            "account_type": tk.BooleanVar(value=True),
+            "pricing_rule": tk.BooleanVar(value=False),
+            "payment_term": tk.BooleanVar(value=False),
+        }
+
         # Setup account tab components
         self.setup_account_tab()
         self.load_accounts()
@@ -52,10 +64,14 @@ class AccountTab(TabBase):
         )
         self.remove_account_button.pack(side=tk.LEFT, padx=5)
 
-        # Treeview for displaying accounts
+        # Treeview for displaying accounts. Include optional pricing rule and
+        # payment term columns, but hide them by default via ``displaycolumns``.
+        all_columns = ("id",) + tuple(self.column_vars.keys())
+        display_columns = [c for c, var in self.column_vars.items() if var.get()]
         self.tree = ttk.Treeview(
             self,
-            columns=("id", "name", "phone", "description", "account_type"),
+            columns=all_columns,
+            displaycolumns=display_columns,
             show="headings",
         )
         self.tree.column("id", width=0, stretch=False)  # Hidden ID column
@@ -63,10 +79,16 @@ class AccountTab(TabBase):
         self.tree.heading("phone", text="Phone", command=lambda: self.sort_column("phone", False))
         self.tree.heading("description", text="Description", command=lambda: self.sort_column("description", False))
         self.tree.heading("account_type", text="Account Type", command=lambda: self.sort_column("account_type", False))
+        self.tree.heading("pricing_rule", text="Pricing Rule", command=lambda: self.sort_column("pricing_rule", False))
+        self.tree.heading("payment_term", text="Payment Term", command=lambda: self.sort_column("payment_term", False))
+
         self.tree.column("name", width=150)
         self.tree.column("phone", width=100)
         self.tree.column("description", width=150)
         self.tree.column("account_type", width=100)
+        self.tree.column("pricing_rule", width=150)
+        self.tree.column("payment_term", width=150)
+
         self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.select_account)
 
@@ -118,13 +140,31 @@ class AccountTab(TabBase):
         for account_obj in accounts_obj_list:
             account_type_display = account_obj.account_type.value if account_obj.account_type else "N/A"
 
-            self.tree.insert("", "end", values=(
-                account_obj.account_id,
-                account_obj.name,
-                account_obj.phone,
-                account_obj.description or "N/A",
-                account_type_display,
-            ))
+            pricing_rule_display = "N/A"
+            if account_obj.pricing_rule_id:
+                rule = self.logic.get_pricing_rule(account_obj.pricing_rule_id)
+                if rule:
+                    pricing_rule_display = rule.rule_name
+
+            payment_term_display = "N/A"
+            if account_obj.payment_term_id:
+                term = self.logic.get_payment_term(account_obj.payment_term_id)
+                if term:
+                    payment_term_display = term.term_name
+
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    account_obj.account_id,
+                    account_obj.name,
+                    account_obj.phone,
+                    account_obj.description or "N/A",
+                    account_type_display,
+                    pricing_rule_display,
+                    payment_term_display,
+                ),
+            )
 
     def select_account(self, event=None):
         """Retrieve the Account_ID of the selected account."""

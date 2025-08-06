@@ -22,6 +22,7 @@ def generate_packing_slip_pdf(
     sales_document_id: int,
     shipments: dict[int, float],
     shipment_number: str,
+    previous_shipments: dict[int, float] | None = None,
     output_path: str | None = None,
     db_handler: DatabaseHandler | None = None,
 ):
@@ -29,9 +30,13 @@ def generate_packing_slip_pdf(
 
     Args:
         sales_document_id: ID of the sales order.
-        shipments: Mapping of sales document item IDs to shipped quantities.
-        shipment_number: Identifier for this shipment used in the document header.
-        output_path: Optional explicit path for the resulting PDF file.
+    shipments: Mapping of sales document item IDs to shipped quantities.
+    shipment_number: Identifier for this shipment used in the document header.
+    previous_shipments: Optional mapping of item IDs to quantities shipped
+        before this shipment. When provided, outstanding quantities are
+        calculated relative to the selected shipment rather than the current
+        cumulative shipped totals.
+    output_path: Optional explicit path for the resulting PDF file.
     """
     close_db = False
     try:
@@ -92,7 +97,12 @@ def generate_packing_slip_pdf(
         outstanding_items: list[tuple[str, float]] = []
         all_items = sales_logic.get_items_for_sales_document(sales_document_id)
         for item in all_items:
-            remaining_qty = item.quantity - item.shipped_quantity
+            if previous_shipments is not None:
+                prev_qty = previous_shipments.get(item.id, 0)
+                current_qty = shipments.get(item.id, 0)
+                remaining_qty = item.quantity - (prev_qty + current_qty)
+            else:
+                remaining_qty = item.quantity - item.shipped_quantity
             if remaining_qty > 0:
                 description = item.product_description
                 if item.product_id:

@@ -45,6 +45,7 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.document_data: Optional[SalesDocument] = None
         self.items_data: List[SalesDocumentItem] = []
         self.customer_map = {} # Changed from vendor_map
+        self.shipments_lookup: dict[str, dict] = {}
 
         self._setup_ui() # Call after all vars are initialized
 
@@ -77,8 +78,12 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
 
 
     def _setup_ui(self):
-        self.content_frame = ttk.Frame(self, padding="10")
-        self.content_frame.pack(expand=True, fill=tk.BOTH)
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(expand=True, fill=tk.BOTH)
+        self.content_frame = ttk.Frame(self.notebook, padding="10")
+        self.shipments_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.content_frame, text="Main")
+        self.notebook.add(self.shipments_frame, text="Shipments")
         self.geometry("750x700") # Adjusted size
 
         current_row = 0
@@ -185,14 +190,14 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         ttk.Label(totals_frame, textvariable=self.total_amount_var, font=('TkDefaultFont', 10, 'bold')).grid(row=2, column=1, sticky=tk.E, padx=5, pady=(5,0))
         current_row += 1
 
-        shipments_label_frame = ttk.LabelFrame(self.content_frame, text="Shipments", padding="5")
-        shipments_label_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=(10,5), sticky=tk.NSEW)
-        self.content_frame.grid_rowconfigure(current_row, weight=1)
-        current_row += 1
+        self.content_frame.grid_columnconfigure(1, weight=1)
+
+        shipments_label_frame = ttk.LabelFrame(self.shipments_frame, text="Shipments", padding="5")
+        shipments_label_frame.pack(expand=True, fill=tk.BOTH, padx=5, pady=(10,5))
 
         shipment_columns = ("item", "qty")
         self.shipments_tree = ttk.Treeview(
-            shipments_label_frame, columns=shipment_columns, show="tree headings", height=4
+            shipments_label_frame, columns=shipment_columns, show="tree headings", height=8
         )
         self.shipments_tree.heading("item", text="Item")
         self.shipments_tree.heading("qty", text="Quantity")
@@ -205,8 +210,15 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
         self.shipments_tree.configure(yscrollcommand=shipments_scrollbar.set)
         self.shipments_tree.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
         shipments_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.shipments_tree.bind("<<TreeviewSelect>>", self.on_shipment_select)
 
-        self.content_frame.grid_columnconfigure(1, weight=1)
+        self.export_packing_slip_button = ttk.Button(
+            self.shipments_frame,
+            text="Export Packing Slip",
+            command=self.export_packing_slip,
+            state=tk.DISABLED,
+        )
+        self.export_packing_slip_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
         bottom_button_frame = ttk.Frame(self)
         bottom_button_frame.pack(pady=10, padx=10, fill=tk.X, side=tk.BOTTOM)
@@ -447,12 +459,18 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
     def load_shipments_for_document(self):
         for i in self.shipments_tree.get_children():
             self.shipments_tree.delete(i)
+        self.shipments_lookup.clear()
         if self.document_data and self.document_data.id:
-            shipments = self.sales_logic.get_shipments_for_order(self.document_data.id)
-            for shipment in shipments:
+            self.shipments_list = self.sales_logic.get_shipments_for_order(self.document_data.id)
+            for shipment in self.shipments_list:
                 parent = self.shipments_tree.insert(
-                    "", tk.END, text=f"Shipment {shipment['number']} - {shipment['created_at']}", open=True
+                    "",
+                    tk.END,
+                    text=f"Shipment {shipment['number']} - {shipment['created_at']}",
+                    iid=str(shipment["number"]),
+                    open=True,
                 )
+                self.shipments_lookup[str(shipment["number"])] = shipment
                 for item in shipment["items"]:
                     self.shipments_tree.insert(
                         parent,
@@ -462,7 +480,51 @@ class SalesDocumentPopup(Toplevel): # Changed from tk.Toplevel for directness
                             f"{item['quantity']:.2f}",
                         ),
                     )
+        self.on_shipment_select(None)
 
+    def on_shipment_select(self, event):
+        selected = self.shipments_tree.selection()
+        if not selected:
+            self.export_packing_slip_button.config(state=tk.DISABLED)
+            return
+        item = selected[0]
+        parent = self.shipments_tree.parent(item)
+        if parent:
+            self.shipments_tree.selection_set(parent)
+            item = parent
+        self.export_packing_slip_button.config(state=tk.NORMAL)
+
+    def export_packing_slip(self):
+        selected = self.shipments_tree.selection()
+        if not selected:
+            messagebox.showwarning("No Selection", "Please select a shipment.", parent=self)
+            return
+        shipment_id = selected[0]
+        shipment = self.shipments_lookup.get(shipment_id)
+        if not shipment:
+            messagebox.showerror("Error", "Shipment data not found.", parent=self)
+            return
+        shipments_map = {item["item_id"]: item["quantity"] for item in shipment["items"]}
+        previous_shipments: dict[int, float] = {}
+        for s in getattr(self, "shipments_list", []):
+            if s["number"] == shipment["number"]:
+                break
+            for itm in s["items"]:
+                previous_shipments[itm["item_id"]] = (
+                    previous_shipments.get(itm["item_id"], 0) + itm["quantity"]
+                )
+        try:
+            from core.packing_slip_generator import generate_packing_slip_pdf
+
+            generate_packing_slip_pdf(
+                self.document_data.id,
+                shipments_map,
+                shipment["number"],
+                previous_shipments=previous_shipments,
+            )
+            messagebox.showinfo("Success", "Packing slip generated.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate packing slip: {e}", parent=self)
 
     def on_item_tree_select(self, event):
         selected = self.items_tree.selection()

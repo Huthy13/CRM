@@ -103,6 +103,19 @@ class AccountRepository:
     def remove_payment_term_from_account(self, account_id):
         self.db.remove_payment_term_from_account(account_id)
 
+    # Account documents
+    def add_account_document(self, account_id, document_type, file_path, uploaded_at=None, expires_at=None):
+        return self.db.add_account_document(account_id, document_type, file_path, uploaded_at, expires_at)
+
+    def get_account_documents(self, account_id):
+        return self.db.get_account_documents(account_id)
+
+    def delete_account_document(self, document_id):
+        self.db.delete_account_document(document_id)
+
+    def count_account_documents_by_path(self, file_path):
+        return self.db.count_account_documents_by_path(file_path)
+
 
 class ProductRepository:
     """Repository for product-related operations."""

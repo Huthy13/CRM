@@ -1051,6 +1051,54 @@ class DatabaseHandler:
         self.cursor.execute("UPDATE accounts SET payment_term_id = NULL WHERE id = ?", (account_id,))
         self.conn.commit()
 
+    # Account document methods
+    def add_account_document(
+        self,
+        account_id: int,
+        document_type: str,
+        file_path: str,
+        uploaded_at: str | None = None,
+        expires_at: str | None = None,
+    ) -> int:
+        """Adds a document associated with an account and returns its ID."""
+        self.cursor.execute(
+            """
+            INSERT INTO account_documents (account_id, document_type, file_path, uploaded_at, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (account_id, document_type, file_path, uploaded_at, expires_at),
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def get_account_documents(self, account_id: int) -> list[dict]:
+        """Retrieves all documents linked to a given account."""
+        self.cursor.execute(
+            """
+            SELECT document_id, account_id, document_type, file_path, uploaded_at, expires_at
+            FROM account_documents
+            WHERE account_id = ?
+            ORDER BY uploaded_at DESC
+            """,
+            (account_id,),
+        )
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
+    def delete_account_document(self, document_id: int) -> None:
+        """Deletes a document by its ID."""
+        self.cursor.execute("DELETE FROM account_documents WHERE document_id = ?", (document_id,))
+        self.conn.commit()
+
+    def count_account_documents_by_path(self, file_path: str) -> int:
+        """Return how many records reference the given file path."""
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM account_documents WHERE file_path = ?",
+            (file_path,),
+        )
+        row = self.cursor.fetchone()
+        return row[0] if row else 0
+
 # Purchase Document related methods
     def add_purchase_document(self, doc_number: str, vendor_id: int, created_date: str, status: str, notes: str = None) -> int:
         """Adds a new purchase document and returns its ID."""

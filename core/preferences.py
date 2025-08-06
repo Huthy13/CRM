@@ -11,6 +11,7 @@ PREFERENCES_FILE = Path(__file__).resolve().parent.parent / 'preferences.json'
 DEFAULT_PREFERENCES: Dict[str, Any] = {
     'require_reference_on_quote_accept': False,
     'default_quote_expiry_days': 30,
+    'document_storage_path': 'uploaded_documents',
 }
 
 def load_preferences() -> Dict[str, Any]:

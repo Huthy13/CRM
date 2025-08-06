@@ -1,7 +1,16 @@
 import tkinter as tk
-from tkinter import messagebox, ttk  # Import ttk
-from shared.structs import Address, Account, AccountType  # Import AccountType
+from tkinter import filedialog, messagebox, ttk
+from shared.structs import Address, Account, AccountType
+from shared import AccountDocument
 from ui.base.popup_base import PopupBase
+import os
+import shutil
+import datetime
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+from core.preferences import load_preferences
 
 class AccountDetailsPopup(PopupBase):
     def __init__(self, master, logic, account_id=None):
@@ -65,6 +74,29 @@ class AccountDetailsPopup(PopupBase):
         tk.Button(address_button_frame, text="Add", command=self.add_address).pack(side="left")
         tk.Button(address_button_frame, text="Edit", command=self.edit_address).pack(side="left")
         tk.Button(address_button_frame, text="Delete", command=self.delete_address).pack(side="left")
+
+        # Documents Frame
+        documents_frame = tk.LabelFrame(self, text="Documents")
+        documents_frame.grid(row=8, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+
+        self.document_tree = ttk.Treeview(
+            documents_frame,
+            columns=("type", "filename", "expiry"),
+            show="headings",
+            height=5,
+        )
+        self.document_tree.heading("type", text="Type")
+        self.document_tree.heading("filename", text="Filename")
+        self.document_tree.heading("expiry", text="Expiry")
+        self.document_tree.pack(side="top", fill="x", expand=True)
+
+        doc_button_frame = tk.Frame(documents_frame)
+        doc_button_frame.pack(side="bottom", fill="x", expand=True)
+        tk.Button(doc_button_frame, text="Upload", command=self.upload_document).pack(side="left")
+        tk.Button(doc_button_frame, text="Open", command=self.open_document).pack(side="left")
+        tk.Button(doc_button_frame, text="Delete", command=self.delete_document).pack(side="left")
+
+        self.refresh_documents()
 
         # Save Button
         save_button = tk.Button(self, text="Save", command=self.save_account)
@@ -163,6 +195,80 @@ class AccountDetailsPopup(PopupBase):
         index = int(selected_item[0])
         del self.active_account.addresses[index]
         self.populate_address_tree()
+
+    def refresh_documents(self):
+        self.documents = []
+        if self.active_account.account_id:
+            self.documents = self.logic.get_account_documents(self.active_account.account_id)
+        self.populate_document_tree()
+
+    def populate_document_tree(self):
+        for item in self.document_tree.get_children():
+            self.document_tree.delete(item)
+        self.document_map = {}
+        for doc in getattr(self, "documents", []):
+            filename = os.path.basename(doc.file_path)
+            expiry = doc.expires_at.strftime("%Y-%m-%d") if doc.expires_at else ""
+            iid = str(doc.document_id)
+            self.document_tree.insert("", "end", iid=iid, values=(doc.document_type, filename, expiry))
+            self.document_map[iid] = doc
+
+    def upload_document(self):
+        if self.active_account.account_id is None:
+            messagebox.showerror("Error", "Save the account before uploading documents.")
+            return
+        file_path = filedialog.askopenfilename()
+        if not file_path:
+            return
+        document_type = os.path.splitext(file_path)[1].lstrip(".").upper() or "FILE"
+        prefs = load_preferences()
+        base_dir = Path(prefs.get("document_storage_path", "uploaded_documents")).expanduser()
+        storage_dir = base_dir / str(self.active_account.account_id)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        unique_name = f"{uuid.uuid4().hex}{Path(file_path).suffix}"
+        dest_path = (storage_dir / unique_name).resolve()
+        shutil.copy(file_path, dest_path)
+
+        doc = AccountDocument(
+            account_id=self.active_account.account_id,
+            document_type=document_type,
+            file_path=str(dest_path),
+            uploaded_at=datetime.datetime.now(),
+        )
+        self.logic.save_account_document(doc)
+        self.refresh_documents()
+
+    def open_document(self):
+        selected = self.document_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Please select a document to open.")
+            return
+        doc = self.document_map.get(selected[0])
+        if not doc or not os.path.exists(doc.file_path):
+            messagebox.showerror("Error", "File not found.")
+            return
+        try:
+            if os.name == "nt":
+                os.startfile(doc.file_path)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.call(["open", doc.file_path])
+            else:
+                subprocess.call(["xdg-open", doc.file_path])
+        except Exception as e:
+            messagebox.showerror("Error", f"Unable to open file: {e}")
+
+    def delete_document(self):
+        selected = self.document_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Please select a document to delete.")
+            return
+        doc = self.document_map.get(selected[0])
+        if not doc:
+            return
+        if not messagebox.askyesno("Confirm", "Delete selected document?"):
+            return
+        self.logic.delete_account_document(doc)
+        self.refresh_documents()
 
     def save_account(self):
         #Gathering account details

@@ -1,4 +1,5 @@
 {
   "require_reference_on_quote_accept": false,
-  "default_quote_expiry_days": 30
+  "default_quote_expiry_days": 30,
+  "document_storage_path": "uploaded_documents"
 }

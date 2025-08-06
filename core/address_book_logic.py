@@ -1,7 +1,9 @@
 from shared.structs import Address, Account, Contact, Product, AccountType, PricingRule, PaymentTerm
+from shared import AccountDocument
 from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
 import logging
+import datetime
 from core.database import DatabaseHandler
 from core.repositories import (
     AddressRepository,
@@ -178,6 +180,48 @@ class AddressBookLogic:
     def delete_account(self, account_id):
         """Delete an account and its associated contacts."""
         self.account_repo.delete_account(account_id)
+
+    # Account Document Methods
+    def save_account_document(self, document: AccountDocument) -> AccountDocument:
+        """Save a document linked to an account and return the stored object."""
+        if document.account_id is None:
+            raise ValueError("account_id is required to save a document")
+
+        doc_id = self.account_repo.add_account_document(
+            document.account_id,
+            document.document_name,
+            document.description,
+            document.document_type,
+            document.file_path,
+            document.uploaded_at.isoformat() if document.uploaded_at else None,
+            document.expires_at.isoformat() if document.expires_at else None,
+        )
+        document.document_id = doc_id
+        return document
+
+    def get_account_documents(self, account_id: int) -> List[AccountDocument]:
+        """Retrieve all documents associated with an account."""
+        docs = []
+        for row in self.account_repo.get_account_documents(account_id):
+            docs.append(
+                AccountDocument(
+                    document_id=row["document_id"],
+                    account_id=row["account_id"],
+                    document_name=row.get("document_name", ""),
+                    description=row.get("description", ""),
+                    document_type=row["document_type"],
+                    file_path=row["file_path"],
+                    uploaded_at=datetime.datetime.fromisoformat(row["uploaded_at"]) if row["uploaded_at"] else None,
+                    expires_at=datetime.datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
+                )
+            )
+        return docs
+
+    def delete_account_document(self, document: AccountDocument) -> None:
+        """Delete the provided account document."""
+        if document.document_id is None:
+            raise ValueError("Document ID is required for deletion")
+        self.account_repo.delete_account_document(document.document_id)
 
 #Contacts Methods
     def get_contact_details(self, contact_id: int) -> Contact | None:

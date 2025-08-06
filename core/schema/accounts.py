@@ -63,3 +63,17 @@ def create_schema(cursor: sqlite3.Cursor) -> None:
             UPDATE contacts SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
         END;
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS account_documents (
+            document_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            document_name TEXT,
+            description TEXT,
+            document_type TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+        )
+    """)

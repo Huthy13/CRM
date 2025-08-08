@@ -207,8 +207,8 @@ class AddressBookLogic:
                 AccountDocument(
                     document_id=row["document_id"],
                     account_id=row["account_id"],
-                    document_name=row.get("document_name", ""),
-                    description=row.get("description", ""),
+                    document_name=row["document_name"],
+                    description=row["description"],
                     document_type=row["document_type"],
                     file_path=row["file_path"],
                     uploaded_at=datetime.datetime.fromisoformat(row["uploaded_at"]) if row["uploaded_at"] else None,

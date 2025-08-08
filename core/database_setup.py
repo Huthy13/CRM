@@ -41,6 +41,22 @@ def create_tables(db_conn=None):
             company,
         ):
             module.create_schema(cursor)
+        # Ensure account_documents table exists for storing documents linked to accounts
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS account_documents (
+                document_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                document_name TEXT,
+                description TEXT,
+                document_type TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                FOREIGN KEY (account_id) REFERENCES accounts (id) ON DELETE CASCADE
+            )
+            """
+        )
         versioning.ensure_version_table(cursor, versioning.SCHEMA_VERSION)
         conn.commit()
         print("Database tables created successfully (if they didn't exist).")

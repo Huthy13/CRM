@@ -202,6 +202,12 @@ class AddressBookLogic:
     def get_account_documents(self, account_id: int) -> List[AccountDocument]:
         """Retrieve all documents associated with an account."""
         docs = []
+
+        def _parse_ts(val):
+            if isinstance(val, datetime.datetime):
+                return val
+            return datetime.datetime.fromisoformat(val) if val else None
+
         for row in self.account_repo.get_account_documents(account_id):
             docs.append(
                 AccountDocument(
@@ -211,8 +217,8 @@ class AddressBookLogic:
                     description=row["description"],
                     document_type=row["document_type"],
                     file_path=row["file_path"],
-                    uploaded_at=datetime.datetime.fromisoformat(row["uploaded_at"]) if row["uploaded_at"] else None,
-                    expires_at=datetime.datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
+                    uploaded_at=_parse_ts(row["uploaded_at"]),
+                    expires_at=_parse_ts(row["expires_at"]),
                 )
             )
         return docs

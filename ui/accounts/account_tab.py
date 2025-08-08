@@ -59,32 +59,67 @@ class AccountTab(TabBase):
         self.customize_button.configure(menu=self.column_menu)
 
         self.column_vars = {}
-        for col, label in [
-            ("phone", "Phone"),
-            ("description", "Description"),
-            ("account_type", "Account Type"),
+        for col, label, default in [
+            ("phone", "Phone", True),
+            ("description", "Description", True),
+            ("account_type", "Account Type", True),
+            ("pricing_rule", "Pricing Rule", False),
+            ("payment_term", "Payment Term", False),
         ]:
-            var = tk.BooleanVar(value=True)
+            var = tk.BooleanVar(value=default)
             self.column_vars[col] = var
-            self.column_menu.add_checkbutton(label=label, variable=var, command=self.update_columns)
+            self.column_menu.add_checkbutton(
+                label=label, variable=var, command=self.update_columns
+            )
 
         # Treeview for displaying accounts
         self.tree = ttk.Treeview(
             self,
-            columns=("id", "name", "phone", "description", "account_type"),
+            columns=(
+                "id",
+                "name",
+                "phone",
+                "description",
+                "account_type",
+                "pricing_rule",
+                "payment_term",
+            ),
             show="headings",
         )
         # Hide the ID column and configure displayed columns
         self.tree.column("id", width=0, stretch=False)
-        self.tree["displaycolumns"] = ("name", "phone", "description", "account_type")
+        self.tree["displaycolumns"] = (
+            "name",
+            "phone",
+            "description",
+            "account_type",
+            "pricing_rule",
+            "payment_term",
+        )
         self.tree.heading("name", text="Account Name", command=lambda: self.sort_column("name", False))
         self.tree.heading("phone", text="Phone", command=lambda: self.sort_column("phone", False))
         self.tree.heading("description", text="Description", command=lambda: self.sort_column("description", False))
-        self.tree.heading("account_type", text="Account Type", command=lambda: self.sort_column("account_type", False))
+        self.tree.heading(
+            "account_type",
+            text="Account Type",
+            command=lambda: self.sort_column("account_type", False),
+        )
+        self.tree.heading(
+            "pricing_rule",
+            text="Pricing Rule",
+            command=lambda: self.sort_column("pricing_rule", False),
+        )
+        self.tree.heading(
+            "payment_term",
+            text="Payment Term",
+            command=lambda: self.sort_column("payment_term", False),
+        )
         self.tree.column("name", width=150)
         self.tree.column("phone", width=100)
         self.tree.column("description", width=150)
         self.tree.column("account_type", width=100)
+        self.tree.column("pricing_rule", width=120)
+        self.tree.column("payment_term", width=120)
         self.tree.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.select_account)
 
@@ -137,15 +172,33 @@ class AccountTab(TabBase):
         accounts_obj_list = self.logic.get_all_accounts()
 
         for account_obj in accounts_obj_list:
-            account_type_display = account_obj.account_type.value if account_obj.account_type else "N/A"
+            account_type_display = (
+                account_obj.account_type.value if account_obj.account_type else "N/A"
+            )
 
-            self.tree.insert("", "end", values=(
-                account_obj.account_id,
-                account_obj.name,
-                account_obj.phone,
-                account_obj.description or "N/A",
-                account_type_display,
-            ))
+            pricing_rule_name = "N/A"
+            if account_obj.pricing_rule_id:
+                rule = self.logic.get_pricing_rule(account_obj.pricing_rule_id)
+                pricing_rule_name = rule.rule_name if rule else "N/A"
+
+            payment_term_name = "N/A"
+            if account_obj.payment_term_id:
+                term = self.logic.get_payment_term(account_obj.payment_term_id)
+                payment_term_name = term.term_name if term else "N/A"
+
+            self.tree.insert(
+                "",
+                "end",
+                values=(
+                    account_obj.account_id,
+                    account_obj.name,
+                    account_obj.phone,
+                    account_obj.description or "N/A",
+                    account_type_display,
+                    pricing_rule_name,
+                    payment_term_name,
+                ),
+            )
 
     def select_account(self, event=None):
         """Retrieve the Account_ID of the selected account."""

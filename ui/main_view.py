@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 from core.address_book_logic import AddressBookLogic
 from ui.contacts.contact_tab import ContactTab
 from ui.accounts.account_tab import AccountTab
@@ -79,6 +79,13 @@ class AddressBookView:
         settings_menu.add_command(label="Sales Preferences", command=self.open_sales_preferences)
         menu_bar.add_cascade(label="Settings", menu=settings_menu)
 
+        import_export_menu = tk.Menu(menu_bar, tearoff=0)
+        account_export_menu = tk.Menu(import_export_menu, tearoff=0)
+        account_export_menu.add_command(label="Export Accounts", command=self.export_accounts)
+        account_export_menu.add_command(label="Import Accounts", command=self.import_accounts)
+        import_export_menu.add_cascade(label="Accounts", menu=account_export_menu)
+        menu_bar.add_cascade(label="Import/Export", menu=import_export_menu)
+
         # Initialize all tabs
         self.account_tab = AccountTab(self.notebook, self.address_book_logic)
         self.contact_tab = ContactTab(self.notebook, self.address_book_logic)
@@ -134,3 +141,21 @@ class AddressBookView:
         """Open the sales preferences popup."""
         popup = SalesPreferencesPopup(self.root)
         self.root.wait_window(popup)
+
+    def export_accounts(self):
+        """Export accounts to a CSV file."""
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".csv", filetypes=[("CSV Files", "*.csv")]
+        )
+        if file_path:
+            self.address_book_logic.export_accounts_to_csv(file_path)
+            messagebox.showinfo("Export Accounts", "Accounts exported successfully.")
+
+    def import_accounts(self):
+        """Import accounts from a CSV file."""
+        file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+        if file_path:
+            imported = self.address_book_logic.import_accounts_from_csv(file_path)
+            messagebox.showinfo(
+                "Import Accounts", f"Imported {len(imported)} accounts."
+            )

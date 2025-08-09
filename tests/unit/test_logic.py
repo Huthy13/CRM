@@ -287,5 +287,27 @@ class TestLogic(unittest.TestCase):
         self.assertIn("CSV Two", names)
         os.remove(path)
 
+    def test_export_import_accounts_csv(self):
+        """Accounts can be exported to CSV and imported back."""
+        acc1 = Account(name="Acc One", phone="111", account_type=AccountType.CUSTOMER)
+        acc2 = Account(name="Acc Two", phone="222", account_type=AccountType.VENDOR)
+        self.logic.save_account(acc1)
+        self.logic.save_account(acc2)
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            path = tmp.name
+
+        self.logic.export_accounts_to_csv(path)
+
+        with self.db_handler.conn:
+            self.db_handler.cursor.execute("DELETE FROM accounts")
+
+        imported = self.logic.import_accounts_from_csv(path)
+        self.assertEqual(len(imported), 2)
+        names = {a.name for a in self.logic.get_all_accounts()}
+        self.assertIn("Acc One", names)
+        self.assertIn("Acc Two", names)
+        os.remove(path)
+
 if __name__ == '__main__':
     unittest.main()

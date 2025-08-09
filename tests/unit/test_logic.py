@@ -1,5 +1,7 @@
 import unittest
 import sqlite3 # Using sqlite3 for in-memory database for testing
+import tempfile
+import os
 from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler # Assuming this is your DB handler class
 from shared.structs import Account, Contact, Address, AccountType # Added AccountType
@@ -248,6 +250,42 @@ class TestLogic(unittest.TestCase):
         )
         still_here_details = self.logic.get_contact_details(other_contact.contact_id)
         self.assertIsNotNone(still_here_details)
+
+    def test_export_import_contacts_csv(self):
+        """Contacts can be exported to CSV and imported back."""
+        # Create account and contacts
+        addr_id = self.logic.add_address("CSV St", "CSV City", "CS", "CS001", "CC")
+        account = Account(name="CSV Account", phone="000-1111",
+                          addresses=[Address(address_id=addr_id, street="CSV St", city="CSV City",
+                                             state="CS", zip_code="CS001", country="CC")],
+                          account_type=AccountType.CUSTOMER)
+        account.addresses[0].is_primary = True
+        account.addresses[0].address_type = "Billing"
+        self.logic.save_account(account)
+        account_id = self.logic.get_accounts()[0][0]
+
+        contact1 = Contact(name="CSV One", phone="101", email="one@csv.com",
+                           role="Role1", account_id=account_id)
+        contact2 = Contact(name="CSV Two", phone="202", email="two@csv.com",
+                           role="Role2", account_id=account_id)
+        self.logic.save_contact(contact1)
+        self.logic.save_contact(contact2)
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            path = tmp.name
+
+        self.logic.export_contacts_to_csv(path)
+
+        # Clear contacts and import from CSV
+        with self.db_handler.conn:
+            self.db_handler.cursor.execute("DELETE FROM contacts")
+
+        imported = self.logic.import_contacts_from_csv(path)
+        self.assertEqual(len(imported), 2)
+        names = {c.name for c in self.logic.get_all_contacts()}
+        self.assertIn("CSV One", names)
+        self.assertIn("CSV Two", names)
+        os.remove(path)
 
 if __name__ == '__main__':
     unittest.main()

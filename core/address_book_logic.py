@@ -4,6 +4,7 @@ from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
 import logging
 import datetime
+import csv
 from core.database import DatabaseHandler
 from core.repositories import (
     AddressRepository,
@@ -300,6 +301,41 @@ class AddressBookLogic:
                 account_id=row_data["account_id"]
             ))
         return contact_list
+
+    def export_contacts_to_csv(self, file_path: str) -> None:
+        """Export all contacts to a CSV file."""
+        contacts = self.get_all_contacts()
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = ["contact_id", "name", "phone", "email", "role", "account_id"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for contact in contacts:
+                writer.writerow(contact.to_dict())
+
+    def import_contacts_from_csv(self, file_path: str) -> List[Contact]:
+        """Import contacts from a CSV file and save them to the database."""
+        imported_contacts: List[Contact] = []
+        with open(file_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if not row:
+                    continue
+                raw_contact_id = int(row["contact_id"]) if row.get("contact_id") else None
+                account_id = int(row["account_id"]) if row.get("account_id") else None
+                contact = Contact(
+                    contact_id=None,
+                    name=row.get("name", ""),
+                    phone=row.get("phone", ""),
+                    email=row.get("email", ""),
+                    role=row.get("role", ""),
+                    account_id=account_id,
+                )
+                if raw_contact_id and self.get_contact_details(raw_contact_id):
+                    contact.contact_id = raw_contact_id
+                saved_contact = self.save_contact(contact)
+                if saved_contact:
+                    imported_contacts.append(saved_contact)
+        return imported_contacts
 
     def delete_contact(self, contact_id: int):
         """Delete a specific contact."""

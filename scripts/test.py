@@ -13,7 +13,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
-
+from shared.logging_config import setup_logging
 def build_dependencies():
     """
     Placeholder for any build steps or dependency checks.
@@ -58,6 +58,7 @@ def run_tests():
         return 1
 
 if __name__ == '__main__':
+    setup_logging()
     build_dependencies()
     exit_code = run_tests()
     sys.exit(exit_code)

@@ -2,8 +2,12 @@ import tkinter as tk
 from ui.main_view import AddressBookView
 from core.address_book_logic import AddressBookLogic
 from core.database import DatabaseHandler
+from shared.logging_config import setup_logging
 
 if __name__ == '__main__':
+    # Configure logging and redirect prints before any application logic runs
+    setup_logging()
+
     # Initialize database and logic
     # The DatabaseHandler path for the DB file will be fixed in a later step.
     db_handler = DatabaseHandler()

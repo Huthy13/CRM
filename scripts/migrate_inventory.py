@@ -1,6 +1,7 @@
 """One-time migration to add inventory columns to products and backfill quantities."""
 import sqlite3
 from core.database_setup import DB_NAME
+from shared.logging_config import setup_logging
 
 def column_exists(cursor, table, column):
     cursor.execute(f"PRAGMA table_info({table})")
@@ -32,4 +33,5 @@ def run_migration(db_path=DB_NAME):
         conn.close()
 
 if __name__ == "__main__":
+    setup_logging()
     run_migration()

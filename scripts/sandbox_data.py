@@ -7,6 +7,7 @@ application has meaningful data to interact with.
 
 import os
 import sys
+from shared.logging_config import setup_logging
 
 # Ensure project root is on the path for absolute imports
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -270,6 +271,7 @@ def populate_data() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     db_path = os.path.join(PROJECT_ROOT, "core", "address_book.db")
     if os.path.exists(db_path):
         print(f"Deleting existing database file: {db_path}")

@@ -57,7 +57,9 @@ def create_tables(db_conn=None):
             )
             """
         )
-        versioning.ensure_version_table(cursor, versioning.SCHEMA_VERSION)
+        # Ensure schema version tracking table exists.  Migrations are executed
+        # separately during database initialisation.
+        versioning.ensure_version_table(cursor)
         conn.commit()
         print("Database tables created successfully (if they didn't exist).")
     except sqlite3.Error as e:
@@ -77,6 +79,10 @@ def initialize_database(db_conn=None):
     conn = db_conn if conn_was_provided else get_db_connection()
     try:
         cursor = conn.cursor()
+        # Apply any outstanding schema migrations before seeding data.  This
+        # allows existing databases to be upgraded without losing information.
+        versioning.apply_migrations(cursor, versioning.SCHEMA_VERSION)
+
         cursor.execute("INSERT OR IGNORE INTO users (username) VALUES ('system_user')")
         conn.commit()
     except sqlite3.Error as e:

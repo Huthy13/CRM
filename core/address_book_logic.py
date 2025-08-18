@@ -4,6 +4,7 @@ from typing import Optional, List, TYPE_CHECKING
 from enum import Enum
 import logging
 import datetime
+import csv
 from core.database import DatabaseHandler
 from core.repositories import (
     AddressRepository,
@@ -177,6 +178,64 @@ class AddressBookLogic:
         """Retrieve all accounts (typically for dropdowns)."""
         return self.account_repo.get_accounts()
 
+    def export_accounts_to_csv(self, file_path: str) -> None:
+        """Export all accounts to a CSV file."""
+        accounts = self.get_all_accounts()
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = [
+                "account_id",
+                "name",
+                "phone",
+                "website",
+                "description",
+                "account_type",
+                "pricing_rule_id",
+                "payment_term_id",
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for account in accounts:
+                writer.writerow(
+                    {
+                        "account_id": account.account_id,
+                        "name": account.name,
+                        "phone": account.phone,
+                        "website": account.website,
+                        "description": account.description,
+                        "account_type": account.account_type.value if account.account_type else "",
+                        "pricing_rule_id": account.pricing_rule_id,
+                        "payment_term_id": account.payment_term_id,
+                    }
+                )
+
+    def import_accounts_from_csv(self, file_path: str) -> List[Account]:
+        """Import accounts from a CSV file and save them to the database."""
+        imported_accounts: List[Account] = []
+        with open(file_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if not row:
+                    continue
+                account_type_str = row.get("account_type")
+                account_type = AccountType(account_type_str) if account_type_str else None
+                raw_account_id = int(row["account_id"]) if row.get("account_id") else None
+                account = Account(
+                    account_id=None,
+                    name=row.get("name", ""),
+                    phone=row.get("phone", ""),
+                    website=row.get("website", ""),
+                    description=row.get("description", ""),
+                    account_type=account_type,
+                    pricing_rule_id=int(row["pricing_rule_id"]) if row.get("pricing_rule_id") else None,
+                    payment_term_id=int(row["payment_term_id"]) if row.get("payment_term_id") else None,
+                )
+                if raw_account_id and self.get_account_details(raw_account_id):
+                    account.account_id = raw_account_id
+                saved_account = self.save_account(account)
+                if saved_account:
+                    imported_accounts.append(saved_account)
+        return imported_accounts
+
     def delete_account(self, account_id):
         """Delete an account and its associated contacts."""
         self.account_repo.delete_account(account_id)
@@ -300,6 +359,41 @@ class AddressBookLogic:
                 account_id=row_data["account_id"]
             ))
         return contact_list
+
+    def export_contacts_to_csv(self, file_path: str) -> None:
+        """Export all contacts to a CSV file."""
+        contacts = self.get_all_contacts()
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = ["contact_id", "name", "phone", "email", "role", "account_id"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for contact in contacts:
+                writer.writerow(contact.to_dict())
+
+    def import_contacts_from_csv(self, file_path: str) -> List[Contact]:
+        """Import contacts from a CSV file and save them to the database."""
+        imported_contacts: List[Contact] = []
+        with open(file_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if not row:
+                    continue
+                raw_contact_id = int(row["contact_id"]) if row.get("contact_id") else None
+                account_id = int(row["account_id"]) if row.get("account_id") else None
+                contact = Contact(
+                    contact_id=None,
+                    name=row.get("name", ""),
+                    phone=row.get("phone", ""),
+                    email=row.get("email", ""),
+                    role=row.get("role", ""),
+                    account_id=account_id,
+                )
+                if raw_contact_id and self.get_contact_details(raw_contact_id):
+                    contact.contact_id = raw_contact_id
+                saved_contact = self.save_contact(contact)
+                if saved_contact:
+                    imported_contacts.append(saved_contact)
+        return imported_contacts
 
     def delete_contact(self, contact_id: int):
         """Delete a specific contact."""

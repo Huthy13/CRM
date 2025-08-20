@@ -30,7 +30,7 @@ class AccountTab(TabBase):
 
         self.add_account_button = tk.Button(
             button_frame,
-            text="New",
+            text="Create",
             command=self.create_new_account,
             width=button_width,
         )
